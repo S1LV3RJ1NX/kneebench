@@ -1,0 +1,46 @@
+id: B01
+title: How close one request gets to the hardware limit
+status_line:
+  ok: >-
+    One request runs at {{ pct(mbu) }} of the GPU's memory bandwidth ({{ ms(tpot_ms) }} per token
+    against a {{ ms(floor_ms) }} floor): healthy.
+  warn: >-
+    One request uses only {{ pct(mbu) }} of the GPU's memory bandwidth ({{ ms(tpot_ms) }} per
+    token against a {{ ms(floor_ms) }} floor), below the healthy 60 to 80% band.
+  bad: >-
+    One request uses just {{ pct(mbu) }} of the GPU's memory bandwidth ({{ times(ratio) }} the
+    floor): something is slowing decode down.
+  skip: >-
+    Bandwidth use would be above 100%, which is impossible: see "Measured speed versus the
+    claimed GPU".
+measured: >-
+  With nothing else running, the median {{ term("TPOT") }} across {{ num(requests, 0) }}
+  identical requests was
+  {{ ms(tpot_ms) }}. The floor for this model on {{ gpu_label }} is {{ ms(floor_ms) }}, so
+  decoding reaches {{ pct(mbu) }} {{ term("MBU") }}.
+meaning:
+  ok: >-
+    The engine is doing its job: there is nothing to fix for single-request speed. The sweeps
+    measure how this changes as users are added.
+  warn: >-
+    A single user gets words slower than this GPU allows. The GPU was otherwise idle, so the cause
+    is configuration, not load.
+  bad: >-
+    A single user gets words much slower than this GPU allows. The GPU was otherwise idle, so the
+    cause is configuration, not load.
+analogy: >-
+  Like a car on an empty highway: if it can't get near the speed limit, the problem is the car,
+  not the traffic.
+why: >-
+  With one request, each decode step is almost entirely reading weights from memory, so speed is
+  bounded by bandwidth. Well-tuned engines reach 60 to 80% of it; Databricks reported about 60% at
+  batch 1 on two H100s. The gap is launch overhead and small operations that can't use the full
+  bandwidth.
+learn_more: {note: "24", anchor: "4-compare-against-the-floors", label: "Compare against the floors"}
+actions:
+  - when: [warn, bad]
+    title: Remove eager mode if it is on
+    flag: remove --enforce-eager
+    expected: Time per token moves toward {{ ms(floor_ms / 0.7) }} (about 70% of bandwidth).
+    risk: CUDA graphs use a little more memory and add a few seconds to startup.
+    verify: Rerun the baseline; this check should turn green.

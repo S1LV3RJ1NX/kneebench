@@ -1,0 +1,15 @@
+# Public lesson notes every explanation traces back to.
+base_url: https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/
+notes:
+  "24":
+    slug: 24-establish-single-request-baseline
+    title: Establish the single-request baseline
+  "25":
+    slug: 25-sweep-concurrency-request-rate
+    title: Sweep concurrency and request rate
+  "26":
+    slug: 26-sweep-prompt-output-length
+    title: Sweep prompt and output length
+  "27":
+    slug: 27-find-saturation-slo-oom-boundaries
+    title: Find saturation, SLO failure and OOM boundaries

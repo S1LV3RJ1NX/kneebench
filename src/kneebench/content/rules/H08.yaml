@@ -1,0 +1,20 @@
+id: H08
+title: Server metrics not visible
+status_line:
+  warn: >-
+    The server's /metrics wasn't reachable, so memory and queue findings (cache use, preemption,
+    waiting requests) can't be shown.
+measured: GET /metrics did not return vLLM metrics.
+meaning: >-
+  Latency and throughput are still measured, but the most common hidden problem, memory running
+  out, can't be seen.
+why: >-
+  Memory trouble shows up first as preemption, which produces no errors, only a counter in
+  /metrics. Without it, the memory wall is invisible until something crashes.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+actions:
+  - when: [warn]
+    title: Expose /metrics through your gateway (read-only)
+    expected: Cache use, preemptions and queue length appear in the report.
+    risk: Metrics reveal load and configuration; restrict access as you would any internal page.
+    verify: kneebench doctor shows "GET /metrics ok".

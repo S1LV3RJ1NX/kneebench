@@ -1,0 +1,33 @@
+id: T01
+title: The fastest this setup can possibly go
+status_line:
+  info: >-
+    Physics floor for one request ({{ num(baseline.isl) }} in, {{ num(baseline.osl) }} out):
+    {{ ms(baseline.tpot_ms) }} per token, {{ ms(baseline.e2e_ms) }} end to end.
+measured: >-
+  Before sending any traffic, kneebench worked out the {{ term("floor") }} from the model's size
+  and the published speeds of {{ gpu_label }}. Reading all {{ num(weight_gb, 1) }} GB of weights
+  once takes {{ ms(baseline.tpot_ms) }} at {{ num(bandwidth_tbps, 2) }} TB/s, so no token can
+  arrive faster. Reading a {{ num(baseline.isl) }}-token prompt needs at least
+  {{ ms(baseline.ttft_ms) }} of math at {{ num(peak_tflops, 0) }} TFLOPS.
+meaning: >-
+  This is the ruler every later number is measured against. Real servers always land above it;
+  how far above tells you whether something is misconfigured.
+analogy: >-
+  Like a speed limit set by the road itself: you can drive slower, never faster.
+why: >-
+  Writing the answer is called {{ term("decode") }}: each step reads every weight from GPU memory
+  once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is
+  called {{ term("prefill") }}: it does about two math operations per parameter per prompt token,
+  so it is bounded by the GPU's math throughput. End to end is the first token plus one decode
+  step for each remaining token.
+learn_more: {note: "24", anchor: "2-work-out-the-floors-first", label: "Work out the floors first"}
+table:
+  rows: shapes
+  columns:
+    - {key: name, label: Shape}
+    - {key: isl, label: Prompt tokens, fmt: num}
+    - {key: osl, label: Output tokens, fmt: num}
+    - {key: ttft_ms, label: TTFT floor, fmt: ms}
+    - {key: tpot_ms, label: TPOT floor, fmt: ms}
+    - {key: e2e_ms, label: End-to-end floor, fmt: ms}

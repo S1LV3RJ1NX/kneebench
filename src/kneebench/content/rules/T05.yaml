@@ -1,0 +1,23 @@
+id: T05
+title: Shapes adjusted to fit the context window
+status_line:
+  info: >-
+    {% for s in shapes %}{{ s.name }} {{ num(s.from_isl) }}/{{ num(s.from_osl) }} became
+    {{ num(s.isl) }}/{{ num(s.osl) }}{% if not loop.last %}; {% endif %}{% endfor %} to fit the
+    {{ num(max_model_len) }}-token context.
+measured: >-
+  Prompt plus output plus room for the chat template must fit in {{ num(max_model_len) }} tokens.
+meaning: >-
+  kneebench shortened the longer side of these shapes. Their results describe the adjusted
+  lengths, not the originals.
+why: >-
+  A request can't be longer than the server's context window, so a shape that doesn't fit would
+  fail every request instead of measuring anything.
+learn_more: {note: "26", anchor: "5-running-the-sweep", label: "Running the sweep"}
+actions:
+  - when: [info]
+    title: Raise the context limit if your real traffic is longer
+    flag: --max-model-len <tokens>
+    expected: The original shapes can be measured as-is.
+    risk: A longer limit needs more cache per request; check the memory findings after.
+    verify: Rerun; this note disappears.

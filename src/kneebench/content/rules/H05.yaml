@@ -1,0 +1,23 @@
+id: H05
+title: Token counts disagree with the server
+status_line:
+  warn: >-
+    AIPerf's token counts differ from the server's in {{ phases | join(", ") }}: the tokenizer may
+    not match the model.
+measured: >-
+  AIPerf counted tokens with the {{ tokenizer or "configured" }} tokenizer and compared them with
+  the usage the server reported.
+meaning: >-
+  If the tokenizer is wrong, every prompt length, output length and tokens-per-second number is
+  off.
+why: >-
+  Different models split text into tokens differently. Token counts only mean something with the
+  exact tokenizer of the model being served.
+learn_more: {note: "26", anchor: "5-running-the-sweep", label: "Running the sweep"}
+actions:
+  - when: [warn]
+    title: Use the served model's own tokenizer
+    flag: --tokenizer <hugging-face-id-or-path>
+    expected: AIPerf's counts match the server's.
+    risk: None.
+    verify: Rerun; this warning disappears.

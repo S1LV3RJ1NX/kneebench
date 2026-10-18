@@ -1,0 +1,33 @@
+id: B02
+title: "Decode much slower than physics: the usual suspects"
+status_line:
+  bad: >-
+    Time per token is {{ times(ratio) }} its floor ({{ ms(tpot_ms) }} against {{ ms(floor_ms) }}).
+measured: >-
+  Median {{ term("TPOT") }} {{ ms(tpot_ms) }} with one request on an idle GPU; floor
+  {{ ms(floor_ms) }}.
+meaning: >-
+  {% if enforce_eager %}Eager mode is on (--enforce-eager), the most common cause.
+  {% elif enforce_eager is none %}You didn't say whether --enforce-eager is set; it is the most
+  common cause.{% endif %}
+  {% if fp32 %}The weights are 32-bit, which doubles the bytes per token.{% endif %}
+  Also check for a noisy GPU: another process on it, a leftover notebook, or clocks throttled by
+  power or heat.
+why: >-
+  Without CUDA graphs, the CPU launches every small GPU operation one by one at each step and the
+  GPU waits in between. 32-bit weights double the bytes to read. A shared or throttled GPU simply
+  has less bandwidth to give.
+learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
+actions:
+  - when: [bad]
+    title: Turn CUDA graphs back on
+    flag: remove --enforce-eager
+    expected: Time per token drops toward 1.3 to 1.7 times the floor ({{ ms(floor_ms * 1.5) }}).
+    risk: Slightly more memory and a longer startup.
+    verify: Rerun the baseline.
+  - when: [bad]
+    title: Check the GPU is not shared or throttled
+    flag: nvidia-smi; nvidia-smi -q -d CLOCK,PERFORMANCE
+    expected: Only the vLLM process on the GPU, clocks near maximum, no throttle reasons.
+    risk: None; read-only commands on the server.
+    verify: Rerun the baseline once the GPU is quiet.

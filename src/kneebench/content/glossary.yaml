@@ -1,0 +1,23 @@
+# One-line, plain-English definitions. The first use of a term in a report shows
+# the definition inline; later uses link or hover to it.
+terms:
+  TTFT: time to first token, how long a user waits before the answer starts appearing
+  TPOT: time per output token, the gap between words once the answer is streaming
+  E2E: end-to-end latency, from sending the request to receiving the last token
+  P50: the median, half of requests were faster than this
+  P90: 90 out of 100 requests were at least this fast
+  P99: 99 out of 100 requests were at least this fast; the slow tail users notice
+  KV cache: the memory where the server keeps each request's context while it answers
+  MBU: model bandwidth utilization, how much of the GPU's memory speed decoding actually uses
+  MFU: model FLOPs utilization, how much of the GPU's math throughput prefill actually uses
+  floor: the fastest time physics allows on this hardware; nothing can beat it
+  prefill: the step that reads the whole prompt at once, limited by GPU math
+  decode: the word-by-word step that writes the answer, limited by GPU memory speed
+  goodput: requests per second that met the latency targets
+  preemption: the server evicting a running request when memory runs out, then recomputing it later
+  saturation: the point where adding users no longer adds throughput
+  SLO: service-level objective, the latency target you promise users
+  concurrency: how many requests are in flight at the same time
+  tensor parallelism: splitting one model across several GPUs that work on every token together
+  prefix caching: reusing work for prompts that start with the same text
+  round trip: the time for a message to reach the server and come back, with no real work done

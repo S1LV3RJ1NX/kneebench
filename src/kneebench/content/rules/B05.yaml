@@ -1,0 +1,14 @@
+id: B05
+title: How much of the GPU's math prefill uses
+status_line:
+  info: >-
+    Prefill uses about {{ pct(mfu) }} of the GPU's math throughput on a {{ num(isl) }}-token prompt.
+measured: >-
+  Server-side {{ term("TTFT") }} {{ ms(server_ttft_ms) }} against a compute floor of
+  {{ ms(floor_ms) }} gives {{ pct(mfu) }} {{ term("MFU") }}.
+meaning: >-
+  Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+why: >-
+  A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate
+  (the lesson's example sits near 37%). Longer prompts should climb toward 50%.
+learn_more: {note: "24", anchor: "4-compare-against-the-floors", label: "Compare against the floors"}

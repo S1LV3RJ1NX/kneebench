@@ -1,0 +1,22 @@
+id: H07
+title: Versions under test
+status_line:
+  ok: >-
+    vLLM {{ vllm_version }} is within the tested range ({{ tested_min }} up to
+    {{ tested_max_exclusive }}). Recorded: kneebench {{ kneebench_version }}, AIPerf
+    {{ aiperf_version }}.
+  warn: >-
+    {% if unknown %}The server didn't report a vLLM version, so defaults are assumed from the
+    newest tested release ({{ tested_min }} and up).{% else %}vLLM {{ vllm_version }} is outside the
+    tested range ({{ tested_min }} up to {{ tested_max_exclusive }}); flag defaults and metric
+    names may differ.{% endif %}
+measured: >-
+  vLLM {{ vllm_version or "unknown" }}, AIPerf {{ aiperf_version }}, kneebench
+  {{ kneebench_version }}.
+meaning:
+  ok: Flag defaults and recommendations in this report match your vLLM version.
+  warn: Recommendations assume defaults that may not match your server exactly.
+why: >-
+  Defaults change between vLLM releases (the default number of concurrent sequences, for example),
+  so advice depends on the version. Pinning versions is also what makes two runs comparable.
+learn_more: {note: "24", anchor: "3-measure-cleanly", label: "Measure cleanly"}

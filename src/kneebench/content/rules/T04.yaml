@@ -1,0 +1,36 @@
+id: T04
+title: Room for a full-length request
+status_line:
+  ok: >-
+    The cache holds {{ times(startup_fit) }} full-length ({{ num(max_model_len) }}-token) requests:
+    room to spare.
+  warn: >-
+    The cache holds only {{ times(startup_fit) }} full-length ({{ num(max_model_len) }}-token)
+    requests: a few long conversations will fill it.
+  bad: >-
+    The cache can't hold even one full-length ({{ num(max_model_len) }}-token) request
+    ({{ times(startup_fit) }}).
+  skip: "Not checked: the server didn't report its cache size."
+measured: >-
+  {{ num(pool_tokens) }} tokens of cache divided by the {{ num(max_model_len) }}-token context
+  limit gives {{ times(startup_fit) }}.
+meaning:
+  ok: Even maximum-length conversations have room. This is not a constraint for you.
+  warn: >-
+    The server runs, but only a handful of maximum-length requests fit at once; the rest will
+    wait or be evicted.
+  bad: >-
+    vLLM normally refuses to start in this state. If it is running, a maximum-length request can't
+    be served.
+why: >-
+  At startup vLLM checks that the weights plus one request at max_model_len fit in memory. The
+  pool divided by max_model_len is how many such requests fit at once.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+actions:
+  - when: [warn, bad]
+    title: Lower the context limit, or free memory for the cache
+    flag: --max-model-len {{ suggest_max_model_len }}
+    expected: >-
+      About {{ times(pool_tokens / suggest_max_model_len) }} full-length requests fit.
+    risk: Requests longer than {{ num(suggest_max_model_len) }} tokens are rejected.
+    verify: Rerun kneebench; this check shows the new ratio.

@@ -1,0 +1,26 @@
+id: H04
+title: Did every answer reach the requested length?
+status_line:
+  ok: Every point generated the full requested output length ({{ checked }} checked).
+  bad: >-
+    Some answers stopped early:
+    {% for p in points %}{{ p.phase }} asked for {{ num(p.requested) }} tokens and got
+    {{ num(p.mean, 0) }} on average{% if not loop.last %}; {% endif %}{% endfor %}.
+measured: >-
+  Requested output length compared with the tokens actually generated, per point.
+meaning:
+  ok: Output lengths are what the test asked for, so decode and memory numbers are honest.
+  bad: >-
+    Short answers make decode look cheaper and memory look emptier than they are, so latency and
+    capacity for these points are too optimistic.
+why: >-
+  Without ignore_eos the model stops when it decides it is done, and "8,000 output tokens" quietly
+  becomes about 300. kneebench sends ignore_eos on every request; if answers are still short, the
+  server or a gateway is not honoring it, or max tokens are capped somewhere.
+learn_more: {note: "26", anchor: "5-running-the-sweep", label: "Running the sweep"}
+actions:
+  - when: [bad]
+    title: Make sure ignore_eos reaches the server and max tokens isn't capped
+    expected: Every request generates exactly the requested length.
+    risk: None.
+    verify: Rerun; this check should turn green.

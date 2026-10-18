@@ -1,0 +1,26 @@
+id: T06
+title: Measured speed versus the claimed GPU
+status_line:
+  ok: Measured {{ ms(tpot_ms) }} per token is consistent with {{ gpu_label }}.
+  bad: >-
+    Measured {{ ms(tpot_ms) }} per token is faster than {{ gpu_label }} can physically go
+    ({{ ms(floor_ms) }} floor). The GPU entry is probably wrong.
+measured: >-
+  Median {{ term("TPOT") }} {{ ms(tpot_ms) }} against a floor of {{ ms(floor_ms) }} for
+  {{ gpu_label }}.
+meaning:
+  ok: The GPU you entered is plausible, so every ratio in this report is meaningful.
+  bad: >-
+    Nothing beats the floor, so the hardware must be faster than entered: at least
+    {{ num(implied_tbps, 2) }} TB/s per GPU.
+    {% if candidates %}GPUs that fast: {{ candidates | join(", ") }}.{% endif %}
+why: >-
+  Each token reads all weights once, so memory bandwidth sets a hard floor. Measuring below it
+  means the bandwidth assumed is too low: usually the GPU model or count is wrong.
+learn_more: {note: "24", anchor: "4-compare-against-the-floors", label: "Compare against the floors"}
+actions:
+  - when: [bad]
+    title: Correct the GPU type or count
+    expected: Floors, bandwidth use and every ratio become meaningful.
+    risk: None.
+    verify: Regenerate the report with the right GPU; no rerun needed.

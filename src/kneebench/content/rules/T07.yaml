@@ -1,0 +1,31 @@
+id: T07
+title: Memory the server reports versus the claimed GPU
+status_line:
+  ok: >-
+    Weights ({{ gib(weights_gib_per_gpu) }}) plus the reported cache ({{ gib(kv_pool_gib) }}) fit
+    in {{ gpu_name }} at {{ pct(gpu_memory_utilization) }} utilization.
+  bad: >-
+    The server's cache ({{ gib(kv_pool_gib) }}) plus weights ({{ gib(weights_gib_per_gpu) }}) need
+    at least {{ gib(implied_min_gib) }} per GPU, more than {{ gpu_name }} has
+    ({{ gib(gpu_memory_gib) }}). The GPU entry is probably wrong.
+  skip: "Not checked: the server didn't report its cache size."
+measured: >-
+  From /metrics: {{ gib(kv_pool_gib) }} of KV cache per GPU at gpu_memory_utilization
+  {{ num(gpu_memory_utilization, 2) }}. From the model: {{ gib(weights_gib_per_gpu) }} of weights
+  per GPU.
+meaning:
+  ok: The memory numbers agree with the GPU you entered.
+  bad: >-
+    {% if candidates %}GPUs with enough memory: {{ candidates | join(", ") }}. {% endif %}Every floor in
+    this report depends on the GPU, so fix this first.
+why: >-
+  vLLM takes gpu_memory_utilization times the GPU's total memory, loads the weights, keeps a
+  little for activations, and gives the rest to the KV cache. Working backwards from the cache it
+  reports gives the smallest GPU that could hold it.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+actions:
+  - when: [bad]
+    title: Correct the GPU type
+    expected: Floors and memory findings match the real hardware.
+    risk: None.
+    verify: Regenerate the report with the right GPU; no rerun needed.

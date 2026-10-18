@@ -1,0 +1,28 @@
+id: B04
+title: Consistency between identical requests
+status_line:
+  ok: >-
+    Time per token was steady across identical requests (variation {{ pct(cv) }}, P99
+    {{ times(p99_over_p50) }} the median).
+  warn: >-
+    Time per token varied a lot between identical requests (variation {{ pct(cv) }}, P99
+    {{ times(p99_over_p50) }} the median). Treat these numbers with care until you know why.
+measured: >-
+  {{ num(requests, 0) }} identical requests: median {{ ms(p50_ms) }}, {{ term("P99") }}
+  {{ ms(p99_ms) }}, coefficient of variation {{ pct(cv) }}.
+meaning:
+  ok: The measurement is repeatable, so differences in later runs are real.
+  warn: >-
+    Something other than your request is competing for the GPU or the network, and it will blur
+    every comparison.
+why: >-
+  Every baseline request is identical, so they should take the same time. Spread means something
+  else is involved: another workload on the GPU, throttling, or a noisy network path.
+learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
+actions:
+  - when: [warn]
+    title: Rerun at a quiet time and check the GPU for other work
+    flag: nvidia-smi
+    expected: Variation under 10% and P99 within 1.5 times the median.
+    risk: None.
+    verify: Rerun the baseline; this check should turn green.

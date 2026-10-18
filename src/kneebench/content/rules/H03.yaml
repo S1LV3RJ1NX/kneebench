@@ -1,0 +1,45 @@
+id: H03
+title: Distance between kneebench and the server
+status_line:
+  ok: >-
+    The network round trip is {{ ms(http_rtt_ms) }}, {{ pct(share) }} of the time to first token:
+    negligible.
+  warn: >-
+    {{ pct(share) }} of the time to first token ({{ ms(http_rtt_ms) }} of
+    {{ ms(user_ttft_ms) }}) is network, not server.
+  bad: >-
+    {% if dominates %}Almost all of the time to first token is network: a
+    {{ ms(http_rtt_ms) }} round trip against {{ ms(user_ttft_ms) }} in total.{% else %}Most of the
+    time to first token is network: {{ ms(http_rtt_ms) }} of {{ ms(user_ttft_ms) }}.{% endif %}
+    Server-side time to first token can't be measured reliably from here.
+  skip: The network round trip wasn't measured, so first-token times include an unknown network share.
+measured: >-
+  A request to /health, which the server answers instantly, took {{ ms(http_rtt_ms) }} round trip
+  over a warm connection (new connections: TCP {{ ms(tcp_connect_ms) }}
+  {%- if tls_handshake_ms %}, TLS {{ ms(tls_handshake_ms) }}{% endif %}). What users at this
+  location see: {{ term("TTFT") }} {{ ms(user_ttft_ms) }}.
+  {% if server_ttft_ms is not none %}Server side, with the {{ term("round trip") }} removed: about
+  {{ ms(server_ttft_ms) }}.{% endif %}
+meaning:
+  ok: First-token times in this report are mostly server time.
+  warn: >-
+    A noticeable part of every first token is travel time, which no server setting can fix.
+    Time per token is unaffected, because tokens stream back-to-back once started.
+  bad: >-
+    First-token numbers here mostly measure the network. Time per token is still trustworthy,
+    because tokens stream back-to-back once started.
+analogy: >-
+  Like timing a pizza delivery to judge the oven: the drive dominates.
+why: >-
+  Every request crosses the network before the server starts working, and the first token crosses
+  back. kneebench measures that round trip on its own so it isn't blamed on the server. A client
+  far from the server, or too slow to keep up, ends up benchmarking itself.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+actions:
+  - when: [warn, bad]
+    title: Run kneebench close to the server
+    expected: >-
+      Time to first token drops by about the round trip ({{ ms(http_rtt_ms) }}), and server-side
+      time to first token becomes measurable.
+    risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+    verify: Rerun from there; this check should turn green.

@@ -1,0 +1,22 @@
+id: T02
+title: How much memory each token of context takes
+status_line:
+  info: >-
+    Each token of context needs {{ kib(kv_bytes_per_token) }} of {{ term("KV cache") }}; the
+    server reserved room for {{ num(pool_tokens) }} tokens ({{ gib(kv_pool_gib) }} per GPU).
+  skip: >-
+    The server didn't report its cache size, so memory limits are estimated rather than measured.
+measured: >-
+  From the model's architecture: {{ kib(kv_bytes_per_token) }} per token
+  {%- if cache_dtype and cache_dtype != "auto" %} with a {{ cache_dtype }} cache{% endif %}.
+  From the server's /metrics: {{ num(pool_tokens) }} tokens of cache after reserving
+  {{ pct(gpu_memory_utilization) }} of GPU memory and loading the weights.
+meaning: >-
+  Every request in flight holds this much memory per token of its prompt and answer. The pool is
+  the total budget all users share.
+why: >-
+  For every token in a conversation, each layer keeps a key and a value vector so later tokens can
+  look back at it: bytes per token = 2 x layers x KV heads x head size x bytes per number. vLLM
+  reserves a share of GPU memory, loads the weights, and gives what's left to this cache. Every
+  decode step rereads the cache of every token so far, which is why long prompts also slow decode.
+learn_more: {note: "26", anchor: "2-sweep-the-prompt-output-fixed-at-256", label: "The prompt changes decode too"}

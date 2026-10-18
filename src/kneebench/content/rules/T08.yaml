@@ -1,0 +1,18 @@
+id: T08
+title: Weights stored in 32-bit floats
+status_line:
+  warn: >-
+    The model is in 32-bit floats ({{ num(weight_gb, 1) }} GB): every token moves twice the bytes
+    of a 16-bit model.
+measured: The checkpoint's dtype is float32.
+meaning: The floor itself is twice as high as it needs to be.
+why: >-
+  The decode floor is weights divided by bandwidth; doubling the bytes doubles the floor.
+learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
+actions:
+  - when: [warn]
+    title: Serve in bfloat16
+    flag: --dtype bfloat16
+    expected: Time per token roughly halves.
+    risk: Negligible quality change for most models.
+    verify: Rerun the baseline; time per token and its floor both drop.

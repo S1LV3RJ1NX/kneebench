@@ -1,0 +1,26 @@
+id: T03
+title: How many requests fit in memory at once
+status_line:
+  info: >-
+    The cache holds {{ num(pool_tokens) }} tokens:
+    {% for s in shapes %}{{ s.name }} about {{ num(s.fits, 0) }} at full length
+    {%- if not loop.last %}, {% endif %}{% endfor %}.
+  skip: >-
+    Not computed: the server didn't report its cache size.
+measured: >-
+  The cache size divided by each shape's final length (prompt plus output).
+meaning: >-
+  This is the memory ceiling on how many of these requests can be in flight together. Past it, the
+  server either queues new requests or evicts running ones.
+why: >-
+  A request holds memory for its prompt plus everything it has generated so far, so its final
+  length is what counts, not its starting length. Long answers start small and grow, which is why
+  reasoning workloads run out of memory later than they first appear to.
+learn_more: {note: "26", anchor: "4-shape-decides-how-many-fit", label: "Shape decides how many fit"}
+table:
+  rows: shapes
+  columns:
+    - {key: name, label: Shape}
+    - {key: isl, label: Prompt tokens, fmt: num}
+    - {key: osl, label: Output tokens, fmt: num}
+    - {key: fits, label: Requests that fit, fmt: num0}

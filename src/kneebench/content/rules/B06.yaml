@@ -1,0 +1,25 @@
+id: B06
+title: Did the GPU change during the run?
+status_line:
+  ok: >-
+    Time per token at the end of the run matched the start ({{ ms(start_ms) }} and
+    {{ ms(end_ms) }}).
+  warn: >-
+    Time per token changed by {{ pct(change) }} between the start and the end of the run
+    ({{ ms(start_ms) }} to {{ ms(end_ms) }}).
+measured: The same baseline request, measured at the start and again at the end.
+meaning:
+  ok: Conditions were stable, so the sweep results in between are comparable.
+  warn: >-
+    Conditions changed during the run, so points measured at different times aren't directly
+    comparable.
+why: >-
+  Same request, same idle GPU, different time: the hardware or something sharing it changed while
+  the test ran.
+learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
+actions:
+  - when: [warn]
+    title: Rerun when the GPU is not shared
+    expected: Start and end match within 10%.
+    risk: None.
+    verify: Rerun; this check should turn green.
