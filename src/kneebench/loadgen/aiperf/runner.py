@@ -39,7 +39,7 @@ class AiperfLoadGenerator:
         config_path.chmod(0o600)
 
         # aiperf 0.13.0 overwrites the YAML networkLatency block with {enabled: false}
-        # unless the CLI flag is also given, so it must be passed here as well.
+        # unless the CLI flag is also given (ai-dynamo/aiperf#1583), so pass it here too.
         argv = [
             *aiperf_argv(),
             "profile",

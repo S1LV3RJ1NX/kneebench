@@ -27,7 +27,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - Work around AIPerf 0.13.0 dropping `networkLatency` from YAML configs by also passing
-  `--network-latency-automatic`.
+  `--network-latency-automatic` (reported upstream as
+  [ai-dynamo/aiperf#1583](https://github.com/ai-dynamo/aiperf/issues/1583)).
 
 ### Added (M0)
 - Project skeleton managed with uv; Python 3.11 to 3.13; macOS and Linux.
