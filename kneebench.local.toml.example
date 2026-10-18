@@ -1,0 +1,7 @@
+# Copy to kneebench.local.toml (gitignored) for local development and `live` tests.
+# Never put API keys here: set KNEEBENCH_API_KEY in your environment instead.
+
+[endpoint]
+url = "http://localhost:8000"
+model = "my-served-model-name"
+tokenizer = "org/model-id-on-hugging-face"
