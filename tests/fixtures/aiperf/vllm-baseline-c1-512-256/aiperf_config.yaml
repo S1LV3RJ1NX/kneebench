@@ -1,0 +1,44 @@
+benchmark:
+  artifacts:
+    dir: /Users/prathamesh/fanout-sh/kneebench/.kneebench/scratch/baseline
+    records:
+    - jsonl
+    sliceDuration: 10
+    summary:
+    - json
+  dataset:
+    entries: 100
+    prompts:
+      cacheBust:
+        target: first_turn_prefix
+      isl:
+        mean: 512
+        stddev: 0.0
+      osl:
+        mean: 256
+        stddev: 0
+    type: synthetic
+  endpoint:
+    extra:
+      ignore_eos: true
+      temperature: 0
+    streaming: true
+    type: chat
+    url: http://vllm.example:8000
+  model: served-model
+  networkLatency:
+    enabled: true
+  phases:
+  - concurrency: 1
+    excludeFromResults: true
+    name: warmup
+    requests: 10
+    type: concurrency
+  - concurrency: 1
+    name: profiling
+    requests: 30
+    type: concurrency
+  tokenizer:
+    name: unsloth/Meta-Llama-3.1-8B-Instruct
+randomSeed: 42
+schemaVersion: '2.0'

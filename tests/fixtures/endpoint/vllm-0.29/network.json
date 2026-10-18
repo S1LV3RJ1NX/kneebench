@@ -1,0 +1,8 @@
+{
+  "dns_ms": 2.6,
+  "error": null,
+  "http_rtt_ms": 272.0,
+  "http_rtt_samples": [270.1, 271.4, 272.0, 272.3, 273.9],
+  "tcp_connect_ms": 268.0,
+  "tls_handshake_ms": 269.0
+}

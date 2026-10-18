@@ -1,0 +1,30 @@
+{
+  "data": [
+    {
+      "created": 1792344955,
+      "id": "served-model",
+      "max_model_len": 8192,
+      "object": "model",
+      "owned_by": "vllm",
+      "parent": null,
+      "permission": [
+        {
+          "allow_create_engine": false,
+          "allow_fine_tuning": false,
+          "allow_logprobs": true,
+          "allow_sampling": true,
+          "allow_search_indices": false,
+          "allow_view": true,
+          "created": 1792344955,
+          "group": null,
+          "id": "modelperm-b051c62a27406baf",
+          "is_blocking": false,
+          "object": "model_permission",
+          "organization": "*"
+        }
+      ],
+      "root": "/models/hub/models--unsloth--Meta-Llama-3.1-8B-Instruct"
+    }
+  ],
+  "object": "list"
+}
