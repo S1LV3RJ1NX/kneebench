@@ -28,7 +28,10 @@ dependencies = [
     "aiperf==0.13.0",
     "httpx>=0.28.1",
     "huggingface-hub>=1.33.0",
+    "jinja2>=3.1.6",
+    "packaging>=26.3",
     "platformdirs>=4.13.4",
+    "prometheus-client>=0.23.1",
     "pydantic>=2.14.1",
     "pyyaml>=6.0.3",
     "rich>=14.1.0",
@@ -58,6 +61,8 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PTH", "N"]
+# Reports use the multiplication sign for ratios, as the lesson notes do.
+allowed-confusables = ["×"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -82,5 +87,6 @@ dev = [
     "mypy>=2.4.0",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
+    "syrupy>=6.1.1",
     "types-pyyaml>=6.0.12.20260906",
 ]
