@@ -1,0 +1,113 @@
+# Per-GPU peak numbers used for floors. Dense (non-sparse) tensor throughput.
+# memory_mib is the total reported by nvidia-smi / rocm-smi, which is what vLLM's
+# gpu_memory_utilization multiplies. Add entries via PR with a datasheet link.
+# Unknown GPU? Use "custom" in the UI and type the numbers from its datasheet.
+
+gpus:
+  - id: h100-sxm
+    name: NVIDIA H100 SXM 80GB
+    aliases: ["h100", "h100 80gb hbm3", "nvidia h100 80gb hbm3", "h100-sxm5-80gb"]
+    memory_mib: 81559
+    bandwidth_tbps: 3.35
+    bf16_tflops: 989
+    fp8_tflops: 1979
+    source: https://www.nvidia.com/en-us/data-center/h100/
+
+  - id: h100-nvl
+    name: NVIDIA H100 NVL 94GB
+    aliases: ["h100 nvl", "nvidia h100 nvl"]
+    memory_mib: 95830
+    bandwidth_tbps: 3.9
+    bf16_tflops: 835
+    fp8_tflops: 1671
+    source: https://www.nvidia.com/en-us/data-center/h100/
+
+  - id: h100-pcie
+    name: NVIDIA H100 PCIe 80GB
+    aliases: ["h100 pcie", "nvidia h100 pcie"]
+    memory_mib: 81559
+    bandwidth_tbps: 2.0
+    bf16_tflops: 756
+    fp8_tflops: 1513
+    source: https://www.nvidia.com/en-us/data-center/h100/
+
+  - id: h200
+    name: NVIDIA H200 141GB
+    aliases: ["h200", "nvidia h200"]
+    memory_mib: 143771
+    bandwidth_tbps: 4.8
+    bf16_tflops: 989
+    fp8_tflops: 1979
+    source: https://www.nvidia.com/en-us/data-center/h200/
+
+  - id: b200
+    name: NVIDIA B200 180GB
+    aliases: ["b200", "nvidia b200"]
+    memory_mib: 183359
+    bandwidth_tbps: 8.0
+    bf16_tflops: 2250
+    fp8_tflops: 4500
+    source: https://www.nvidia.com/en-us/data-center/dgx-b200/
+
+  - id: a100-sxm-80
+    name: NVIDIA A100 SXM 80GB
+    aliases: ["a100 80gb", "a100-sxm4-80gb", "nvidia a100-sxm4-80gb"]
+    memory_mib: 81920
+    bandwidth_tbps: 2.039
+    bf16_tflops: 312
+    fp8_tflops: null
+    source: https://www.nvidia.com/en-us/data-center/a100/
+
+  - id: a100-pcie-80
+    name: NVIDIA A100 PCIe 80GB
+    aliases: ["a100 pcie 80gb", "a100-pcie-80gb"]
+    memory_mib: 81920
+    bandwidth_tbps: 1.935
+    bf16_tflops: 312
+    fp8_tflops: null
+    source: https://www.nvidia.com/en-us/data-center/a100/
+
+  - id: a100-40
+    name: NVIDIA A100 40GB
+    aliases: ["a100 40gb", "a100-sxm4-40gb", "a100-pcie-40gb"]
+    memory_mib: 40960
+    bandwidth_tbps: 1.555
+    bf16_tflops: 312
+    fp8_tflops: null
+    source: https://www.nvidia.com/en-us/data-center/a100/
+
+  - id: l40s
+    name: NVIDIA L40S 48GB
+    aliases: ["l40s", "nvidia l40s"]
+    memory_mib: 46068
+    bandwidth_tbps: 0.864
+    bf16_tflops: 362
+    fp8_tflops: 733
+    source: https://www.nvidia.com/en-us/data-center/l40s/
+
+  - id: l4
+    name: NVIDIA L4 24GB
+    aliases: ["l4", "nvidia l4"]
+    memory_mib: 23034
+    bandwidth_tbps: 0.3
+    bf16_tflops: 121
+    fp8_tflops: 242
+    source: https://www.nvidia.com/en-us/data-center/l4/
+
+  - id: a10
+    name: NVIDIA A10 24GB
+    aliases: ["a10", "nvidia a10"]
+    memory_mib: 23028
+    bandwidth_tbps: 0.6
+    bf16_tflops: 125
+    fp8_tflops: null
+    source: https://www.nvidia.com/en-us/data-center/products/a10-gpu/
+
+  - id: mi300x
+    name: AMD Instinct MI300X 192GB
+    aliases: ["mi300x", "amd instinct mi300x"]
+    memory_mib: 196592
+    bandwidth_tbps: 5.3
+    bf16_tflops: 1307
+    fp8_tflops: 2615
+    source: https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html
