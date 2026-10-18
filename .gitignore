@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# kneebench
+# Local endpoint config (may contain internal URLs); see kneebench.local.toml.example.
+kneebench.local.toml
+# Default AIPerf artifact dir and local kneebench data when KNEEBENCH_HOME points here.
+artifacts/
+.kneebench/
