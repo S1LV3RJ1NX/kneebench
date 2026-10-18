@@ -1,0 +1,34 @@
+name: Bug report
+description: Something broke or a finding looks wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please **remove API keys and internal URLs** from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `kneebench doctor`
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server
+      description: Engine and version, model, GPU type and count (e.g. vLLM 0.30.0, Qwen2.5-7B, 1x L40S)
+  - type: dropdown
+    id: os
+    attributes:
+      label: Where kneebench runs
+      options: [macOS (Apple Silicon), macOS (Intel), Linux x86_64, Linux aarch64, Other]
+    validations:
+      required: true

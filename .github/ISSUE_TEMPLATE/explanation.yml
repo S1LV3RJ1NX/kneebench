@@ -1,0 +1,19 @@
+name: Confusing explanation
+description: A report sentence was unclear, wrong or too jargon-heavy
+labels: [content]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID or section
+      description: Shown next to each finding (e.g. W04).
+  - type: textarea
+    id: text
+    attributes:
+      label: What confused you?
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: How would you say it?

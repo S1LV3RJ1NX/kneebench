@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest a new measurement, finding or report improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to find out or decide?
+      description: Describe the question your team has, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: textarea
+    id: source
+    attributes:
+      label: Source or reasoning
+      description: For new rules, link the concept or measurement it is based on.
