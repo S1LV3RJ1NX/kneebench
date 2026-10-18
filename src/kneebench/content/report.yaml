@@ -1,0 +1,82 @@
+# Report-level text: verdict sentences, scorecard tiles and caveats.
+# Which sentence or status applies is decided in report/composer.py; the words live here.
+
+verdict:
+  gpu_mismatch: >-
+    Before anything else: the measurements don't fit {{ gpu_label }}, so the GPU entry is probably
+    wrong and every comparison with physics below is unreliable until it is fixed.
+  decode_healthy: >-
+    For one request at a time, {{ model }} on {{ gpu_label }} is healthy: it generates each token
+    in {{ ms(tpot_ms) }}, {{ pct(mbu) }} of what the hardware allows.
+  decode_slow: >-
+    For one request at a time, {{ model }} on {{ gpu_label }} is slower than it should be: each
+    token takes {{ ms(tpot_ms) }}, only {{ pct(mbu) }} of what the hardware allows.
+  decode_very_slow: >-
+    For one request at a time, {{ model }} on {{ gpu_label }} is far slower than it should be:
+    {{ ms(tpot_ms) }} per token, {{ times(ratio) }} the physical limit. Fix this before load testing.
+  network_dominates: >-
+    From where this test ran, the network adds {{ ms(http_rtt_ms) }} to every first token
+    ({% if dominates %}more than the server itself takes{% else %}{{ pct(share) }} of it{% endif %}),
+    so run kneebench closer to the server for first-token numbers.
+  short_outputs: >-
+    Some answers came back shorter than requested, so latency and capacity look better than they
+    really are.
+  baseline_only_next: >-
+    This run measured one request at a time; the concurrency sweep is what tells you how many
+    {{ product_label }} users it can serve.
+
+scorecard:
+  baseline:
+    label: Baseline vs physics
+    ok: "{{ pct(mbu) }} of memory bandwidth"
+    warn: "{{ pct(mbu) }} of memory bandwidth, below the healthy band"
+    bad: "{{ times(ratio) }} slower than physics allows"
+    mismatch: GPU entry looks wrong
+    none: Not measured
+  capacity:
+    label: Capacity under your SLO
+    none: Not measured in this run (needs the concurrency sweep)
+  headroom:
+    label: Headroom
+    none: Not measured in this run (needs the concurrency sweep)
+  memory:
+    label: Memory safety
+    ok: "Startup fit {{ times(startup_fit) }}; preemption not tested yet"
+    warn: "Only {{ times(startup_fit) }} full-length requests fit"
+    bad: Not even one full-length request fits
+    none: Not visible (no /metrics)
+  reliability:
+    label: Test reliability
+    ok: No problems with the test itself
+    warn: "{{ count }} caveat{{ 's' if count != 1 else '' }} to read before trusting the numbers"
+    bad: "{{ count }} {{ 'problem changes' if count == 1 else 'problems change' }} the numbers"
+
+caveats:
+  always:
+    - >-
+      kneebench only sees the endpoint. It has no GPU telemetry; memory and queue signals come
+      from vLLM's /metrics.
+    - >-
+      Prompts are random text, so they never share a beginning. Real traffic often repeats system
+      prompts, which prefix caching can speed up; your real time to first token may be lower.
+    - >-
+      Results describe this server, with these flags, at this time. Change one setting at a time
+      and rerun to compare.
+  remote_client: >-
+    This test ran {{ ms(http_rtt_ms) }} (one network round trip) away from the server. Time per
+    token is reliable from here; first-token times include the network.
+  no_metrics: >-
+    /metrics was not reachable, so memory findings are estimates from the model's size rather
+    than the server's own numbers.
+
+sections:
+  verdict: Verdict
+  scorecard: Scorecard
+  problems: What needs attention
+  context: What the hardware allows
+  passed: Checks that passed
+  skipped: Not checked
+  next: Try these next
+  caveats: What this test can't see
+  glossary: Glossary
+  appendix: "Appendix: raw numbers"

@@ -1,0 +1,31 @@
+# Starting latency targets per product type. Edit freely; every number is explained in
+# plain words in the UI. Percentile is the share of requests that must meet the target.
+presets:
+  chat:
+    percentile: 99
+    ttft_ms: 500
+    tpot_ms: 50
+    explain: >-
+      The answer starts within half a second, then streams at 20 tokens per second or faster,
+      which is quicker than anyone reads.
+  rag:
+    percentile: 99
+    ttft_ms: 2000
+    tpot_ms: 50
+    explain: >-
+      Long documents take longer to read in, so the answer may take up to 2 seconds to start;
+      it then streams at 20 tokens per second or faster.
+  reasoning:
+    percentile: 99
+    ttft_ms: 2000
+    tpot_ms: 25
+    explain: >-
+      Answers are long, so per-token speed matters most: 40 tokens per second turns an
+      8,000-token answer into about 3 minutes instead of 7.
+  batch:
+    percentile: 90
+    ttft_ms: null
+    tpot_ms: 100
+    explain: >-
+      Nobody is watching the screen, so only throughput matters; a loose 10 tokens per second
+      per request just catches stalls.
