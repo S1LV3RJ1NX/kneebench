@@ -1,0 +1,38 @@
+# vLLM behavior kneebench depends on, per version range.
+# Every range lists the tags it was verified against. tests/live/test_vllm_source.py
+# re-reads EngineArgs.get_batch_defaults at each tag and fails if it drifts.
+
+tested_range:
+  min: "0.29.0"
+  max_exclusive: "0.33.0"
+
+ranges:
+  - min: "0.29.0"
+    max_exclusive: "0.33.0"
+    verified_tags: [v0.29.0, v0.30.0, v0.31.0, v0.32.0]
+    source: https://github.com/vllm-project/vllm/blob/{tag}/vllm/engine/arg_utils.py
+    # OpenAI API server defaults when the flags are not set, chosen by the GPU's total
+    # memory and name. First matching tier wins.
+    batch_defaults:
+      - min_gib: 160
+        max_num_seqs: 1024
+        max_num_batched_tokens: 16384
+      - min_gib: 70
+        exclude_name_contains: [a100]
+        max_num_seqs: 1024
+        max_num_batched_tokens: 8192
+      - min_gib: 0
+        max_num_seqs: 256
+        max_num_batched_tokens: 2048
+
+# Candidate names per signal, newest first. AIPerf exports counters without "_total".
+metric_names:
+  kv_cache_usage: ["vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc"]
+  preemptions: ["vllm:num_preemptions", "vllm:num_preemptions_total"]
+  running: ["vllm:num_requests_running"]
+  waiting: ["vllm:num_requests_waiting"]
+  prefix_cache_hits: ["vllm:prefix_cache_hits", "vllm:prefix_cache_hits_total",
+                      "vllm:gpu_prefix_cache_hits"]
+  prefix_cache_queries: ["vllm:prefix_cache_queries", "vllm:prefix_cache_queries_total",
+                         "vllm:gpu_prefix_cache_queries"]
+  cache_config: ["vllm:cache_config_info"]
