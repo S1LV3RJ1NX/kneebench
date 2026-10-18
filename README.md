@@ -2,7 +2,7 @@
 
 **Point it at your vLLM server. Get back a report that says how many users it can really serve, where it breaks, why, and which flag to change next.**
 
-> **Status: pre-alpha (milestone M0).** Install, `kneebench doctor` and the bundled AIPerf runner work today. The benchmark phases and the report land in M1 and M2 (see the [roadmap](#roadmap)).
+> **Status: pre-alpha (milestone M1).** `kneebench doctor`, auto-detection, the physics floors, the single-request baseline and a Markdown report work today. The concurrency sweep, web UI and PDF export land in M2 (see the [roadmap](#roadmap)).
 
 <!-- Screenshot of the report goes here once M2 ships. -->
 
@@ -22,9 +22,12 @@ Every finding says what was measured, what it means, why it happens (with a link
 git clone https://github.com/S1LV3RJ1NX/kneebench && cd kneebench
 uv sync                                   # installs kneebench and its bundled AIPerf
 uv run kneebench doctor --url http://your-vllm-host:8000
+uv run kneebench run --url http://your-vllm-host:8000 --gpu h100-sxm   # see `kneebench gpus`
 ```
 
 Need uv? `curl -LsSf https://astral.sh/uv/install.sh | sh`. If your server needs a key, set `KNEEBENCH_API_KEY` first. Gated models (such as Llama) also need `HF_TOKEN` so kneebench can download the tokenizer.
+
+`kneebench run` detects the vLLM version, model, context length and KV cache from the endpoint, works out the physics floors, runs the single-request baseline and writes a Markdown report. Entered the wrong GPU? `kneebench report <run-id> --gpu <id>` recomputes everything from stored data, with no rerun.
 
 Once released, `uv tool install kneebench` (or `pip install kneebench`) will work too. The install is large (about 800 MB) because AIPerf brings `transformers`, `pandas` and friends.
 
@@ -52,7 +55,9 @@ Every run also checks that the test itself is trustworthy: steady state reached,
 
 ## How to read the report
 
-*(Arrives in M2.)* Diagnosis first, evidence second, next steps last: a two-sentence verdict, a traffic-light scorecard, one section per finding that matters for your workload, a ranked "try these next" list with copy-ready flags for your vLLM version, and a glossary for every term. Exports to PDF (readable by people and LLMs), Markdown and JSON.
+Diagnosis first, evidence second, next steps last: a short verdict, a traffic-light scorecard, one section per finding that matters for your workload, a ranked "try these next" list with copy-ready flags for your vLLM version, and a glossary for every term. Each finding says what was measured, what it means, why it happens (with a link to the lesson it comes from) and what to do. Problems expand; healthy checks collapse to one line. The order follows your product type: a chat team sees time to first token first, a reasoning team sees memory first.
+
+Markdown and JSON exports work today (`kneebench report <run-id> --format md|json`); both are plain text an LLM can read for follow-up questions. The web UI and PDF export arrive in M2.
 
 ## Limitations
 
@@ -65,7 +70,7 @@ Every run also checks that the test itself is trustworthy: steady state reached,
 ## Roadmap
 
 - [x] **M0 Skeleton:** packaging with bundled, pinned AIPerf; `kneebench doctor`; CI.
-- [ ] **M1 Detect, theory and baseline:** auto-detection, physics floors, SQLite, single-request baseline, Markdown report.
+- [x] **M1 Detect, theory and baseline:** auto-detection, physics floors, SQLite, single-request baseline, Markdown report.
 - [ ] **M2 MVP:** concurrency sweep, the three walls, web UI, full report with PDF export.
 - [ ] **M3 Rate sweep:** Poisson and bursty arrivals.
 - [ ] **M4 Shape sweep:** prompt and output length map, multi-shape workloads.
