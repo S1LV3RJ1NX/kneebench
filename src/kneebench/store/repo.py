@@ -222,7 +222,7 @@ def _store_parsed(conn: Connection, point_id: int, parsed: ParsedPoint) -> None:
     )
     conn.executemany(
         """INSERT INTO requests (point_id, idx, phase, start_ns, end_ns, ttft_ms, tpot_ms,
-           e2e_ms, isl, osl, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           e2e_ms, isl, osl, error, error_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         [
             (
                 point_id,
@@ -236,6 +236,7 @@ def _store_parsed(conn: Connection, point_id: int, parsed: ParsedPoint) -> None:
                 r.isl,
                 r.osl,
                 r.error,
+                r.error_code,
             )
             for i, r in enumerate(parsed.requests)
         ],
@@ -284,6 +285,10 @@ def _store_artifacts(conn: Connection, point_id: int, artifact_dir: Path) -> Non
                 zlib.compress(data),
             ),
         )
+
+
+def set_stop_reason(conn: Connection, point_id: int, reason: str) -> None:
+    conn.execute("UPDATE points SET stop_reason = ? WHERE id = ?", (reason, point_id))
 
 
 def save_findings(
@@ -335,6 +340,29 @@ def list_runs(conn: Connection, limit: int = 50) -> list[Row]:
     )
 
 
+def point_dict(conn: Connection, point_id: int) -> dict[str, Any]:
+    """One point with its metrics, server metrics, warnings and profiling requests."""
+    p = dict(conn.execute("SELECT * FROM points WHERE id = ?", (point_id,)).fetchone())
+    p["metrics"] = point_metrics(conn, point_id)
+    p["server"] = point_server_metrics(conn, point_id)
+    p["warnings"] = [
+        dict(w)
+        for w in conn.execute(
+            "SELECT source, code, message FROM warnings WHERE point_id = ?", (point_id,)
+        )
+    ]
+    p["requests"] = [
+        dict(r)
+        for r in conn.execute(
+            """SELECT start_ns, end_ns, ttft_ms, tpot_ms, e2e_ms, isl, osl, error,
+               error_code FROM requests WHERE point_id = ? AND phase = 'profiling'
+               ORDER BY idx""",
+            (point_id,),
+        )
+    ]
+    return p
+
+
 def run_bundle(conn: Connection, run_id: int) -> dict[str, Any]:
     """Everything needed to analyze a run, as plain dicts."""
     run = get_run(conn, run_id)
@@ -351,18 +379,9 @@ def run_bundle(conn: Connection, run_id: int) -> dict[str, Any]:
         "SELECT * FROM endpoints WHERE id = ?", (run["endpoint_id"],)
     ).fetchone()
     points = [
-        dict(p)
-        for p in conn.execute("SELECT * FROM points WHERE run_id = ? ORDER BY seq", (run_id,))
+        point_dict(conn, row["id"])
+        for row in conn.execute("SELECT id FROM points WHERE run_id = ? ORDER BY seq", (run_id,))
     ]
-    for p in points:
-        p["metrics"] = point_metrics(conn, p["id"])
-        p["server"] = point_server_metrics(conn, p["id"])
-        p["warnings"] = [
-            dict(w)
-            for w in conn.execute(
-                "SELECT source, code, message FROM warnings WHERE point_id = ?", (p["id"],)
-            )
-        ]
     return {
         "run": dict(run),
         "setup": dict(setup),

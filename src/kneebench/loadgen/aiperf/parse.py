@@ -36,6 +36,7 @@ class RequestRecord:
     isl: int | None
     osl: int | None
     error: str | None = None
+    error_code: int | None = None
 
     @property
     def ok(self) -> bool:
@@ -164,6 +165,7 @@ def _records(path: Path) -> list[RequestRecord]:
                     isl=_int(_value(metrics, "input_sequence_length")),
                     osl=_int(_value(metrics, "output_sequence_length")),
                     error=_error_text(error),
+                    error_code=_error_code(error),
                 )
             )
     return out
@@ -240,6 +242,12 @@ def _error_text(error: Any) -> str | None:
         kind = error.get("type") or error.get("message") or "error"
         return f"{code} {kind}".strip() if code else str(kind)
     return str(error)
+
+
+def _error_code(error: Any) -> int | None:
+    if isinstance(error, dict) and isinstance(error.get("code"), int):
+        return int(error["code"])
+    return None
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
