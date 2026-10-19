@@ -73,6 +73,13 @@ STANDARD_SHAPES = (
     Shape("reasoning", 1024, 8192),
     Shape("summarization", 8192, 1024),
 )
+# Which measured shape stands for each product until the shape sweep covers all of them.
+PRIMARY_SHAPE = {
+    ProductType.CHAT: "chat",
+    ProductType.RAG: "summarization",
+    ProductType.REASONING: "reasoning",
+    ProductType.BATCH: "chat",
+}
 # Single-request baseline shape (note 24).
 BASELINE_SHAPE = Shape("baseline", 512, 256)
 # Room for chat-template tokens added by the server on top of the prompt.

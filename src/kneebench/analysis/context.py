@@ -6,12 +6,29 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from kneebench.domain import ProductType, Shape, Slo
+from kneebench.domain import PRIMARY_SHAPE, ProductType, Shape, Slo
 from kneebench.phases.theory import Theory, theory_from_json
 from kneebench.servers.vllm import metric_names
 
 # Network share of TTFT at or above which subtracting it leaves too little to trust.
 UNRELIABLE_NETWORK_SHARE = 0.5
+
+
+@dataclass(frozen=True)
+class RequestView:
+    start_ns: int
+    end_ns: int
+    ttft_ms: float | None
+    tpot_ms: float | None
+    e2e_ms: float | None
+    isl: int | None
+    osl: int | None
+    error: str | None = None
+    error_code: int | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None
 
 
 @dataclass(frozen=True)
@@ -27,6 +44,8 @@ class PointView:
     metrics: dict[str, dict[str, float]]
     server: dict[str, dict[str, float]]
     warnings: tuple[dict[str, str], ...] = ()
+    requests: tuple[RequestView, ...] = ()
+    stop_reason: str | None = None
 
     def m(self, metric: str, stat: str = "p50") -> float | None:
         return self.metrics.get(metric, {}).get(stat)
@@ -87,6 +106,10 @@ class RunContext:
         return pts[0] if pts else None
 
     @property
+    def primary_shape(self) -> str:
+        return PRIMARY_SHAPE[self.workload.product]
+
+    @property
     def http_rtt_ms(self) -> float | None:
         return (self.network or {}).get("http_rtt_ms")
 
@@ -107,6 +130,24 @@ def _loads(value: str | None) -> Any:
     return json.loads(value) if value else None
 
 
+def point_from_dict(p: dict[str, Any]) -> PointView:
+    return PointView(
+        id=p["id"],
+        seq=p["seq"],
+        phase=p["phase"],
+        isl=p["isl"],
+        osl=p["osl"],
+        mode=p["mode"],
+        concurrency=p["concurrency"],
+        status=p["status"],
+        metrics=p["metrics"],
+        server=p["server"],
+        warnings=tuple(p["warnings"]),
+        requests=tuple(RequestView(**r) for r in p.get("requests", [])),
+        stop_reason=p.get("stop_reason"),
+    )
+
+
 def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
     run, setup, snap, workload = (
         bundle["run"],
@@ -116,22 +157,7 @@ def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
     )
     gpu = _loads(setup["gpu_json"])
     slo = _loads(workload["slo_json"])
-    points = tuple(
-        PointView(
-            id=p["id"],
-            seq=p["seq"],
-            phase=p["phase"],
-            isl=p["isl"],
-            osl=p["osl"],
-            mode=p["mode"],
-            concurrency=p["concurrency"],
-            status=p["status"],
-            metrics=p["metrics"],
-            server=p["server"],
-            warnings=tuple(p["warnings"]),
-        )
-        for p in bundle["points"]
-    )
+    points = tuple(point_from_dict(p) for p in bundle["points"])
     return RunContext(
         run_id=run["id"],
         status=run["status"],
