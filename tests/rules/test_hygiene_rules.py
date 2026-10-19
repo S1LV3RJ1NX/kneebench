@@ -44,10 +44,35 @@ def test_h04_short_outputs_from_length_or_aiperf_warning() -> None:
     assert short.status is Status.BAD
     assert short.data["points"][0]["requested"] == 8192
     warned = run_rule(
-        "H04", ctx(points=(point(warnings=("Output Sequence Length Mismatch Warning",)),))
+        "H04",
+        ctx(
+            points=(
+                point(
+                    warnings=("Output Sequence Length Mismatch Warning",),
+                    extra={"osl_mismatch_count": {"avg": 10.0}},
+                ),
+            )
+        ),
     )
     assert warned is not None
     assert warned.status is Status.BAD
+    # One short answer out of 256 triggers AIPerf's warning but doesn't change the numbers.
+    one_off = run_rule(
+        "H04",
+        ctx(
+            points=(
+                point(
+                    requests=256,
+                    osl_mean=1023.0,
+                    osl=1024,
+                    warnings=("Output Sequence Length Mismatch Warning",),
+                    extra={"osl_mismatch_count": {"avg": 1.0}},
+                ),
+            )
+        ),
+    )
+    assert one_off is not None
+    assert one_off.status is Status.OK
 
 
 def test_h05_token_discrepancy() -> None:

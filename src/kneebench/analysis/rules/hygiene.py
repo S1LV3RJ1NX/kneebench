@@ -25,6 +25,7 @@ NETWORK_SHARE_BAD = UNRELIABLE_NETWORK_SHARE
 NETWORK_SHARE_DOMINATES = 0.90
 # Note 26 section 5: forced outputs that come back short mean ignore_eos was not honored.
 OUTPUT_LENGTH_MIN_RATIO = 0.95
+SHORT_OUTPUT_MAX_SHARE = 0.05
 OSL_WARNING = "Output Sequence Length Mismatch"
 TOKEN_WARNING = "Token Count Discrepancy"
 
@@ -67,8 +68,16 @@ def output_length(ctx: RunContext) -> Finding | None:
     for p in checked:
         mean_osl = p.m("output_sequence_length", "avg")
         mismatches = p.m("osl_mismatch_count", "avg") or 0
+        requests = p.m("request_count", "avg") or 0
         ratio = (mean_osl / p.osl) if mean_osl else None
-        if p.has_warning(OSL_WARNING) or (ratio is not None and ratio < OUTPUT_LENGTH_MIN_RATIO):
+        share = mismatches / requests if requests else None
+        # AIPerf warns on a single short answer; only a real shortfall changes the numbers.
+        warned_without_counts = share is None and p.has_warning(OSL_WARNING)
+        if (
+            warned_without_counts
+            or (share is not None and share > SHORT_OUTPUT_MAX_SHARE)
+            or (ratio is not None and ratio < OUTPUT_LENGTH_MIN_RATIO)
+        ):
             short.append(
                 {
                     "phase": p.phase,
@@ -76,6 +85,7 @@ def output_length(ctx: RunContext) -> Finding | None:
                     "mean": mean_osl,
                     "ratio": ratio,
                     "mismatches": mismatches,
+                    "share": share,
                 }
             )
     if short:
