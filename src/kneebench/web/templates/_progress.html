@@ -1,0 +1,19 @@
+{% if finished %}
+<div class="card verdict">Finished ({{ status }}). <a href="/runs/{{ run_id }}">Open the report</a>.</div>
+<script>window.location = "/runs/{{ run_id }}";</script>
+{% else %}
+<div class="card">
+  <div class="progress"><div style="width: {{ pct }}%"></div></div>
+  <p class="small muted">{{ done }} of {{ total }} points{% if current %} · now: {{ current }}{% endif %}{% if stopped %} · sweep stopped early ({{ stopped }}){% endif %}</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</div>
+{% endif %}
+{% if rows %}
+<table>
+  <thead><tr><th>#</th><th>Phase</th><th>Users</th><th>Status</th><th>Output tok/s</th><th>TPOT P99</th><th>TTFT P99</th><th>KV peak</th><th>Preemptions</th></tr></thead>
+  <tbody>{% for r in rows %}
+  <tr><td>{{ r.seq }}</td><td>{{ r.phase }}</td><td>{{ r.concurrency }}</td><td>{{ r.status }}</td>
+    <td>{{ r.tok_s }}</td><td>{{ r.tpot }}</td><td>{{ r.ttft }}</td><td>{{ r.kv }}</td><td>{{ r.preempt }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% endif %}

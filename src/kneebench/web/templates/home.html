@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block main %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <div><h1>Runs</h1><p class="muted">Every benchmark you ran, newest first.</p></div>
+  <a class="button" href="/runs/new">New run</a>
+</div>
+{% if active %}
+<div class="card verdict">A run is in progress: <a href="/runs/{{ active }}/live">follow run {{ active }}</a>.</div>
+{% endif %}
+{% if runs %}
+<table>
+  <thead><tr><th>Run</th><th>Started</th><th>Model</th><th>Endpoint</th><th>Label</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr>
+    <td>{{ r.id }}</td><td class="small">{{ r.started_at }}</td><td>{{ r.served_model or "" }}</td>
+    <td class="small">{{ r.base_url }}</td><td>{{ r.label or "" }}</td><td>{{ r.status }}</td>
+    <td>{% if r.status == "running" %}<a href="/runs/{{ r.id }}/live">live</a>{% else %}<a href="/runs/{{ r.id }}">report</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card">No runs yet. <a href="/runs/new">Start your first benchmark</a>: point kneebench at an
+  OpenAI-compatible vLLM endpoint and it does the rest.</div>
+{% endif %}
+{% endblock %}

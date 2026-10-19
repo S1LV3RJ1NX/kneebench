@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}kneebench{% endblock %}</title>
+  {% if inline_assets %}<style>{{ inline_css | safe }}</style>
+  {% else %}<link rel="stylesheet" href="/static/kb.css">{% endif %}
+</head>
+<body>
+  <header class="top no-print">
+    <a class="brand" href="/">kneebench</a>
+    <nav><a href="/">Runs</a><a href="/runs/new">New run</a></nav>
+  </header>
+  <main>{% block main %}{% endblock %}</main>
+  {% if not inline_assets %}<script src="/static/htmx.min.js"></script>{% endif %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

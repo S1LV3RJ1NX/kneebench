@@ -1,0 +1,24 @@
+<section class="card">
+  <h3>2. What kneebench found</h3>
+  {% if error %}<p class="error">{{ error }}</p>{% else %}
+  <table>
+    <tr><th>vLLM version</th><td>{% if snap.vllm_version %}{{ snap.vllm_version }}<span class="source">detected</span>{% else %}<span class="error">not reported</span> (memory findings may be limited){% endif %}</td></tr>
+    <tr><th>Served model</th><td>
+      <select name="model" form="run-form">{% for m in snap.models %}<option value="{{ m.id }}">{{ m.id }}</option>{% endfor %}</select></td></tr>
+    <tr><th>Tokenizer (Hugging Face id)</th><td>
+      <input name="tokenizer" form="run-form" value="{{ model.hf_id or '' }}" placeholder="org/model">
+      {% if model.hf_id %}<span class="source">detected</span>{% else %}<div class="help">Couldn't map the model's path; enter its Hugging Face id.</div>{% endif %}</td></tr>
+    <tr><th>Context length</th><td>{{ model.max_model_len or "unknown" }}{% if model.max_model_len %}<span class="source">detected</span>{% endif %}</td></tr>
+    {% if snap.cache %}
+    <tr><th>KV cache</th><td>{{ "{:,}".format(snap.cache.kv_cache_size_tokens) }} tokens at {{ snap.cache.gpu_memory_utilization }} memory utilization, {{ snap.cache.cache_dtype }} dtype<span class="source">detected</span></td></tr>
+    <tr><th>Prefix caching</th><td>{{ "on" if snap.cache.enable_prefix_caching else "off" }}<span class="source">detected</span></td></tr>
+    {% else %}
+    <tr><th>KV cache</th><td class="error">not visible: /metrics unreachable. Memory findings will be estimates.</td></tr>
+    {% endif %}
+    {% if snap.network %}
+    <tr><th>Distance to server</th><td>{{ "%.0f"|format(snap.network.http_rtt_ms or 0) }} ms round trip
+      {% if (snap.network.http_rtt_ms or 0) > 20 %}<div class="help">Far from the server: time per token stays reliable, first-token times will include the network.</div>{% endif %}</td></tr>
+    {% endif %}
+  </table>
+  {% endif %}
+</section>

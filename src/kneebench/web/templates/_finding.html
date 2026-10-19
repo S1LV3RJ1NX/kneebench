@@ -1,0 +1,33 @@
+{% set labels = {"ok": "good", "warn": "watch", "bad": "problem", "info": "context", "skip": "not checked"} %}
+<section class="card finding {{ f.status }}" id="rule-{{ f.rule_id }}">
+  <div class="head">
+    <h3>{{ f.title }}</h3>
+    <span><span class="badge {{ f.status }}">{{ labels[f.status] }}</span>
+      <span class="rule">{{ f.rule_id }}</span></span>
+  </div>
+  <p class="line">{{ f.status_line | safe }}</p>
+  {% for fig in figures.get(f.rule_id, []) %}
+    <div class="chart" id="chart-{{ f.rule_id }}-{{ loop.index0 }}"></div>
+  {% endfor %}
+  {% if f.measured %}<div class="part"><b>What we measured</b>{{ f.measured | safe }}</div>{% endif %}
+  {% if f.table %}
+  <details{% if not figures.get(f.rule_id) %} open{% endif %}>
+    <summary>Data table</summary>
+    <table>
+      <thead><tr>{% for c in f.table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in f.table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  {% endif %}
+  {% if f.meaning %}<div class="part"><b>What it means</b>{{ f.meaning | safe }}{% if f.analogy %} {{ f.analogy | safe }}{% endif %}</div>{% endif %}
+  {% if f.why %}<div class="part"><b>Why it happens</b>{{ f.why | safe }}
+    {% if f.learn_more_url %}<a href="{{ f.learn_more_url }}" target="_blank" rel="noopener">Learn more: {{ f.learn_more_label }}</a>{% endif %}</div>{% endif %}
+  {% for a in f.actions %}
+  <div class="action"><b>What to do:</b> {{ a.title | safe }}
+    {% if a.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">copy</button><code>{{ a.flag | safe }}</code></pre>{% endif %}
+    {% if a.expected %}<div class="small"><b>Expected:</b> {{ a.expected | safe }}</div>{% endif %}
+    {% if a.risk %}<div class="small"><b>Risk:</b> {{ a.risk | safe }}</div>{% endif %}
+    {% if a.verify %}<div class="small"><b>Verify:</b> {{ a.verify | safe }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</section>

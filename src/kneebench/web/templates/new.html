@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}New run · kneebench{% endblock %}
+{% block main %}
+<h1>New benchmark</h1>
+<p class="muted">kneebench only sends requests to your existing server. It never starts, stops or
+  changes it.</p>
+
+<form id="run-form" method="post" action="/runs">
+  <section class="card">
+    <h3>1. Connect</h3>
+    <div class="row"><label for="url">Endpoint URL</label>
+      <div><input id="url" name="url" required placeholder="http://my-vllm-host:8000" value="{{ defaults.url or '' }}">
+        <div class="help">The server root. kneebench adds /v1/chat/completions, /metrics and so on.</div></div></div>
+    <div class="row"><label for="api_key">API key (optional)</label>
+      <div><input id="api_key" name="api_key" type="password" autocomplete="off">
+        <div class="help">Used for this run only. Never saved, logged or written into reports.</div></div></div>
+    <button type="button" class="secondary" hx-post="/detect" hx-include="#url,#api_key"
+            hx-target="#detected" hx-indicator="#detect-spin">Detect server</button>
+    <span id="detect-spin" class="htmx-indicator muted small">detecting…</span>
+  </section>
+
+  <div id="detected"></div>
+
+  <section class="card">
+    <h3>3. Hardware and flags</h3>
+    <div class="row"><label for="gpu">GPU</label>
+      <div><select id="gpu" name="gpu">{% for g in gpus %}<option value="{{ g.id }}">{{ g.name }} ({{ "%.0f"|format(g.memory_gib) }} GiB, {{ g.bandwidth_tbps }} TB/s)</option>{% endfor %}</select>
+        <div class="help">Needed for the physics floors. kneebench checks it against what it measures and flags a mismatch.</div></div></div>
+    <div class="row"><label for="gpu_count">GPUs per replica</label>
+      <div><input id="gpu_count" name="gpu_count" type="number" min="1" value="1">
+        <div class="help">The tensor parallel size (--tensor-parallel-size).</div></div></div>
+    <div class="row"><label for="max_num_seqs">--max-num-seqs</label>
+      <div><input id="max_num_seqs" name="max_num_seqs" type="number" min="1" placeholder="default for your vLLM and GPU">
+        <div class="help">Leave empty if you didn't set it.</div></div></div>
+    <div class="row"><label>--enforce-eager</label>
+      <div class="choices">
+        <label><input type="radio" name="enforce_eager" value="" checked> Not sure</label>
+        <label><input type="radio" name="enforce_eager" value="false"> Not set (CUDA graphs on)</label>
+        <label><input type="radio" name="enforce_eager" value="true"> Set</label></div></div>
+  </section>
+
+  <section class="card">
+    <h3>4. Your traffic</h3>
+    <div class="choices">
+      {% for key, p in profiles.items() %}
+      <label><input type="radio" name="product" value="{{ key }}" {% if key == "chat" %}checked{% endif %}
+        onchange="applyPreset(this.value)"> <b>{{ p.title }}</b>
+        <span class="muted small">{{ presets[key].explain }}</span></label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>5. Latency targets</h3>
+    <div class="row"><label for="slo_ttft_ms">Time to first token (ms)</label>
+      <div><input id="slo_ttft_ms" name="slo_ttft_ms" type="number" min="1">
+        <div class="help">How long a user waits before the answer starts. Empty means no target.</div></div></div>
+    <div class="row"><label for="slo_tpot_ms">Time per token (ms)</label>
+      <div><input id="slo_tpot_ms" name="slo_tpot_ms" type="number" min="1" step="0.1">
+        <div class="help" id="tpot-help">The gap between words once the answer streams.</div></div></div>
+    <div class="row"><label for="slo_percentile">For this many of 100 requests</label>
+      <div><select id="slo_percentile" name="slo_percentile"><option value="99">99 (P99)</option><option value="90">90 (P90)</option></select></div></div>
+  </section>
+
+  <section class="card">
+    <h3>6. Budget and plan</h3>
+    <div class="row"><label for="max_concurrency">Highest concurrency</label>
+      <div><input id="max_concurrency" name="max_concurrency" type="number" min="1" value="256">
+        <div class="help">The sweep doubles from 1 up to this, and stops early once the limits are found.</div></div></div>
+    <div class="row"><label for="budget_min">Time budget (minutes)</label>
+      <div><input id="budget_min" name="budget_min" type="number" min="1" placeholder="no limit">
+        <div class="help">If the plan is longer, the top of the sweep is trimmed.</div></div></div>
+    <div class="row"><label for="label">Label</label>
+      <div><input id="label" name="label" placeholder="e.g. before lowering max-num-seqs"></div></div>
+    <button type="button" class="secondary" hx-post="/plan" hx-include="#run-form" hx-target="#plan"
+            hx-indicator="#plan-spin">Preview plan</button>
+    <span id="plan-spin" class="htmx-indicator muted small">planning…</span>
+    <div id="plan"></div>
+  </section>
+
+  <button type="submit">Start benchmark</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  const PRESETS = {{ presets_json | safe }};
+  function applyPreset(product) {
+    const p = PRESETS[product];
+    document.getElementById("slo_ttft_ms").value = p.ttft_ms ?? "";
+    document.getElementById("slo_tpot_ms").value = p.tpot_ms ?? "";
+    document.getElementById("slo_percentile").value = String(p.percentile);
+    const tps = p.tpot_ms ? Math.round(1000 / p.tpot_ms) : null;
+    document.getElementById("tpot-help").textContent = tps
+      ? `The gap between words once the answer streams. ${p.tpot_ms} ms is ${tps} tokens per second per user.`
+      : "The gap between words once the answer streams.";
+  }
+  applyPreset("chat");
+</script>
+{% endblock %}

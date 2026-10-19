@@ -31,11 +31,32 @@ _STATUS_LABEL = {
 
 @app.callback(invoke_without_command=True)
 def root(ctx: typer.Context) -> None:
+    """With no command, start the web UI."""
     if ctx.invoked_subcommand is None:
-        console.print(
-            "The kneebench web UI arrives in milestone M2. For now: "
-            "[bold]kneebench doctor[/], [bold]kneebench run[/], [bold]kneebench report[/]."
-        )
+        ui()
+
+
+@app.command()
+def ui(
+    host: Annotated[
+        str, typer.Option(help="Interface to bind; keep localhost unless you know who can reach it")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port")] = 8765,
+    open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open a browser")] = True,
+) -> None:
+    """Start the web UI."""
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from kneebench.web.app import create_app
+
+    url = f"http://{host}:{port}"
+    console.print(f"kneebench is running at [bold]{url}[/] (Ctrl+C to stop)")
+    if open_browser:
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    uvicorn.run(create_app(data_dir()), host=host, port=port, log_level="warning")
 
 
 @app.command()
@@ -59,8 +80,15 @@ def doctor(
     offline: Annotated[
         bool, typer.Option("--offline", help="Only check the local install; no network.")
     ] = False,
+    install_pdf: Annotated[
+        bool, typer.Option("--install-pdf", help="Download the headless Chromium for PDF export")
+    ] = False,
 ) -> None:
     """Check Python, the bundled AIPerf, the tokenizer download and the endpoint."""
+    if install_pdf:
+        from kneebench.report.pdf import install_chromium
+
+        raise typer.Exit(install_chromium())
     local = load_local_config()
     url = url or local.url
     tokenizer = tokenizer or local.tokenizer
@@ -263,7 +291,7 @@ def runs() -> None:
 @app.command()
 def report(
     run_id: Annotated[int, typer.Argument(help="Run id (see `kneebench runs`)")],
-    fmt: Annotated[str, typer.Option("--format", "-f", help="md or json")] = "md",
+    fmt: Annotated[str, typer.Option("--format", "-f", help="md, json, html or pdf")] = "md",
     output: Annotated[Path | None, typer.Option("--output", "-o", help="File to write")] = None,
     gpu: Annotated[
         str | None, typer.Option(help="Correct the GPU entry (catalog id); no rerun needed")
@@ -280,30 +308,12 @@ def report(
 
 
 def _correct_gpu(conn: object, run_id: int, gpu: str | None, gpu_count: int | None) -> None:
-    import json
     from sqlite3 import Connection
 
-    from kneebench.domain import ServerSetup, Source
-    from kneebench.phases.theory import theory_from_snapshot
-    from kneebench.physics.floors import Hardware
-    from kneebench.physics.gpus import get_gpu, gpu_from_json
-    from kneebench.store import repo
+    from kneebench.service import correct_gpu
 
     assert isinstance(conn, Connection)
-    bundle = repo.run_bundle(conn, run_id)
-    old = bundle["setup"]
-    spec = get_gpu(gpu) if gpu else gpu_from_json(json.loads(old["gpu_json"]))
-    count = gpu_count or old["gpu_count"]
-    sources = {**json.loads(old["source_json"]), "gpu": Source.USER, "gpu_count": Source.USER}
-    setup = ServerSetup(
-        gpu=spec,
-        gpu_count=count,
-        max_num_seqs=old["max_num_seqs"],
-        enforce_eager=None if old["enforce_eager"] is None else bool(old["enforce_eager"]),
-        sources=sources,
-    )
-    theory = theory_from_snapshot(bundle["snapshot"], bundle["workload"], Hardware(spec, count))
-    repo.correct_setup(conn, run_id, setup, theory.to_json())
+    spec, count = correct_gpu(conn, run_id, gpu, gpu_count)
     console.print(f"Run {run_id} now uses {count}× {spec.name}.")
 
 
@@ -326,15 +336,38 @@ def _write_report(
     from sqlite3 import Connection
 
     from kneebench.report.build import build_report
+    from kneebench.report.render_html import render_html
     from kneebench.report.render_json import render_json
     from kneebench.report.render_md import render_markdown
 
     assert isinstance(conn, Connection)
+    if fmt not in ("md", "json", "html", "pdf"):
+        raise typer.BadParameter("format must be md, json, html or pdf")
     rep = build_report(conn, run_id)
-    text = render_json(rep) if fmt == "json" else render_markdown(rep)
-    path = output or data_dir() / "reports" / f"run-{run_id}.{'json' if fmt == 'json' else 'md'}"
+    path = output or data_dir() / "reports" / f"run-{run_id}.{fmt}"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    if fmt == "pdf":
+        from kneebench.report.pdf import PdfUnavailableError, attach, html_to_pdf
+
+        html = render_html(build_report(conn, run_id, style="html"), inline=True)
+        try:
+            pdf = html_to_pdf(html)
+        except PdfUnavailableError as exc:
+            console.print(f"[red]{exc}[/]")
+            raise typer.Exit(1) from exc
+        path.write_bytes(
+            attach(
+                pdf,
+                {
+                    "report.md": render_markdown(rep).encode(),
+                    "report.json": render_json(rep).encode(),
+                },
+            )
+        )
+    elif fmt == "html":
+        path.write_text(render_html(build_report(conn, run_id, style="html"), inline=True))
+    else:
+        path.write_text(render_json(rep) if fmt == "json" else render_markdown(rep))
     if show_verdict:
         console.print("\n[bold]Verdict[/]\n" + "\n".join(rep.verdict))
     console.print(f"\nReport written to {path}")

@@ -1,0 +1,102 @@
+{% set s = report.sections %}
+<h1>{{ report.title }}</h1>
+<p class="muted small">Run {{ report.run_id }} · {{ report.summary.product }} workload ·
+  vLLM {{ report.summary.vllm_version }} · started {{ report.summary.run_started }} ·
+  status {{ report.summary.run_status }}</p>
+
+<h2>{{ s.verdict }}</h2>
+<div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
+
+<h2>{{ s.scorecard }}</h2>
+<div class="grid">
+  {% for t in report.scorecard %}
+  <div class="tile {{ t.status }}"><div class="label">{{ t.label }}</div><div class="text">{{ t.text | safe }}</div></div>
+  {% endfor %}
+</div>
+
+{% if report.problems %}
+<h2>{{ s.problems }}</h2>
+{% for f in report.problems %}{% include "_finding.html" %}{% endfor %}
+{% endif %}
+
+{% if report.next_steps %}
+<h2>{{ s.next }}</h2>
+<ol>
+  {% for step in report.next_steps %}
+  <li class="card" style="list-style-position: inside">
+    <b>{{ step.action.title | safe }}</b> <span class="rule small muted">{{ step.rule_id }}</span>
+    <div class="small"><b>Why:</b> {{ step.reason | safe }}</div>
+    {% if step.action.expected %}<div class="small"><b>Expected:</b> {{ step.action.expected | safe }}</div>{% endif %}
+    {% if step.action.risk %}<div class="small"><b>Risk:</b> {{ step.action.risk | safe }}</div>{% endif %}
+    {% if step.action.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">copy</button><code>{{ step.action.flag | safe }}</code></pre>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+
+{% if report.capacity %}
+<h2>{{ s.capacity }}</h2>
+{% for f in report.capacity %}{% include "_finding.html" %}{% endfor %}
+{% endif %}
+
+{% if report.context %}
+<h2>{{ s.context }}</h2>
+{% for f in report.context %}{% include "_finding.html" %}{% endfor %}
+{% endif %}
+
+{% if report.passed %}
+<h2>{{ s.passed }}</h2>
+<ul class="passed">
+  {% for f in report.passed %}<li><span class="badge ok">good</span> <b>{{ f.title }}</b> <span class="rule small muted">{{ f.rule_id }}</span>: {{ f.status_line | safe }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if report.skipped %}
+<h2>{{ s.skipped }}</h2>
+<ul class="passed">
+  {% for f in report.skipped %}<li><b>{{ f.title }}</b> <span class="rule small muted">{{ f.rule_id }}</span>: {{ f.status_line | safe }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+<h2>{{ s.caveats }}</h2>
+<ul>{% for c in report.caveats %}<li>{{ c | safe }}</li>{% endfor %}</ul>
+
+{% if report.glossary %}
+<h2>{{ s.glossary }}</h2>
+<dl>{% for term, definition in report.glossary %}<dt><b>{{ term }}</b></dt><dd>{{ definition }}</dd>{% endfor %}</dl>
+{% endif %}
+
+<h2>{{ s.appendix }}</h2>
+<p class="muted small">Every number behind this report, as plain tables. The JSON and Markdown
+  versions carry the same data for further analysis.</p>
+{% for t in report.appendix %}
+<h3 style="margin-top:18px">{{ t.title }}</h3>
+<table>
+  <thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for row in t.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+</table>
+{% endfor %}
+<p class="muted small">kneebench {{ report.summary.kneebench_version }} · AIPerf
+  {{ report.summary.aiperf_version }} · rules {{ report.summary.rules_version }} · generated
+  {{ report.generated_at }}</p>
+
+<script type="application/json" id="kb-figures">{{ figures_json | safe }}</script>
+<script>
+  window.kneebenchReady = false;
+  (function () {
+    const figures = JSON.parse(document.getElementById("kb-figures").textContent);
+    const jobs = [];
+    for (const [rule, figs] of Object.entries(figures)) {
+      figs.forEach((fig, i) => {
+        const el = document.getElementById(`chart-${rule}-${i}`);
+        if (el && window.Plotly) {
+          jobs.push(Plotly.newPlot(el, fig.data, fig.layout, {displaylogo: false, responsive: true}));
+        }
+      });
+    }
+    Promise.all(jobs).then(() => { window.kneebenchReady = true; });
+    window.addEventListener("beforeprint", () => {
+      document.querySelectorAll("details").forEach((d) => d.setAttribute("open", ""));
+    });
+  })();
+</script>
