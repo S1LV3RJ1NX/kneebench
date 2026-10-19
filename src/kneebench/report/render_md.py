@@ -55,6 +55,7 @@ def render_markdown(report: Report) -> str:
         f"Run {report.run_id} · {summary['product']} workload · vLLM {summary['vllm_version']} · "
         f"generated {report.generated_at}",
         "",
+        *([f"> {report.what_if}", ""] if report.what_if else []),
         f"## {s['verdict']}",
         "",
         " ".join(report.verdict),
@@ -87,6 +88,10 @@ def render_markdown(report: Report) -> str:
     if report.capacity:
         out += [f"## {s['capacity']}", ""]
         for f in report.capacity:
+            out += _finding(f)
+    if report.shapes:
+        out += [f"## {s['shapes']}", ""]
+        for f in report.shapes:
             out += _finding(f)
     if report.context:
         out += [f"## {s['context']}", ""]

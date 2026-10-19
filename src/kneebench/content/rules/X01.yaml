@@ -1,0 +1,28 @@
+id: X01
+title: What changed between the runs
+status_line:
+  ok: >-
+    One thing changed: {{ change.label }} went from {{ change.a }} to {{ change.b }}, so the
+    difference in results comes from it.
+  info: >-
+    The setup is the same in both runs, so any difference is run-to-run noise.
+  warn: >-
+    {% if workload %}The runs tested different things
+    ({{ workload | map(attribute="label") | join(", ") }}), so their numbers can't be compared
+    directly.{% else %}{{ n_setup }} things changed at once
+    ({{ setup | map(attribute="label") | join(", ") }}), so the results can't say which one
+    made the difference.{% endif %}
+measured: >-
+  kneebench compared the detected server setup and the workload of both runs.
+meaning:
+  ok: >-
+    This is a clean before-and-after test.
+  info: >-
+    Use this pair to see how much the numbers move on their own before trusting small changes.
+  warn: >-
+    {% if workload %}Rerun one of them with the same traffic type, request size and latency
+    targets.{% else %}Change one setting at a time and rerun, so each effect has a cause.{% endif %}
+why: >-
+  Every speedup is a ratio against a starting number. If the setup or the test changes in more
+  than one way between the two numbers, the ratio no longer measures any single change.
+learn_more: {note: "24", anchor: "3-measure-cleanly", label: "Measure cleanly"}

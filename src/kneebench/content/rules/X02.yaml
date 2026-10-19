@@ -1,0 +1,37 @@
+id: X02
+title: What the change did
+status_line:
+  ok: >-
+    {{ headline.label }} went from {{ num(headline.a) }} to {{ num(headline.b) }}
+    {%- if headline.ratio %} ({{ times(headline.ratio) }}){% endif %}, and nothing got worse.
+  warn: >-
+    {% if better %}Better: {{ better | join(", ") | lower }}. {% endif %}Worse:
+    {{ worse | join(", ") | lower }}.
+  info: >-
+    Nothing moved by more than {{ pct(noise_pct) }}: the change made no measurable difference.
+measured: >-
+  The same numbers from both reports, side by side; changes under {{ pct(noise_pct) }} count as
+  noise.{% if grid_note %} The number of users is measured on a doubling grid (1, 2, 4, 8 and
+  so on), so it moves in steps of two.{% endif %}
+meaning:
+  ok: >-
+    Keep the change.
+  warn: >-
+    Weigh the trade-off against what your users feel: per-user speed and first-token time for
+    chat, total throughput for batch jobs.
+  info: >-
+    If you expected a gain, check that the setting actually reached the server (the detected
+    setup is in each report).
+why: >-
+  Capacity, throughput and per-user speed trade against each other: a change that admits more
+  users often makes each one slower. Comparing them all keeps a gain in one from hiding a loss
+  in another.
+learn_more: {note: "24", anchor: "6-write-it-down", label: "Write it down"}
+table:
+  rows: rows
+  columns:
+    - {key: label, label: Measure}
+    - {key: a, label: Before, fmt: num}
+    - {key: b, label: After, fmt: num}
+    - {key: ratio, label: Change, fmt: times}
+    - {key: verdict, label: Verdict}

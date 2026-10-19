@@ -80,6 +80,33 @@ PRIMARY_SHAPE = {
     ProductType.REASONING: "reasoning",
     ProductType.BATCH: "chat",
 }
+# Shapes the user describes from their own traffic are named "yours", "yours-2" ...
+USER_SHAPE_PREFIX = "yours"
+
+
+def user_shapes(spec: str) -> tuple[Shape, ...]:
+    """Parse "2000/500, 512/128" (prompt tokens/output tokens) into named shapes."""
+    shapes = []
+    for i, part in enumerate(p.strip() for p in spec.split(",") if p.strip()):
+        try:
+            isl, osl = (int(x) for x in part.split("/"))
+        except ValueError:
+            raise ValueError(
+                f"shape {part!r} should look like 2000/500 (prompt/output tokens)"
+            ) from None
+        if isl <= 0 or osl <= 0:
+            raise ValueError(f"shape {part!r} needs positive token counts")
+        shapes.append(
+            Shape(USER_SHAPE_PREFIX if i == 0 else f"{USER_SHAPE_PREFIX}-{i + 1}", isl, osl)
+        )
+    return tuple(shapes)
+
+
+def primary_shape_name(product: ProductType, shape_names: tuple[str, ...]) -> str:
+    """The user's own shape when given, else the standard shape for their product."""
+    return next((n for n in shape_names if n.startswith(USER_SHAPE_PREFIX)), PRIMARY_SHAPE[product])
+
+
 # Single-request baseline shape (note 24).
 BASELINE_SHAPE = Shape("baseline", 512, 256)
 # Room for chat-template tokens added by the server on top of the prompt.

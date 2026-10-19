@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-from kneebench.domain import PRIMARY_SHAPE, ProductType, Slo
+from kneebench.domain import CONTEXT_MARGIN_TOKENS, ProductType, Slo, primary_shape_name
 from kneebench.loadgen.aiperf.overhead import estimate_point_overhead_s
 from kneebench.loadgen.base import Arrival, LoadMode, PointSpec
 from kneebench.phases.theory import ShapeTheory, Theory
@@ -31,6 +31,19 @@ BURSTINESS = 0.5  # gamma shape below 1 clusters arrivals; 1.0 is Poisson
 RATE_DURATION_S = 90.0
 # Open-loop arrivals need room to queue; past this, the client is the limit.
 RATE_CONCURRENCY_CAP = 2048
+# Note 26 section 5: one axis at a time, in powers of two (here powers of four, to keep the
+# run short), with the other axis fixed.
+SHAPE_AXIS = (128, 512, 2048, 8192)
+SHAPE_FIXED_OSL = 256  # for the prompt axis (note 26 section 2)
+SHAPE_FIXED_ISL = 1024  # for the output axis (note 26 section 3)
+SHAPE_SINGLE_REQUESTS = 6
+# One long answer already gives thousands of per-token samples; three are enough for a median.
+SHAPE_SINGLE_REQUESTS_LONG = 3
+SHAPE_LONG_OUTPUT = 2048
+# Points at the operating point run about this long, with 2 to SWEEP_ROUNDS rounds.
+SHAPE_POINT_TARGET_S = 150
+SHAPE_MIN_ROUNDS = 2
+SHAPE_PHASES = ("shape_prompt", "shape_output", "shape_map")
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -43,6 +56,8 @@ class PlannedPoint:
     eta_s: float
     # Rate points run at this multiple of the capacity the concurrency sweep measures.
     rate_factor: float | None = None
+    # Shape points that run at the operating point the concurrency sweep finds.
+    at_operating_point: bool = False
 
 
 @dataclass(frozen=True)
@@ -116,6 +131,37 @@ def rate_spec(shape: ShapeTheory, arrival: str, slo: Slo, rate: float = 1.0) -> 
     )
 
 
+def axis_lengths(max_model_len: int | None, fixed: int) -> list[int]:
+    """Axis values that fit the context window next to the fixed side."""
+    room = (max_model_len or 32_768) - fixed - CONTEXT_MARGIN_TOKENS
+    values = [v for v in SHAPE_AXIS if v <= room]
+    largest = room // 256 * 256
+    if values and largest >= values[-1] * 2 and largest not in values:
+        values.append(min(largest, SHAPE_AXIS[-1] * 4))
+    return values
+
+
+def shape_spec(isl: int, osl: int, concurrency: int, slo: Slo) -> PointSpec:
+    single = concurrency == 1
+    return PointSpec(
+        isl=isl,
+        osl=osl,
+        mode=LoadMode.CONCURRENCY,
+        concurrency=concurrency,
+        isl_stddev=round(isl * SWEEP_LENGTH_VARIATION, 1),
+        osl_stddev=round(osl * SWEEP_LENGTH_VARIATION),
+        request_count=(
+            SHAPE_SINGLE_REQUESTS_LONG if osl >= SHAPE_LONG_OUTPUT else SHAPE_SINGLE_REQUESTS
+        )
+        if single
+        else max(SWEEP_ROUNDS * concurrency, SWEEP_MIN_REQUESTS),
+        warmup_count=1 if single else min(concurrency, SWEEP_MAX_WARMUP),
+        duration_s=POINT_DURATION_CAP_S,
+        slice_duration_s=SLICE_S,
+        goodput=slo.goodput(),
+    )
+
+
 def estimate_e2e_ms(
     theory: Theory, shape: ShapeTheory, concurrency: int, slowdown: float = UNMEASURED_SLOWDOWN
 ) -> float:
@@ -167,10 +213,14 @@ def plan_run(
         add("baseline", baseline_spec(theory), base_shape)
 
     dropped: list[int] = []
-    if "rate" in phases and "concurrency" not in phases:
-        raise ValueError("the request-rate sweep needs the concurrency sweep to find capacity")
+    for needs_sweep in ("rate", "shape"):
+        if needs_sweep in phases and "concurrency" not in phases:
+            raise ValueError(
+                f"the {needs_sweep} sweep needs the concurrency sweep to find capacity first"
+            )
     if "concurrency" in phases:
-        shape = theory.shape(PRIMARY_SHAPE[product]) or base_shape
+        primary = primary_shape_name(product, tuple(s.name for s in theory.shapes))
+        shape = theory.shape(primary) or base_shape
         levels = concurrency_levels(theory, shape, max_concurrency, max_num_seqs)
         sweep = [(c, sweep_spec(shape, c, slo or Slo(None, None))) for c in levels]
         for _, spec in sweep:
@@ -182,12 +232,66 @@ def plan_run(
                     tail_s = estimate_e2e_ms(theory, shape, 64, slowdown) / 1000
                     eta = RATE_DURATION_S + tail_s + estimate_point_overhead_s([], False)
                     points.append(PlannedPoint("rate", spec, eta, rate_factor=factor))
+        if "shape" in phases:
+            points.extend(_shape_points(theory, shape, slo or Slo(None, None), slowdown))
         # Re-measuring the baseline at the end catches a GPU that changed mid-run (B06).
         add("baseline_end", replace(baseline_spec(theory), warmup_count=2), base_shape)
         if budget_s is not None:
             dropped = _trim(points, budget_s)
 
     return RunPlan(tuple(points), tuple(dropped))
+
+
+def _shape_points(
+    theory: Theory, primary: ShapeTheory, slo: Slo, slowdown: float
+) -> list[PlannedPoint]:
+    """Prompt and output axes at 1 user and at the operating point, then the shape map."""
+    out: list[PlannedPoint] = []
+    # Concurrency at the operating point is unknown until the sweep runs; assume 32 for ETAs.
+    eta_c = 32
+
+    def point(phase: str, isl: int, osl: int, at_op: bool) -> PlannedPoint:
+        shape = theory.shape("baseline")
+        assert shape is not None
+        fake = ShapeTheory(
+            name=phase,
+            isl=isl,
+            osl=osl,
+            adapted=False,
+            original_isl=isl,
+            original_osl=osl,
+            tpot_floor_ms=shape.tpot_floor_ms,
+            ttft_floor_ms=shape.ttft_floor_ms * isl / shape.isl,
+            e2e_floor_ms=0,
+            fits=None,
+        )
+        c = eta_c if at_op else 1
+        spec = shape_spec(isl, osl, 1, slo)
+        e2e = estimate_e2e_ms(theory, fake, c, slowdown)
+        if at_op:
+            rounds = max(
+                SHAPE_MIN_ROUNDS, min(SWEEP_ROUNDS, int(SHAPE_POINT_TARGET_S * 1000 / e2e))
+            )
+            spec_eta = replace(spec, concurrency=c, request_count=rounds * c)
+        else:
+            spec_eta = spec
+        eta = estimate_point_s(spec_eta, e2e, [], False)
+        return PlannedPoint(phase, spec, eta, at_operating_point=at_op)
+
+    for isl in axis_lengths(theory.max_model_len, SHAPE_FIXED_OSL):
+        out += [
+            point("shape_prompt", isl, SHAPE_FIXED_OSL, False),
+            point("shape_prompt", isl, SHAPE_FIXED_OSL, True),
+        ]
+    for osl in axis_lengths(theory.max_model_len, SHAPE_FIXED_ISL):
+        out += [
+            point("shape_output", SHAPE_FIXED_ISL, osl, False),
+            point("shape_output", SHAPE_FIXED_ISL, osl, True),
+        ]
+    for s in theory.shapes:  # already fitted to the context window
+        if s.name not in ("baseline", primary.name):
+            out.append(point("shape_map", s.isl, s.osl, True))
+    return out
 
 
 def _trim(points: list[PlannedPoint], budget_s: float) -> list[int]:

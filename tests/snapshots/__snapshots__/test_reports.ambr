@@ -995,6 +995,858 @@
   
   '''
 # ---
+# name: test_shape_report_renders_the_shape_section[chat]
+  '''
+  # kneebench report: unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB
+  
+  Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
+  
+  ## Verdict
+  
+  For your chat assistant traffic (1,024 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  
+  ## Scorecard
+  
+  |  | Area | Result |
+  |---|---|---|
+  | [good] | Baseline vs physics | 71% of memory bandwidth |
+  | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
+  | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 260 memory sustains |
+  | [good] | Test reliability | No problems with the test itself |
+  
+  ## What needs attention
+  
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260. Your latency target is crossed at about 42 users.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  
+  ### [watch] The slow tail breaks first (C05)
+  
+  **At 64 users the median TPOT (20 ms) still looks fine, but P99 (80 ms) is past the 50 ms target.**
+  
+  **What we measured.** Median and P99 TPOT at 64 users.
+  
+  **What it means.** 99 out of 100 requests must meet the target; the slowest ones are what users remember. A dashboard of medians would call this load fine.
+  
+  **Why it happens.** Under load, a few requests land behind long prompts or wait for memory, so the tail grows faster than the median. Judging by medians lets the tail blow through the target unnoticed. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
+  
+  ### [watch] Every request size, at the same load (S06)
+  
+  **At 32 users, chat meets your targets but summarization doesn't.**
+  
+  **What we measured.** Each standard request size, run separately at the operating point. They are never averaged: long requests would hide inside the mean.
+  
+  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Meets targets |
+  |---|---|---|---|---|---|---|---|
+  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | yes |
+  | reasoning | 1,024 | 7,040 | 2,667 | 199 ms | 24 ms | 30% | yes |
+  | summarization | 7,040 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | no |
+  
+  **What it means.** Settings that work for chat traffic fail for other sizes. If you serve mixed traffic, plan for the worst common size or split it across pools.
+  
+  **Why it happens.** Prompt length sets first-token time and cache size; output length sets answer time and how long each request holds memory. The same GPU fits many short chats but far fewer long documents. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  ## Try these next
+  
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 42
+     ```
+  
+  ## How much load it takes
+  
+  ### [context] Real capacity is the lowest wall (W03)
+  
+  **Capacity for chat traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  
+  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 260; max_num_seqs 1,024.
+  
+  **What it means.** Whichever wall comes first is the limit; the others don't matter until it moves. Each traffic shape has its own walls.
+  
+  **Why it happens.** Every wall gives a maximum number of users for this shape: the latency targets, saturation, memory (cache size divided by each request's final length) and the server's own cap. The smallest one is the capacity. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, The operating envelope](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#5-the-operating-envelope)
+  
+  ### [context] The latency-throughput curve (C02)
+  
+  **For chat requests, throughput stops growing almost for free after 16 users.**
+  
+  **What we measured.** kneebench kept a fixed number of requests in flight (1, 2, 4 and so on, doubling) and measured steady-state output tokens per second and per-token latency at each level.
+  
+  | Users in flight | Output tok/s | TPOT P50 | TPOT tail | TTFT tail | KV cache peak | Preemptions | Errors |
+  |---|---|---|---|---|---|---|---|
+  | 1 | 170 | 5.8 ms | 6.2 ms | 199 ms | 30% | 0 | 0% |
+  | 2 | 335 | 5.9 ms | 6.4 ms | 199 ms | 30% | 0 | 0% |
+  | 4 | 650 | 6.1 ms | 6.8 ms | 199 ms | 30% | 0 | 0% |
+  | 8 | 1,250 | 6.4 ms | 7.5 ms | 199 ms | 30% | 0 | 0% |
+  | 16 | 2,300 | 7 ms | 9 ms | 199 ms | 30% | 0 | 0% |
+  | 32 | 3,000 | 10.5 ms | 30 ms | 199 ms | 30% | 0 | 0% |
+  | 64 | 3,080 | 20 ms | 80 ms | 199 ms | 30% | 0 | 0% |
+  
+  **What it means.** Reading left to right: in the flat region throughput grows a lot while each user barely slows down. At the knee every extra user still adds throughput but slows everyone else noticeably. At the wall throughput stops growing and latency keeps climbing as requests wait.
+  
+  **Why it happens.** Decoding shares one weight read across the whole batch, so small batches are nearly free. As the batch grows, each user's own cache reads and math start to dominate the step, and finally the server runs out of room and makes new requests wait. [Learn more: Lesson 25: Sweep concurrency and request rate, The one plot that matters](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#3-the-one-plot-that-matters)
+  
+  ### [context] Wall 2: missing your latency target (W02)
+  
+  **P99 TPOT crosses your 50 ms target at about 42 users (fine at 32, 80 ms at 64).**
+  
+  **What we measured.** TPOT crosses its target at about 42 users. The crossing is interpolated between the last passing and first failing level.
+  
+  **What it means.** This is where users start getting a worse experience than you promised. It usually comes before throughput saturates, which makes it your real limit.
+  
+  **Why it happens.** Latency grows slowly at first, bends up past the knee, and crosses the target well before the GPU stops adding throughput. Capacity is the first crossing, not the plateau. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 2: SLO failure](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#3-wall-2-slo-failure)
+  
+  ### [context] Wall 1: saturation (W01)
+  
+  **Throughput saturates at about 32 users (3,000 tokens per second): doubling beyond that adds less than 5%.**
+  
+  **What we measured.** Each doubling of users added less and less throughput; past 32 users it added under 5%.
+  
+  **What it means.** This is the most this GPU can do for this kind of request. Past it, extra users aren't served faster, they wait.
+  
+  **Why it happens.** Batching gets cheaper per user until the per-user work dominates each step or memory runs out. After that, the server can't add work per step, so new requests queue instead. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 1: saturation](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#2-wall-1-saturation)
+  
+  ### [context] What batching users together buys you (C01)
+  
+  **Serving 32 users at once gives 18× the throughput of one user, for 81% slower tokens each.**
+  
+  **What we measured.** One user at a time: 170 output tokens per second (5.8 ms per token). 32 users at once: 3,000 tokens per second in total (10.5 ms per token each).
+  
+  **What it means.** Extra users mostly ride along on work the GPU does anyway, so the same hardware serves many more people with only a small slowdown for each.
+  
+  **Why it happens.** With one user, each decode step is almost all reading the model's weights from memory. A second user reuses that same read; it only adds its own cache and a little math. The free lunch ends when those per-user extras add up, or when the KV cache (the memory where the server keeps each request's context while it answers) fills. [Learn more: Lesson 25: Sweep concurrency and request rate, The free lunch](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#1-the-free-lunch)
+  
+  ### [context] Peak throughput is not capacity (C04)
+  
+  **Peak throughput (3,080 tokens per second at 64 users) is 2.6% above what you can run within your targets (3,000 at 32 users).**
+  
+  **What we measured.** At 64 users the server produced the most tokens per second, but per-token latency there was 80 ms at P99.
+  
+  **What it means.** Quoting the peak as capacity would promise users a speed they won't get. Plan with the operating point instead.
+  
+  **Why it happens.** The highest throughput sits at the wall, where requests already queue and latency is worst. Capacity is the most load that still meets the targets (goodput (requests per second that met the latency targets)), which is always to the left of the peak. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
+  
+  ### [good] Headroom for bursts (W08)
+  
+  **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
+  
+  ## How request size changes things
+  
+  ### [context] Longer prompts delay the first token (S01)
+  
+  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 8,192 tokens waits 255 ms.**
+  
+  **What we measured.** One user at a time, prompts from 128 to 8,192 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
+  
+  | Prompt tokens | TTFT P50 | TTFT tail |
+  |---|---|---|
+  | 128 | 12.8 ms | 19.8 ms |
+  | 512 | 24.4 ms | 37 ms |
+  | 2,048 | 70.4 ms | 106 ms |
+  | 8,192 | 255 ms | 383 ms |
+  
+  **What it means.** Budget first-token time from your real prompt sizes: long documents, chat history and retrieved context all pay this price before the first word.
+  
+  **Why it happens.** The server reads the whole prompt in one pass (prefill (the step that reads the whole prompt at once, limited by GPU math)), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Long prompts slow every answer in the batch (S02)
+  
+  **At 32 users, time per output token rises 1.7× from 128-token to 8,192-token prompts (10.6 ms to 18.5 ms).**
+  
+  **What we measured.** The same prompt-length sweep, repeated at the operating point the concurrency sweep found, with the output fixed.
+  
+  | Prompt tokens | TPOT P50 | TPOT tail | Peak cache |
+  |---|---|---|---|
+  | 128 | 10.6 ms | 12.8 ms | 30% |
+  | 512 | 11 ms | 13.2 ms | 30% |
+  | 2,048 | 12.5 ms | 15 ms | 30% |
+  | 8,192 | 18.5 ms | 22.2 ms | 30% |
+  
+  **What it means.** Users with short prompts stream slower when they share the server with long-prompt traffic. Plan latency for your longest common prompts, not the average.
+  
+  **Why it happens.** Each step of decode (the word-by-word step that writes the answer, limited by GPU memory speed) rereads the KV cache of every earlier token, for every request in the batch. Longer prompts mean more cache to reread, so each step, and every user in it, gets slower. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Answer time grows in a straight line with output length (S03)
+  
+  **Each extra output token adds about 5.8 ms; a 6,912-token answer takes 40.1 s for one user.**
+  
+  **What we measured.** One user at a time, answers from 128 to 6,912 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
+  
+  | Output tokens | E2E P50 | TTFT P50 | TPOT P50 |
+  |---|---|---|---|
+  | 128 | 782 ms | 39 ms | 5.8 ms |
+  | 512 | 3.01 s | 39 ms | 5.8 ms |
+  | 2,048 | 11.9 s | 39 ms | 5.8 ms |
+  | 6,912 | 40.1 s | 39 ms | 5.8 ms |
+  
+  **What it means.** Long answers are slow answers: reasoning models and long-form writing pay this per token, so cap max_tokens where your product allows and stream the output to users.
+  
+  **Why it happens.** The answer is written one token per step (decode), and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
+  
+  ### [context] Long answers hold their seat longer (S04)
+  
+  **At 32 users, requests finished per second fall from 23.81 to 0.44 as answers grow from 128 to 6,912 tokens, while output tokens per second stay about the same.**
+  
+  **What we measured.** The output-length sweep repeated at the operating point, prompts fixed.
+  
+  | Output tokens | Requests/s | Output tokens/s | Peak cache | Evictions |
+  |---|---|---|---|---|
+  | 128 | 23.8 | 3,048 | 21% | 0 |
+  | 512 | 6.0 | 3,048 | 25% | 0 |
+  | 2,048 | 1.5 | 3,048 | 40% | 0 |
+  | 6,912 | 0.4 | 3,048 | 89% | 0 |
+  
+  **What it means.** Tokens per second can look healthy while far fewer requests finish. Size for requests per second at your real answer length.
+  
+  **Why it happens.** A request keeps its KV cache until its last token. Requests that decode for a minute hold memory for a minute, and requests that start small can grow into each other later, which forces preemption (the server evicting a running request when memory runs out, then recomputing it later). [Learn more: Lesson 26: Sweep prompt and output length, Shape decides how many fit](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#4-shape-decides-how-many-fit)
+  
+  ### [context] One output token costs as much as many prompt tokens (S07)
+  
+  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 214).**
+  
+  **What we measured.** Time per output token for one user (5.8 ms) divided by the cost of one more prompt token (30 µs, from the prompt-length sweep).
+  
+  **What it means.** Shortening answers saves far more time than shortening prompts. Prompts aren't free, though: they still cost first-token time and cache.
+  
+  **Why it happens.** The prompt is read in parallel (prefill), limited by compute. The answer is written one token per step (decode), each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
+  
+  ### [context] Test with your own request sizes (S05)
+  
+  **These results use standard request sizes (chat as the main one), not your traffic.**
+  
+  **What we measured.** No typical request size was given for this run.
+  
+  **What it means.** A server tuned for one request size can miss its targets at another. Your own sizes give the numbers that matter.
+  
+  **Why it happens.** Every number in this report depends on the request's shape (a request's size in prompt and output tokens, for example 1,000 in and 1,000 out): prompt length drives first-token time and cache use, and output length drives answer time. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  **What to do.** Rerun kneebench with your typical request. Try `kneebench run --shapes 2000/500`. Expected: Your own size becomes the main shape in the report, next to the standard ones. Verify: The report header lists your shape as the main one.
+  
+  ## What the hardware allows
+  
+  ### [good] How close one request gets to the hardware limit (B01)
+  
+  **One request runs at 71% of the GPU's memory bandwidth (5.8 ms per token against a 4.1 ms floor): healthy.**
+  
+  **What we measured.** With nothing else running, the median TPOT (time per output token, the gap between words once the answer is streaming) across 30 identical requests was 5.8 ms. The floor for this model on NVIDIA H100 NVL 94GB is 4.1 ms, so decoding reaches 71% MBU (model bandwidth utilization, how much of the GPU's memory speed decoding actually uses).
+  
+  **What it means.** The engine is doing its job: there is nothing to fix for single-request speed. The sweeps measure how this changes as users are added. Like a car on an empty highway: if it can't get near the speed limit, the problem is the car, not the traffic.
+  
+  **Why it happens.** With one request, each decode step is almost entirely reading weights from memory, so speed is bounded by bandwidth. Well-tuned engines reach 60 to 80% of it; Databricks reported about 60% at batch 1 on two H100s. The gap is launch overhead and small operations that can't use the full bandwidth. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  
+  ### [good] Consistency between identical requests (B04)
+  
+  **Time per token was steady across identical requests (variation 1.7%, P99 1.1× the median).**
+  
+  **What we measured.** 30 identical requests: median 5.8 ms, P99 (99 out of 100 requests were at least this fast; the slow tail users notice) 6.4 ms, coefficient of variation 1.7%.
+  
+  **What it means.** The measurement is repeatable, so differences in later runs are real.
+  
+  **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
+  
+  ### [context] How much of the GPU's math prefill uses (B05)
+  
+  **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
+  
+  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  
+  ### [context] The fastest this setup can possibly go (T01)
+  
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  
+  | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
+  |---|---|---|---|---|---|
+  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
+  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
+  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
+  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  
+  **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
+  
+  **Why it happens.** Writing the answer is called decode: each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill: it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  
+  ### [context] How many requests fit in memory at once (T03)
+  
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  
+  | Shape | Prompt tokens | Output tokens | Requests that fit |
+  |---|---|---|---|
+  | baseline | 512 | 256 | 694 |
+  | chat | 1,024 | 1,024 | 260 |
+  | reasoning | 1,024 | 7,040 | 66 |
+  | summarization | 7,040 | 1,024 | 66 |
+  
+  **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
+  
+  **Why it happens.** A request holds memory for its prompt plus everything it has generated so far, so its final length is what counts, not its starting length. Long answers start small and grow, which is why reasoning workloads run out of memory later than they first appear to. [Learn more: Lesson 26: Sweep prompt and output length, Shape decides how many fit](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#4-shape-decides-how-many-fit)
+  
+  ### [context] How much memory each token of context takes (T02)
+  
+  **Each token of context needs 128 KiB of KV cache; the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
+  
+  **What we measured.** From the model's architecture: 128 KiB per token. From the server's /metrics: 532,768 tokens of cache after reserving 90% of GPU memory and loading the weights.
+  
+  **What it means.** Every request in flight holds this much memory per token of its prompt and answer. The pool is the total budget all users share.
+  
+  **Why it happens.** For every token in a conversation, each layer keeps a key and a value vector so later tokens can look back at it: bytes per token = 2 x layers x KV heads x head size x bytes per number. vLLM reserves a share of GPU memory, loads the weights, and gives what's left to this cache. Every decode step rereads the cache of every token so far, which is why long prompts also slow decode. [Learn more: Lesson 26: Sweep prompt and output length, The prompt changes decode too](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Shapes adjusted to fit the context window (T05)
+  
+  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  
+  **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
+  
+  **Why it happens.** A request can't be longer than the server's context window, so a shape that doesn't fit would fail every request instead of measuring anything. [Learn more: Lesson 26: Sweep prompt and output length, Running the sweep](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#5-running-the-sweep)
+  
+  **What to do.** Raise the context limit if your real traffic is longer. Try `--max-model-len <tokens>`. Expected: The original shapes can be measured as-is. Verify: Rerun; this note disappears.
+  
+  ## Checks that passed
+  
+  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
+  - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
+  - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).
+  - [good] **Distance between kneebench and the server** (H03): The network round trip is 1 ms, 3.3% of the time to first token: negligible.
+  - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (26 checked).
+  - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
+  - [good] **Is something between kneebench and the server limiting load?** (H09): No sign of a gateway or proxy limiting the load (7 levels checked).
+  - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
+  - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.8 ms per token is consistent with NVIDIA H100 NVL 94GB.
+  - [good] **Memory the server reports versus the claimed GPU** (T07): Weights (15.0 GiB) plus the reported cache (65.0 GiB) fit in NVIDIA H100 NVL 94GB at 90% utilization.
+  - [good] **Wall 3: requests evicted when memory runs out** (W04): No preemption up to 64 users (KV cache peaked at 30%).
+  - [good] **Errors and timeouts under load** (W07): No requests failed up to 64 users.
+  
+  ## What this test can't see
+  
+  - kneebench only sees the endpoint. It has no GPU telemetry; memory and queue signals come from vLLM's /metrics.
+  - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
+  - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on. Real traffic that repeats system prompts will likely start answers faster than measured here.
+  
+  ## Glossary
+  
+  - **KV cache**: the memory where the server keeps each request's context while it answers
+  - **MBU**: model bandwidth utilization, how much of the GPU's memory speed decoding actually uses
+  - **MFU**: model FLOPs utilization, how much of the GPU's math throughput prefill actually uses
+  - **P99**: 99 out of 100 requests were at least this fast; the slow tail users notice
+  - **TPOT**: time per output token, the gap between words once the answer is streaming
+  - **TTFT**: time to first token, how long a user waits before the answer starts appearing
+  - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
+  - **floor**: the fastest time physics allows on this hardware; nothing can beat it
+  - **goodput**: requests per second that met the latency targets
+  - **preemption**: the server evicting a running request when memory runs out, then recomputing it later
+  - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
+  - **shape**: a request's size in prompt and output tokens, for example 1,000 in and 1,000 out
+  
+  ## Appendix: raw numbers
+  
+  ### Measured points
+  
+  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
+  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
+  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | 6.14 s | n/a | n/a |
+  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | 6.35 s | n/a | n/a |
+  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | 6.65 s | n/a | n/a |
+  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | 7.27 s | n/a | n/a |
+  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | 10.9 s | n/a | n/a |
+  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | 20.6 s | n/a | n/a |
+  | 21 | shape_prompt | done | 128 | 256 | 1 | 5 | 13.8 ms | 20.8 ms | 5.8 ms | 7 ms | 1.5 s | n/a | n/a |
+  | 22 | shape_prompt | done | 128 | 256 | 32 | 160 | 13.8 ms | 20.8 ms | 10.6 ms | 12.8 ms | 2.73 s | n/a | n/a |
+  | 23 | shape_prompt | done | 512 | 256 | 1 | 5 | 25.4 ms | 38 ms | 5.8 ms | 7 ms | 1.51 s | n/a | n/a |
+  | 24 | shape_prompt | done | 512 | 256 | 32 | 160 | 25.4 ms | 38 ms | 11 ms | 13.2 ms | 2.84 s | n/a | n/a |
+  | 25 | shape_prompt | done | 2,048 | 256 | 1 | 5 | 71.4 ms | 107 ms | 5.8 ms | 7 ms | 1.56 s | n/a | n/a |
+  | 26 | shape_prompt | done | 2,048 | 256 | 32 | 160 | 71.4 ms | 107 ms | 12.5 ms | 15 ms | 3.27 s | n/a | n/a |
+  | 27 | shape_prompt | done | 8,192 | 256 | 1 | 5 | 256 ms | 384 ms | 5.8 ms | 7 ms | 1.74 s | n/a | n/a |
+  | 28 | shape_prompt | done | 8,192 | 256 | 32 | 160 | 256 ms | 384 ms | 18.5 ms | 22.2 ms | 4.99 s | n/a | n/a |
+  | 29 | shape_output | done | 1,024 | 128 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 782 ms | n/a | n/a |
+  | 30 | shape_output | done | 1,024 | 128 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 1.38 s | n/a | n/a |
+  | 31 | shape_output | done | 1,024 | 512 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 3.01 s | n/a | n/a |
+  | 32 | shape_output | done | 1,024 | 512 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 5.42 s | n/a | n/a |
+  | 33 | shape_output | done | 1,024 | 2,048 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 11.9 s | n/a | n/a |
+  | 34 | shape_output | done | 1,024 | 2,048 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 21.5 s | n/a | n/a |
+  | 35 | shape_output | done | 1,024 | 6,912 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 40.1 s | n/a | n/a |
+  | 36 | shape_output | done | 1,024 | 6,912 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 72.6 s | n/a | n/a |
+  | 37 | shape_map | done | 1,024 | 7,040 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 84.6 s | n/a | n/a |
+  | 38 | shape_map | done | 7,040 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
+  
+  ### Client distance
+  
+  | DNS | TCP connect | TLS handshake | HTTP round trip (/health) |
+  |---|---|---|---|
+  | n/a | 0.50 ms | n/a | 1 ms |
+  
+  ### Setup
+  
+  | Item | Value |
+  |---|---|
+  | Model | unsloth/Meta-Llama-3.1-8B-Instruct |
+  | Parameters | 8,030,261,248 |
+  | Weight bytes | 16,060,522,496 |
+  | Weight dtype | bfloat16 |
+  | KV bytes per token | 131,072 |
+  | GPU | 1× NVIDIA H100 NVL 94GB |
+  | GPU memory (GiB) | 93.6 |
+  | GPU bandwidth (TB/s) | 3.90 |
+  | KV cache pool (tokens) | 532,768 |
+  | max_model_len | 8,192 |
+  | gpu_memory_utilization | 0.90 |
+  | Default max_num_seqs for this vLLM and GPU | 1,024 |
+  | vLLM | 0.29.0 |
+  | AIPerf | 0.13.0 |
+  
+  
+  _Versions: kneebench_version 0.1.0.dev0, aiperf_version 0.13.0, rules_version 1._
+  
+  '''
+# ---
+# name: test_shape_report_renders_the_shape_section[rag]
+  '''
+  # kneebench report: unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB
+  
+  Run 1 · RAG and long documents workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
+  
+  ## Verdict
+  
+  For your RAG and long documents traffic (7,040 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  
+  ## Scorecard
+  
+  |  | Area | Result |
+  |---|---|---|
+  | [good] | Baseline vs physics | 71% of memory bandwidth |
+  | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
+  | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
+  | [good] | Test reliability | No problems with the test itself |
+  
+  ## What needs attention
+  
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66. Your latency target is crossed at about 42 users.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  
+  ### [watch] The slow tail breaks first (C05)
+  
+  **At 64 users the median TPOT (20 ms) still looks fine, but P99 (80 ms) is past the 50 ms target.**
+  
+  **What we measured.** Median and P99 TPOT at 64 users.
+  
+  **What it means.** 99 out of 100 requests must meet the target; the slowest ones are what users remember. A dashboard of medians would call this load fine.
+  
+  **Why it happens.** Under load, a few requests land behind long prompts or wait for memory, so the tail grows faster than the median. Judging by medians lets the tail blow through the target unnoticed. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
+  
+  ### [watch] Every request size, at the same load (S06)
+  
+  **At 32 users, chat meets your targets but summarization doesn't.**
+  
+  **What we measured.** Each standard request size, run separately at the operating point. They are never averaged: long requests would hide inside the mean.
+  
+  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Meets targets |
+  |---|---|---|---|---|---|---|---|
+  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | yes |
+  | reasoning | 1,024 | 7,040 | 2,667 | 199 ms | 24 ms | 30% | yes |
+  | summarization | 7,040 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | no |
+  
+  **What it means.** Settings that work for chat traffic fail for other sizes. If you serve mixed traffic, plan for the worst common size or split it across pools.
+  
+  **Why it happens.** Prompt length sets first-token time and cache size; output length sets answer time and how long each request holds memory. The same GPU fits many short chats but far fewer long documents. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  ## Try these next
+  
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 42
+     ```
+  
+  ## How much load it takes
+  
+  ### [context] Real capacity is the lowest wall (W03)
+  
+  **Capacity for summarization traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  
+  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 66; max_num_seqs 1,024.
+  
+  **What it means.** Whichever wall comes first is the limit; the others don't matter until it moves. Each traffic shape has its own walls.
+  
+  **Why it happens.** Every wall gives a maximum number of users for this shape: the latency targets, saturation, memory (cache size divided by each request's final length) and the server's own cap. The smallest one is the capacity. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, The operating envelope](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#5-the-operating-envelope)
+  
+  ### [context] The latency-throughput curve (C02)
+  
+  **For summarization requests, throughput stops growing almost for free after 16 users.**
+  
+  **What we measured.** kneebench kept a fixed number of requests in flight (1, 2, 4 and so on, doubling) and measured steady-state output tokens per second and per-token latency at each level.
+  
+  | Users in flight | Output tok/s | TPOT P50 | TPOT tail | TTFT tail | KV cache peak | Preemptions | Errors |
+  |---|---|---|---|---|---|---|---|
+  | 1 | 170 | 5.8 ms | 6.2 ms | 199 ms | 30% | 0 | 0% |
+  | 2 | 335 | 5.9 ms | 6.4 ms | 199 ms | 30% | 0 | 0% |
+  | 4 | 650 | 6.1 ms | 6.8 ms | 199 ms | 30% | 0 | 0% |
+  | 8 | 1,250 | 6.4 ms | 7.5 ms | 199 ms | 30% | 0 | 0% |
+  | 16 | 2,300 | 7 ms | 9 ms | 199 ms | 30% | 0 | 0% |
+  | 32 | 3,000 | 10.5 ms | 30 ms | 199 ms | 30% | 0 | 0% |
+  | 64 | 3,080 | 20 ms | 80 ms | 199 ms | 30% | 0 | 0% |
+  
+  **What it means.** Reading left to right: in the flat region throughput grows a lot while each user barely slows down. At the knee every extra user still adds throughput but slows everyone else noticeably. At the wall throughput stops growing and latency keeps climbing as requests wait.
+  
+  **Why it happens.** Decoding shares one weight read across the whole batch, so small batches are nearly free. As the batch grows, each user's own cache reads and math start to dominate the step, and finally the server runs out of room and makes new requests wait. [Learn more: Lesson 25: Sweep concurrency and request rate, The one plot that matters](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#3-the-one-plot-that-matters)
+  
+  ### [context] Wall 2: missing your latency target (W02)
+  
+  **P99 TPOT crosses your 50 ms target at about 42 users (fine at 32, 80 ms at 64).**
+  
+  **What we measured.** TPOT crosses its target at about 42 users. The crossing is interpolated between the last passing and first failing level.
+  
+  **What it means.** This is where users start getting a worse experience than you promised. It usually comes before throughput saturates, which makes it your real limit.
+  
+  **Why it happens.** Latency grows slowly at first, bends up past the knee, and crosses the target well before the GPU stops adding throughput. Capacity is the first crossing, not the plateau. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 2: SLO failure](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#3-wall-2-slo-failure)
+  
+  ### [context] Wall 1: saturation (W01)
+  
+  **Throughput saturates at about 32 users (3,000 tokens per second): doubling beyond that adds less than 5%.**
+  
+  **What we measured.** Each doubling of users added less and less throughput; past 32 users it added under 5%.
+  
+  **What it means.** This is the most this GPU can do for this kind of request. Past it, extra users aren't served faster, they wait.
+  
+  **Why it happens.** Batching gets cheaper per user until the per-user work dominates each step or memory runs out. After that, the server can't add work per step, so new requests queue instead. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 1: saturation](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#2-wall-1-saturation)
+  
+  ### [context] What batching users together buys you (C01)
+  
+  **Serving 32 users at once gives 18× the throughput of one user, for 81% slower tokens each.**
+  
+  **What we measured.** One user at a time: 170 output tokens per second (5.8 ms per token). 32 users at once: 3,000 tokens per second in total (10.5 ms per token each).
+  
+  **What it means.** Extra users mostly ride along on work the GPU does anyway, so the same hardware serves many more people with only a small slowdown for each.
+  
+  **Why it happens.** With one user, each decode step is almost all reading the model's weights from memory. A second user reuses that same read; it only adds its own cache and a little math. The free lunch ends when those per-user extras add up, or when the KV cache (the memory where the server keeps each request's context while it answers) fills. [Learn more: Lesson 25: Sweep concurrency and request rate, The free lunch](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#1-the-free-lunch)
+  
+  ### [context] Peak throughput is not capacity (C04)
+  
+  **Peak throughput (3,080 tokens per second at 64 users) is 2.6% above what you can run within your targets (3,000 at 32 users).**
+  
+  **What we measured.** At 64 users the server produced the most tokens per second, but per-token latency there was 80 ms at P99.
+  
+  **What it means.** Quoting the peak as capacity would promise users a speed they won't get. Plan with the operating point instead.
+  
+  **Why it happens.** The highest throughput sits at the wall, where requests already queue and latency is worst. Capacity is the most load that still meets the targets (goodput (requests per second that met the latency targets)), which is always to the left of the peak. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
+  
+  ### [good] Headroom for bursts (W08)
+  
+  **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
+  
+  ## How request size changes things
+  
+  ### [context] Longer prompts delay the first token (S01)
+  
+  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 8,192 tokens waits 255 ms.**
+  
+  **What we measured.** One user at a time, prompts from 128 to 8,192 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
+  
+  | Prompt tokens | TTFT P50 | TTFT tail |
+  |---|---|---|
+  | 128 | 12.8 ms | 19.8 ms |
+  | 512 | 24.4 ms | 37 ms |
+  | 2,048 | 70.4 ms | 106 ms |
+  | 8,192 | 255 ms | 383 ms |
+  
+  **What it means.** Budget first-token time from your real prompt sizes: long documents, chat history and retrieved context all pay this price before the first word.
+  
+  **Why it happens.** The server reads the whole prompt in one pass (prefill (the step that reads the whole prompt at once, limited by GPU math)), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Long prompts slow every answer in the batch (S02)
+  
+  **At 32 users, time per output token rises 1.7× from 128-token to 8,192-token prompts (10.6 ms to 18.5 ms).**
+  
+  **What we measured.** The same prompt-length sweep, repeated at the operating point the concurrency sweep found, with the output fixed.
+  
+  | Prompt tokens | TPOT P50 | TPOT tail | Peak cache |
+  |---|---|---|---|
+  | 128 | 10.6 ms | 12.8 ms | 30% |
+  | 512 | 11 ms | 13.2 ms | 30% |
+  | 2,048 | 12.5 ms | 15 ms | 30% |
+  | 8,192 | 18.5 ms | 22.2 ms | 30% |
+  
+  **What it means.** Users with short prompts stream slower when they share the server with long-prompt traffic. Plan latency for your longest common prompts, not the average.
+  
+  **Why it happens.** Each step of decode (the word-by-word step that writes the answer, limited by GPU memory speed) rereads the KV cache of every earlier token, for every request in the batch. Longer prompts mean more cache to reread, so each step, and every user in it, gets slower. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Answer time grows in a straight line with output length (S03)
+  
+  **Each extra output token adds about 5.8 ms; a 6,912-token answer takes 40.1 s for one user.**
+  
+  **What we measured.** One user at a time, answers from 128 to 6,912 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
+  
+  | Output tokens | E2E P50 | TTFT P50 | TPOT P50 |
+  |---|---|---|---|
+  | 128 | 782 ms | 39 ms | 5.8 ms |
+  | 512 | 3.01 s | 39 ms | 5.8 ms |
+  | 2,048 | 11.9 s | 39 ms | 5.8 ms |
+  | 6,912 | 40.1 s | 39 ms | 5.8 ms |
+  
+  **What it means.** Long answers are slow answers: reasoning models and long-form writing pay this per token, so cap max_tokens where your product allows and stream the output to users.
+  
+  **Why it happens.** The answer is written one token per step (decode), and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
+  
+  ### [context] Long answers hold their seat longer (S04)
+  
+  **At 32 users, requests finished per second fall from 23.81 to 0.44 as answers grow from 128 to 6,912 tokens, while output tokens per second stay about the same.**
+  
+  **What we measured.** The output-length sweep repeated at the operating point, prompts fixed.
+  
+  | Output tokens | Requests/s | Output tokens/s | Peak cache | Evictions |
+  |---|---|---|---|---|
+  | 128 | 23.8 | 3,048 | 21% | 0 |
+  | 512 | 6.0 | 3,048 | 25% | 0 |
+  | 2,048 | 1.5 | 3,048 | 40% | 0 |
+  | 6,912 | 0.4 | 3,048 | 89% | 0 |
+  
+  **What it means.** Tokens per second can look healthy while far fewer requests finish. Size for requests per second at your real answer length.
+  
+  **Why it happens.** A request keeps its KV cache until its last token. Requests that decode for a minute hold memory for a minute, and requests that start small can grow into each other later, which forces preemption (the server evicting a running request when memory runs out, then recomputing it later). [Learn more: Lesson 26: Sweep prompt and output length, Shape decides how many fit](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#4-shape-decides-how-many-fit)
+  
+  ### [context] One output token costs as much as many prompt tokens (S07)
+  
+  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 214).**
+  
+  **What we measured.** Time per output token for one user (5.8 ms) divided by the cost of one more prompt token (30 µs, from the prompt-length sweep).
+  
+  **What it means.** Shortening answers saves far more time than shortening prompts. Prompts aren't free, though: they still cost first-token time and cache.
+  
+  **Why it happens.** The prompt is read in parallel (prefill), limited by compute. The answer is written one token per step (decode), each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
+  
+  ### [context] Test with your own request sizes (S05)
+  
+  **These results use standard request sizes (summarization as the main one), not your traffic.**
+  
+  **What we measured.** No typical request size was given for this run.
+  
+  **What it means.** A server tuned for one request size can miss its targets at another. Your own sizes give the numbers that matter.
+  
+  **Why it happens.** Every number in this report depends on the request's shape (a request's size in prompt and output tokens, for example 1,000 in and 1,000 out): prompt length drives first-token time and cache use, and output length drives answer time. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  **What to do.** Rerun kneebench with your typical request. Try `kneebench run --shapes 2000/500`. Expected: Your own size becomes the main shape in the report, next to the standard ones. Verify: The report header lists your shape as the main one.
+  
+  ## What the hardware allows
+  
+  ### [good] How close one request gets to the hardware limit (B01)
+  
+  **One request runs at 71% of the GPU's memory bandwidth (5.8 ms per token against a 4.1 ms floor): healthy.**
+  
+  **What we measured.** With nothing else running, the median TPOT (time per output token, the gap between words once the answer is streaming) across 30 identical requests was 5.8 ms. The floor for this model on NVIDIA H100 NVL 94GB is 4.1 ms, so decoding reaches 71% MBU (model bandwidth utilization, how much of the GPU's memory speed decoding actually uses).
+  
+  **What it means.** The engine is doing its job: there is nothing to fix for single-request speed. The sweeps measure how this changes as users are added. Like a car on an empty highway: if it can't get near the speed limit, the problem is the car, not the traffic.
+  
+  **Why it happens.** With one request, each decode step is almost entirely reading weights from memory, so speed is bounded by bandwidth. Well-tuned engines reach 60 to 80% of it; Databricks reported about 60% at batch 1 on two H100s. The gap is launch overhead and small operations that can't use the full bandwidth. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  
+  ### [good] Consistency between identical requests (B04)
+  
+  **Time per token was steady across identical requests (variation 1.7%, P99 1.1× the median).**
+  
+  **What we measured.** 30 identical requests: median 5.8 ms, P99 (99 out of 100 requests were at least this fast; the slow tail users notice) 6.4 ms, coefficient of variation 1.7%.
+  
+  **What it means.** The measurement is repeatable, so differences in later runs are real.
+  
+  **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
+  
+  ### [context] How much of the GPU's math prefill uses (B05)
+  
+  **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
+  
+  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  
+  ### [context] How much memory each token of context takes (T02)
+  
+  **Each token of context needs 128 KiB of KV cache; the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
+  
+  **What we measured.** From the model's architecture: 128 KiB per token. From the server's /metrics: 532,768 tokens of cache after reserving 90% of GPU memory and loading the weights.
+  
+  **What it means.** Every request in flight holds this much memory per token of its prompt and answer. The pool is the total budget all users share.
+  
+  **Why it happens.** For every token in a conversation, each layer keeps a key and a value vector so later tokens can look back at it: bytes per token = 2 x layers x KV heads x head size x bytes per number. vLLM reserves a share of GPU memory, loads the weights, and gives what's left to this cache. Every decode step rereads the cache of every token so far, which is why long prompts also slow decode. [Learn more: Lesson 26: Sweep prompt and output length, The prompt changes decode too](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  
+  ### [context] Shapes adjusted to fit the context window (T05)
+  
+  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  
+  **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
+  
+  **Why it happens.** A request can't be longer than the server's context window, so a shape that doesn't fit would fail every request instead of measuring anything. [Learn more: Lesson 26: Sweep prompt and output length, Running the sweep](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#5-running-the-sweep)
+  
+  **What to do.** Raise the context limit if your real traffic is longer. Try `--max-model-len <tokens>`. Expected: The original shapes can be measured as-is. Verify: Rerun; this note disappears.
+  
+  ### [context] The fastest this setup can possibly go (T01)
+  
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  
+  | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
+  |---|---|---|---|---|---|
+  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
+  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
+  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
+  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  
+  **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
+  
+  **Why it happens.** Writing the answer is called decode: each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill: it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  
+  ### [context] How many requests fit in memory at once (T03)
+  
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  
+  | Shape | Prompt tokens | Output tokens | Requests that fit |
+  |---|---|---|---|
+  | baseline | 512 | 256 | 694 |
+  | chat | 1,024 | 1,024 | 260 |
+  | reasoning | 1,024 | 7,040 | 66 |
+  | summarization | 7,040 | 1,024 | 66 |
+  
+  **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
+  
+  **Why it happens.** A request holds memory for its prompt plus everything it has generated so far, so its final length is what counts, not its starting length. Long answers start small and grow, which is why reasoning workloads run out of memory later than they first appear to. [Learn more: Lesson 26: Sweep prompt and output length, Shape decides how many fit](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#4-shape-decides-how-many-fit)
+  
+  ## Checks that passed
+  
+  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
+  - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
+  - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).
+  - [good] **Distance between kneebench and the server** (H03): The network round trip is 1 ms, 3.3% of the time to first token: negligible.
+  - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (26 checked).
+  - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
+  - [good] **Is something between kneebench and the server limiting load?** (H09): No sign of a gateway or proxy limiting the load (7 levels checked).
+  - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
+  - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.8 ms per token is consistent with NVIDIA H100 NVL 94GB.
+  - [good] **Memory the server reports versus the claimed GPU** (T07): Weights (15.0 GiB) plus the reported cache (65.0 GiB) fit in NVIDIA H100 NVL 94GB at 90% utilization.
+  - [good] **Wall 3: requests evicted when memory runs out** (W04): No preemption up to 64 users (KV cache peaked at 30%).
+  - [good] **Errors and timeouts under load** (W07): No requests failed up to 64 users.
+  
+  ## What this test can't see
+  
+  - kneebench only sees the endpoint. It has no GPU telemetry; memory and queue signals come from vLLM's /metrics.
+  - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
+  - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on. Real traffic that repeats system prompts will likely start answers faster than measured here.
+  
+  ## Glossary
+  
+  - **KV cache**: the memory where the server keeps each request's context while it answers
+  - **MBU**: model bandwidth utilization, how much of the GPU's memory speed decoding actually uses
+  - **MFU**: model FLOPs utilization, how much of the GPU's math throughput prefill actually uses
+  - **P99**: 99 out of 100 requests were at least this fast; the slow tail users notice
+  - **TPOT**: time per output token, the gap between words once the answer is streaming
+  - **TTFT**: time to first token, how long a user waits before the answer starts appearing
+  - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
+  - **floor**: the fastest time physics allows on this hardware; nothing can beat it
+  - **goodput**: requests per second that met the latency targets
+  - **preemption**: the server evicting a running request when memory runs out, then recomputing it later
+  - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
+  - **shape**: a request's size in prompt and output tokens, for example 1,000 in and 1,000 out
+  
+  ## Appendix: raw numbers
+  
+  ### Measured points
+  
+  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
+  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
+  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | 6.14 s | n/a | n/a |
+  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | 6.35 s | n/a | n/a |
+  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | 6.65 s | n/a | n/a |
+  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | 7.27 s | n/a | n/a |
+  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | 10.9 s | n/a | n/a |
+  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | 20.6 s | n/a | n/a |
+  | 21 | shape_prompt | done | 128 | 256 | 1 | 5 | 13.8 ms | 20.8 ms | 5.8 ms | 7 ms | 1.5 s | n/a | n/a |
+  | 22 | shape_prompt | done | 128 | 256 | 32 | 160 | 13.8 ms | 20.8 ms | 10.6 ms | 12.8 ms | 2.73 s | n/a | n/a |
+  | 23 | shape_prompt | done | 512 | 256 | 1 | 5 | 25.4 ms | 38 ms | 5.8 ms | 7 ms | 1.51 s | n/a | n/a |
+  | 24 | shape_prompt | done | 512 | 256 | 32 | 160 | 25.4 ms | 38 ms | 11 ms | 13.2 ms | 2.84 s | n/a | n/a |
+  | 25 | shape_prompt | done | 2,048 | 256 | 1 | 5 | 71.4 ms | 107 ms | 5.8 ms | 7 ms | 1.56 s | n/a | n/a |
+  | 26 | shape_prompt | done | 2,048 | 256 | 32 | 160 | 71.4 ms | 107 ms | 12.5 ms | 15 ms | 3.27 s | n/a | n/a |
+  | 27 | shape_prompt | done | 8,192 | 256 | 1 | 5 | 256 ms | 384 ms | 5.8 ms | 7 ms | 1.74 s | n/a | n/a |
+  | 28 | shape_prompt | done | 8,192 | 256 | 32 | 160 | 256 ms | 384 ms | 18.5 ms | 22.2 ms | 4.99 s | n/a | n/a |
+  | 29 | shape_output | done | 1,024 | 128 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 782 ms | n/a | n/a |
+  | 30 | shape_output | done | 1,024 | 128 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 1.38 s | n/a | n/a |
+  | 31 | shape_output | done | 1,024 | 512 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 3.01 s | n/a | n/a |
+  | 32 | shape_output | done | 1,024 | 512 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 5.42 s | n/a | n/a |
+  | 33 | shape_output | done | 1,024 | 2,048 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 11.9 s | n/a | n/a |
+  | 34 | shape_output | done | 1,024 | 2,048 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 21.5 s | n/a | n/a |
+  | 35 | shape_output | done | 1,024 | 6,912 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 40.1 s | n/a | n/a |
+  | 36 | shape_output | done | 1,024 | 6,912 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 72.6 s | n/a | n/a |
+  | 37 | shape_map | done | 1,024 | 7,040 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 84.6 s | n/a | n/a |
+  | 38 | shape_map | done | 7,040 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
+  
+  ### Client distance
+  
+  | DNS | TCP connect | TLS handshake | HTTP round trip (/health) |
+  |---|---|---|---|
+  | n/a | 0.50 ms | n/a | 1 ms |
+  
+  ### Setup
+  
+  | Item | Value |
+  |---|---|
+  | Model | unsloth/Meta-Llama-3.1-8B-Instruct |
+  | Parameters | 8,030,261,248 |
+  | Weight bytes | 16,060,522,496 |
+  | Weight dtype | bfloat16 |
+  | KV bytes per token | 131,072 |
+  | GPU | 1× NVIDIA H100 NVL 94GB |
+  | GPU memory (GiB) | 93.6 |
+  | GPU bandwidth (TB/s) | 3.90 |
+  | KV cache pool (tokens) | 532,768 |
+  | max_model_len | 8,192 |
+  | gpu_memory_utilization | 0.90 |
+  | Default max_num_seqs for this vLLM and GPU | 1,024 |
+  | vLLM | 0.29.0 |
+  | AIPerf | 0.13.0 |
+  
+  
+  _Versions: kneebench_version 0.1.0.dev0, aiperf_version 0.13.0, rules_version 1._
+  
+  '''
+# ---
 # name: test_sweep_report_renders_every_section[chat]
   '''
   # kneebench report: unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB
@@ -1123,6 +1975,20 @@
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
   
+  ## How request size changes things
+  
+  ### [context] Test with your own request sizes (S05)
+  
+  **These results use standard request sizes (chat as the main one), not your traffic.**
+  
+  **What we measured.** No typical request size was given for this run.
+  
+  **What it means.** A server tuned for one request size can miss its targets at another. Your own sizes give the numbers that matter.
+  
+  **Why it happens.** Every number in this report depends on the request's shape (a request's size in prompt and output tokens, for example 1,000 in and 1,000 out): prompt length drives first-token time and cache use, and output length drives answer time. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  **What to do.** Rerun kneebench with your typical request. Try `kneebench run --shapes 2000/500`. Expected: Your own size becomes the main shape in the report, next to the standard ones. Verify: The report header lists your shape as the main one.
+  
   ## What the hardware allows
   
   ### [good] How close one request gets to the hardware limit (B01)
@@ -1248,6 +2114,7 @@
   - **preemption**: the server evicting a running request when memory runs out, then recomputing it later
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
   - **prefix caching**: reusing work for prompts that start with the same text
+  - **shape**: a request's size in prompt and output tokens, for example 1,000 in and 1,000 out
   
   ## Appendix: raw numbers
   
@@ -1256,13 +2123,13 @@
   | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
-  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | n/a | n/a | n/a |
-  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | n/a | n/a | n/a |
-  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | n/a | n/a | n/a |
-  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | n/a | n/a | n/a |
-  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | n/a | n/a | n/a |
-  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | n/a | n/a | n/a |
-  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | n/a | n/a | n/a |
+  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
+  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | 6.14 s | n/a | n/a |
+  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | 6.35 s | n/a | n/a |
+  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | 6.65 s | n/a | n/a |
+  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | 7.27 s | n/a | n/a |
+  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | 10.9 s | n/a | n/a |
+  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | 20.6 s | n/a | n/a |
   
   ### Client distance
   
@@ -1422,6 +2289,20 @@
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
   
+  ## How request size changes things
+  
+  ### [context] Test with your own request sizes (S05)
+  
+  **These results use standard request sizes (reasoning as the main one), not your traffic.**
+  
+  **What we measured.** No typical request size was given for this run.
+  
+  **What it means.** A server tuned for one request size can miss its targets at another. Your own sizes give the numbers that matter.
+  
+  **Why it happens.** Every number in this report depends on the request's shape (a request's size in prompt and output tokens, for example 1,000 in and 1,000 out): prompt length drives first-token time and cache use, and output length drives answer time. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
+  
+  **What to do.** Rerun kneebench with your typical request. Try `kneebench run --shapes 2000/500`. Expected: Your own size becomes the main shape in the report, next to the standard ones. Verify: The report header lists your shape as the main one.
+  
   ## What the hardware allows
   
   ### [good] How close one request gets to the hardware limit (B01)
@@ -1547,6 +2428,7 @@
   - **preemption**: the server evicting a running request when memory runs out, then recomputing it later
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
   - **prefix caching**: reusing work for prompts that start with the same text
+  - **shape**: a request's size in prompt and output tokens, for example 1,000 in and 1,000 out
   
   ## Appendix: raw numbers
   
@@ -1555,13 +2437,13 @@
   | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
-  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | n/a | n/a | n/a |
-  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | n/a | n/a | n/a |
-  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | n/a | n/a | n/a |
-  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | n/a | n/a | n/a |
-  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | n/a | n/a | n/a |
-  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | n/a | n/a | n/a |
-  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | n/a | n/a | n/a |
+  | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
+  | 2 | concurrency | done | 1,024 | 1,024 | 2 | 10 | 100 ms | 200 ms | 5.9 ms | 6.4 ms | 6.14 s | n/a | n/a |
+  | 3 | concurrency | done | 1,024 | 1,024 | 4 | 20 | 100 ms | 200 ms | 6.1 ms | 6.8 ms | 6.35 s | n/a | n/a |
+  | 4 | concurrency | done | 1,024 | 1,024 | 8 | 40 | 100 ms | 200 ms | 6.4 ms | 7.5 ms | 6.65 s | n/a | n/a |
+  | 5 | concurrency | done | 1,024 | 1,024 | 16 | 80 | 100 ms | 200 ms | 7 ms | 9 ms | 7.27 s | n/a | n/a |
+  | 6 | concurrency | done | 1,024 | 1,024 | 32 | 160 | 100 ms | 200 ms | 10.5 ms | 30 ms | 10.9 s | n/a | n/a |
+  | 7 | concurrency | done | 1,024 | 1,024 | 64 | 320 | 100 ms | 200 ms | 20 ms | 80 ms | 20.6 s | n/a | n/a |
   
   ### Client distance
   

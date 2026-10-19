@@ -156,6 +156,8 @@ def sweep_point(
     rounds: int = 5,
     seq: int = 0,
     stop_reason: str | None = None,
+    phase: str = "concurrency",
+    ttft_p50: float | None = None,
 ) -> PointView:
     """A concurrency point whose steady-state throughput works out to about `tok_s`."""
     e2e_s = concurrency * osl / tok_s
@@ -186,7 +188,12 @@ def sweep_point(
             "p99": tpot_p99 or tpot_p50 * 1.2,
             "avg": tpot_p50,
         },
-        "time_to_first_token": {"p50": ttft_p99 / 2, "p90": ttft_p99 * 0.9, "p99": ttft_p99},
+        "time_to_first_token": {
+            "p50": ttft_p50 if ttft_p50 is not None else ttft_p99 / 2,
+            "p90": ttft_p99 * 0.9,
+            "p99": ttft_p99,
+        },
+        "request_latency": {"p50": (ttft_p50 or ttft_p99 / 2) + tpot_p50 * osl},
         "output_sequence_length": {"avg": float(osl)},
         "osl_mismatch_count": {"avg": 0.0},
         "request_count": {"avg": float(len(requests))},
@@ -197,7 +204,7 @@ def sweep_point(
     return PointView(
         id=100 + seq,
         seq=seq,
-        phase="concurrency",
+        phase=phase,
         isl=isl,
         osl=osl,
         mode="concurrency",
@@ -460,4 +467,61 @@ def rate_sweep() -> tuple[PointView, ...]:
         rate_point(2.2, 700, arrival="gamma", seq=70),
         rate_point(2.6, 1400, arrival="gamma", seq=71),
     ]
+    return tuple(pts)
+
+
+def shape_sweep(bend: float = 1.0, op: int = 32) -> tuple[PointView, ...]:
+    """Prompt and output axes at 1 user and at `op` users, plus the shape map at `op`.
+
+    Prefill costs 30 us per prompt token; `bend` scales the longest prompt's TTFT.
+    """
+    pts: list[PointView] = []
+    seq = 20
+    for isl in (128, 512, 2048, 8192):
+        ttft = 10 + 0.03 * isl * (bend if isl == 8192 else 1.0)
+        for c, tpot in ((1, 5.8), (op, 10.5 + isl / 1024)):
+            seq += 1
+            pts.append(
+                sweep_point(
+                    c,
+                    tok_s=c * 1000 / tpot,
+                    tpot_p50=tpot,
+                    isl=isl,
+                    osl=256,
+                    phase="shape_prompt",
+                    ttft_p50=ttft,
+                    ttft_p99=ttft * 1.5,
+                    seq=seq,
+                )
+            )
+    for osl in (128, 512, 2048, 6912):
+        for c, tpot, kv in ((1, 5.8, 0.05), (op, 10.5, 0.2 + osl / 10_000)):
+            seq += 1
+            pts.append(
+                sweep_point(
+                    c,
+                    tok_s=c * 1000 / tpot,
+                    tpot_p50=tpot,
+                    isl=1024,
+                    osl=osl,
+                    phase="shape_output",
+                    ttft_p50=40.0,
+                    kv_max=kv,
+                    seq=seq,
+                )
+            )
+    for isl, osl, tpot in ((1024, 7040, 12.0), (7040, 1024, 30.0)):
+        seq += 1
+        pts.append(
+            sweep_point(
+                op,
+                tok_s=op * 1000 / tpot,
+                tpot_p50=tpot,
+                tpot_p99=tpot * 2,
+                isl=isl,
+                osl=osl,
+                phase="shape_map",
+                seq=seq,
+            )
+        )
     return tuple(pts)

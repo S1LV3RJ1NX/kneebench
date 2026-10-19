@@ -36,6 +36,17 @@
   </tbody>
 </table>
 </div>
+{% set finished = runs | selectattr("status", "equalto", "done") | list %}
+{% if finished | length >= 2 %}
+<form method="get" action="/compare" class="card compare-form" style="margin-top:16px">
+  <b>Compare</b>
+  <select name="a" aria-label="Before">{% for r in finished %}<option value="{{ r.id }}"{% if loop.index == 2 %} selected{% endif %}>#{{ r.id }}{% if r.label %} {{ r.label }}{% endif %}</option>{% endfor %}</select>
+  <span class="muted">before, and</span>
+  <select name="b" aria-label="After">{% for r in finished %}<option value="{{ r.id }}"{% if loop.first %} selected{% endif %}>#{{ r.id }}{% if r.label %} {{ r.label }}{% endif %}</option>{% endfor %}</select>
+  <span class="muted">after</span>
+  <button type="submit" class="secondary">Compare</button>
+</form>
+{% endif %}
 {% else %}
 <div class="card empty" style="margin-top:24px">
   <h3>No benchmarks yet</h3>

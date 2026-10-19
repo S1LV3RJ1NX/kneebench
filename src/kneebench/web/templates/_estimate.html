@@ -1,0 +1,26 @@
+{% if error %}<div class="notice bad">{{ error }}</div>{% else %}
+<div class="estimate">
+  <p><b>{{ "{:,}".format(e.isl) }} in, {{ "{:,}".format(e.osl) }} out</b>
+    <span class="muted small">estimated from this run's request-size sweep</span></p>
+  {% if not e.fits_context %}
+  <div class="notice bad">That's longer than the server's context window ({{ "{:,}".format(e.max_model_len) }} tokens), so the server would reject it.</div>
+  {% endif %}
+  <table>
+    <tbody>
+      <tr><td>First token, one user</td><td>{{ ms(e.ttft_ms) }}</td><td class="muted small">server side; add your network round trip</td></tr>
+      <tr><td>Per token, one user</td><td>{{ ms(e.tpot_ms) }}</td><td></td></tr>
+      <tr><td>Whole answer, one user</td><td>{{ ms(e.e2e_ms) }}</td><td></td></tr>
+      {% if e.loaded_tpot_ms is not none %}
+      <tr><td>Per token at {{ e.loaded_concurrency }} users</td><td>{{ ms(e.loaded_tpot_ms) }}</td><td class="muted small">median, at the load the shapes were compared at</td></tr>
+      {% endif %}
+      {% if e.fits %}
+      <tr><td>Requests the cache holds at once</td><td>{{ "{:,}".format(e.fits) }}</td><td class="muted small">at full length</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  {% if e.extrapolated %}
+  <p class="muted small">The {{ e.extrapolated | join(" and ") }} length is outside what this run measured, so the
+    estimate extends the measured straight line; treat it as rough. Long prompts usually cost more than the line says.</p>
+  {% endif %}
+</div>
+{% endif %}

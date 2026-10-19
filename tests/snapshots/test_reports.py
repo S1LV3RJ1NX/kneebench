@@ -60,3 +60,24 @@ def test_sweep_report_renders_every_section(
     assert 'data-chart="C02-0"' in html
     assert 'data-chart="W03-0"' in html
     assert md == snapshot
+
+
+@pytest.mark.parametrize("product", [ProductType.CHAT, ProductType.RAG])
+def test_shape_report_renders_the_shape_section(
+    product: ProductType, snapshot: SnapshotAssertion
+) -> None:
+    from kneebench.analysis.engine import evaluate
+    from kneebench.report.composer import compose
+    from kneebench.report.render_html import render_html
+    from tests.builders import ctx, healthy_sweep, point, shape_sweep
+
+    context = ctx(points=(point(), *healthy_sweep(), *shape_sweep()), product=product)
+    findings = evaluate(context)
+    report = compose(context, findings, now=NOW)
+    assert report.shapes[0].rule_id == "S06" or any(p.rule_id == "S06" for p in report.problems)
+    md = render_markdown(report)
+    assert "How request size changes things" in md
+    html = render_html(compose(context, findings, now=NOW, style="html"))
+    for rid in ("S01", "S02", "S03", "S04", "S06"):
+        assert f'data-chart="{rid}-0"' in html
+    assert md == snapshot

@@ -15,7 +15,7 @@ profiles:
   reasoning:
     label: reasoning and agents
     title: Reasoning and agents
-    weights: {memory: 3, kv: 3, preemption: 3, tpot: 3, shape: 2, capacity: 2, latency: 2,
+    weights: {memory: 3, kv: 3, preemption: 3, tpot: 3, reasoning: 3, shape: 2, capacity: 2, latency: 2,
               ttft: 1, physics: 2, reliability: 2, setup: 4}
   batch:
     label: batch jobs

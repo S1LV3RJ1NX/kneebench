@@ -57,6 +57,13 @@
       onchange="applyPreset(this.value)"> <b>{{ p.title }}</b>
       <span class="muted">{{ presets[key].explain }}</span></label>
     {% endfor %}
+    <div class="row" style="margin-top:14px"><label>Typical request</label>
+      <div><div style="display:flex;gap:8px;align-items:center">
+        <input name="shape_isl" type="number" min="1" placeholder="prompt tokens" style="max-width:160px">
+        <span class="muted">in,</span>
+        <input name="shape_osl" type="number" min="1" placeholder="output tokens" style="max-width:160px">
+        <span class="muted">out</span></div>
+        <div class="help">Optional. From your logs, the median prompt and answer length. It becomes the main shape, tested next to the standard ones.</div></div></div>
   </section>
 
   <section class="card">
@@ -78,6 +85,7 @@
         <label><input type="checkbox" name="phase_baseline" value="1" checked> Single-request baseline <span class="muted small">how close one request gets to the hardware limit</span></label>
         <label><input type="checkbox" name="phase_concurrency" value="1" checked> Concurrency sweep <span class="muted small">capacity, the three walls, and what to change</span></label>
         <label><input type="checkbox" name="phase_rate" value="1" checked> Request-rate sweep <span class="muted small">random and bursty arrivals; adds about 15 minutes</span></label>
+        <label><input type="checkbox" name="phase_shape" value="1" checked> Request-size sweep <span class="muted small">prompt and output length, and every shape at the same load; adds about 30 minutes</span></label>
       </div></div>
     <div class="row"><label for="max_concurrency">Highest concurrency</label>
       <div><input id="max_concurrency" name="max_concurrency" type="number" min="1" value="256">

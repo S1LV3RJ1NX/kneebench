@@ -21,3 +21,4 @@ terms:
   tensor parallelism: splitting one model across several GPUs that work on every token together
   prefix caching: reusing work for prompts that start with the same text
   round trip: the time for a message to reach the server and come back, with no real work done
+  shape: a request's size in prompt and output tokens, for example 1,000 in and 1,000 out

@@ -51,6 +51,11 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         ("H03", _network_share),
         ("T03", _fits),
         ("W03", _walls),
+        ("S01", _prompt_ttft),
+        ("S02", _prompt_tpot),
+        ("S03", _output_e2e),
+        ("S04", _output_slots),
+        ("S06", _shape_map),
     )
     for rule_id, build in builders:
         data = _data(report, rule_id)
@@ -535,4 +540,169 @@ def _bursts(d: dict[str, Any]) -> dict[str, Any]:
         barmode="group",
         yaxis={"title": "Milliseconds", "rangemode": "tozero"},
         xaxis={"title": "Average arrival rate"},
+    )
+
+
+# ---- shape sweep ----
+
+
+def _target(fig: go.Figure, value: float | None, text: str) -> None:
+    if value:
+        fig.add_hline(
+            y=value,
+            line_dash="dash",
+            line_color=BAD,
+            opacity=0.6,
+            annotation_text=text,
+            annotation_position="top left",
+        )
+
+
+def _prompt_ttft(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if not rows:
+        return None
+    fig = go.Figure()
+    xs = [r["isl"] for r in rows]
+    fig.add_scatter(
+        x=xs,
+        y=[r["ttft_p50"] for r in rows],
+        mode="lines+markers",
+        name="Median time to first token",
+        line={"color": ACCENT, "width": 2.5},
+        marker={"size": 9},
+        hovertemplate="%{x:,} prompt tokens: %{y:,.0f} ms<extra></extra>",
+    )
+    if d.get("floor_per_token_us"):
+        fig.add_scatter(
+            x=xs,
+            y=[x * d["floor_per_token_us"] / 1000 for x in xs],
+            mode="lines",
+            name="Physics floor (server only)",
+            line={"color": MUTED, "dash": "dot"},
+            hoverinfo="skip",
+        )
+    return _fig(
+        fig,
+        "One user: first-token time as the prompt grows",
+        xaxis={"title": "Prompt tokens", "type": "log"},
+        yaxis={"title": "Time to first token (ms)", "rangemode": "tozero"},
+    )
+
+
+def _prompt_tpot(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if len(rows) < 2:
+        return None
+    fig = go.Figure()
+    single = d.get("single_rows") or []
+    c = d["concurrency"]
+    if c > 1 and single:
+        fig.add_scatter(
+            x=[r["isl"] for r in single],
+            y=[r["tpot_p50"] for r in single],
+            mode="lines+markers",
+            name="1 user",
+            line={"color": MUTED, "width": 2},
+            hovertemplate="%{x:,} prompt tokens: %{y:.1f} ms<extra></extra>",
+        )
+    fig.add_scatter(
+        x=[r["isl"] for r in rows],
+        y=[r["tpot_tail"] for r in rows],
+        mode="lines+markers",
+        name=f"{c} users, P{d['pct_label']}",
+        line={"color": ACCENT, "width": 2.5},
+        marker={"size": 9},
+        hovertemplate="%{x:,} prompt tokens: %{y:.1f} ms<extra></extra>",
+    )
+    _target(fig, d.get("tpot_target_ms"), f"target {d.get('tpot_target_ms') or 0:g} ms")
+    return _fig(
+        fig,
+        "Time per output token as prompts grow",
+        xaxis={"title": "Prompt tokens", "type": "log"},
+        yaxis={"title": "Time per output token (ms)", "rangemode": "tozero"},
+    )
+
+
+def _output_e2e(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = [r for r in d.get("rows") or [] if r.get("e2e_p50") is not None]
+    if not rows:
+        return None
+    fig = go.Figure()
+    fig.add_scatter(
+        x=[r["osl"] for r in rows],
+        y=[r["e2e_p50"] / 1000 for r in rows],
+        mode="lines+markers",
+        name="Median answer time",
+        line={"color": ACCENT, "width": 2.5},
+        marker={"size": 9},
+        hovertemplate="%{x:,} output tokens: %{y:.1f} s<extra></extra>",
+    )
+    return _fig(
+        fig,
+        "One user: total answer time as the output grows",
+        xaxis={"title": "Output tokens"},
+        yaxis={"title": "End-to-end time (s)", "rangemode": "tozero"},
+    )
+
+
+def _output_slots(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if len(rows) < 2:
+        return None
+    fig = go.Figure()
+    labels = [f"{r['osl']:,}" for r in rows]
+    fig.add_bar(
+        x=labels,
+        y=[r["req_s"] for r in rows],
+        name="Requests finished per second",
+        marker_color=ACCENT,
+        hovertemplate="%{y:.2f} req/s<extra></extra>",
+    )
+    fig.add_scatter(
+        x=labels,
+        y=[r["tok_s"] for r in rows],
+        mode="lines+markers",
+        name="Output tokens per second",
+        line={"color": SECOND, "dash": "dot"},
+        yaxis="y2",
+        hovertemplate="%{y:,.0f} tok/s<extra></extra>",
+    )
+    return _fig(
+        fig,
+        f"{d['concurrency']} users: longer answers, fewer finished requests",
+        xaxis={"title": "Output tokens", "type": "category"},
+        yaxis={"title": "Requests per second", "rangemode": "tozero"},
+        yaxis2={
+            "title": "Output tokens per second",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+            "showgrid": False,
+        },
+    )
+
+
+def _shape_map(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if len(rows) < 2:
+        return None
+    labels = [f"{r['name']} ({r['isl']:,}/{r['osl']:,})" for r in rows]
+    fig = go.Figure()
+    fig.add_bar(
+        x=labels,
+        y=[r["tpot_tail"] for r in rows],
+        name=f"P{d['pct_label']} time per output token",
+        marker_color=[OK if r["meets"] else BAD for r in rows],
+        text=[f"{r['tok_s']:,.0f} tok/s" if r.get("tok_s") else "" for r in rows],
+        textposition="outside",
+        hovertemplate="%{x}: %{y:.1f} ms<extra></extra>",
+    )
+    _target(fig, d.get("tpot_target_ms"), f"target {d.get('tpot_target_ms') or 0:g} ms")
+    return _fig(
+        fig,
+        f"Every request size at {d['concurrency']} users (green: meets targets)",
+        xaxis={"title": "Shape (prompt/output tokens)", "type": "category"},
+        yaxis={"title": "Time per output token (ms)", "rangemode": "tozero"},
+        showlegend=False,
     )

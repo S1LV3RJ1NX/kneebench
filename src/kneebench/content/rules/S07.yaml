@@ -1,0 +1,17 @@
+id: S07
+title: One output token costs as much as many prompt tokens
+status_line:
+  info: >-
+    One output token takes as long as about {{ num0(rate) }} prompt tokens on this
+    server{% if theory_rate %} (physics predicts about {{ num0(theory_rate) }}){% endif %}.
+measured: >-
+  Time per output token for one user ({{ ms(tpot_ms) }}) divided by the cost of one more
+  prompt token ({{ num(per_token_us, 0) }} µs, from the prompt-length sweep).
+meaning: >-
+  Shortening answers saves far more time than shortening prompts. Prompts aren't free, though:
+  they still cost first-token time and cache.
+why: >-
+  The prompt is read in parallel ({{ term("prefill") }}), limited by compute. The answer is
+  written one token per step ({{ term("decode") }}), each step reading the whole model from
+  memory.
+learn_more: {note: "26", anchor: "1-two-lengths-two-machines", label: "Two lengths, two machines"}

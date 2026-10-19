@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from kneebench.analysis.compare import COMPARE_REGISTRY
 from kneebench.analysis.engine import REGISTRY, _load_rules
 
 RULE_TESTS = Path(__file__).parent
@@ -17,19 +18,19 @@ def _content_ids() -> set[str]:
 
 def test_every_rule_has_content_and_content_has_a_rule() -> None:
     _load_rules()
-    assert set(REGISTRY) == _content_ids()
+    assert set(REGISTRY) | set(COMPARE_REGISTRY) == _content_ids()
 
 
 def test_every_rule_cites_its_source_note() -> None:
     _load_rules()
-    for r in REGISTRY.values():
+    for r in (*REGISTRY.values(), *COMPARE_REGISTRY.values()):
         assert r.source[:2] in {"24", "25", "26", "27"}, f"{r.id} cites {r.source!r}"
 
 
 def test_every_rule_is_tested() -> None:
     _load_rules()
     tested = "".join(p.read_text() for p in RULE_TESTS.glob("test_*_rules.py"))
-    missing = [rid for rid in REGISTRY if f'"{rid}"' not in tested]
+    missing = [rid for rid in (*REGISTRY, *COMPARE_REGISTRY) if f'"{rid}"' not in tested]
     assert not missing, f"rules without tests: {missing}"
 
 

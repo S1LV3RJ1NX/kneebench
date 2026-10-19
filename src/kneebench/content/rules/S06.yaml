@@ -1,0 +1,36 @@
+id: S06
+title: Every request size, at the same load
+status_line:
+  info: >-
+    At {{ num(concurrency) }} users, {% if not has_slo %}each request size behaves
+    differently; compare them below{% elif failing %}{{ failing | join(", ") }}
+    {{ "misses" if failing | length == 1 else "miss" }} your targets{% else %}every request
+    size meets your targets{% endif %}.
+  warn: >-
+    At {{ num(concurrency) }} users, {{ primary }} meets your targets but
+    {{ failing | join(", ") }} {{ "doesn't" if failing | length == 1 else "don't" }}.
+measured: >-
+  Each standard request size{% if has_user %} and yours{% endif %}, run separately at
+  the operating point. They are never averaged: long requests would hide inside the mean.
+meaning:
+  info: >-
+    A server has a map of numbers, not one. Plan with the row closest to your real traffic.
+  warn: >-
+    Settings that work for {{ primary }} traffic fail for other sizes. If you serve mixed
+    traffic, plan for the worst common size or split it across pools.
+why: >-
+  Prompt length sets first-token time and cache size; output length sets answer time and how
+  long each request holds memory. The same GPU fits many short chats but far fewer long
+  documents.
+learn_more: {note: "26", anchor: "6-the-shape-map", label: "The shape map"}
+table:
+  rows: rows
+  columns:
+    - {key: name, label: Shape}
+    - {key: isl, label: Prompt, fmt: num}
+    - {key: osl, label: Output, fmt: num}
+    - {key: tok_s, label: Output tokens/s, fmt: num0}
+    - {key: ttft_tail, label: TTFT tail, fmt: ms}
+    - {key: tpot_tail, label: TPOT tail, fmt: ms}
+    - {key: kv_max, label: Peak cache, fmt: pct}
+    - {key: meets, label: Meets targets, fmt: yesno}

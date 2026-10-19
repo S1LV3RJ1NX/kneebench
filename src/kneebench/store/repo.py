@@ -314,7 +314,8 @@ def _store_parsed(conn: Connection, point_id: int, parsed: ParsedPoint) -> None:
     )
     conn.executemany(
         """INSERT INTO requests (point_id, idx, phase, start_ns, end_ns, ttft_ms, tpot_ms,
-           e2e_ms, isl, osl, error, error_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           e2e_ms, isl, osl, error, error_code, connect_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         [
             (
                 point_id,
@@ -329,6 +330,7 @@ def _store_parsed(conn: Connection, point_id: int, parsed: ParsedPoint) -> None:
                 r.osl,
                 r.error,
                 r.error_code,
+                r.connect_ms,
             )
             for i, r in enumerate(parsed.requests)
         ],
@@ -447,7 +449,7 @@ def point_dict(conn: Connection, point_id: int) -> dict[str, Any]:
         dict(r)
         for r in conn.execute(
             """SELECT start_ns, end_ns, ttft_ms, tpot_ms, e2e_ms, isl, osl, error,
-               error_code FROM requests WHERE point_id = ? AND phase = 'profiling'
+               error_code, connect_ms FROM requests WHERE point_id = ? AND phase = 'profiling'
                ORDER BY idx""",
             (point_id,),
         )

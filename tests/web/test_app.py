@@ -297,3 +297,39 @@ def test_gpu_correction_only_offered_when_measurements_contradict_it(home: Path)
     page = client.get(f"/runs/{wrong}").text
     assert "Correct the GPU entry" in page
     assert "fits the measurements" in page
+
+
+def test_what_if_rejudges_without_saving(home: Path, stored_run: int) -> None:
+    client = TestClient(create_app(home))
+    query = "whatif=1&slo_ttft_ms=&slo_tpot_ms=5&slo_percentile=90"
+    page = client.get(f"/runs/{stored_run}?{query}")
+    assert page.status_code == 200
+    assert "What-if" in page.text
+    assert "Nothing was re-run" in page.text
+    assert f"/runs/{stored_run}/report.md?{query}".replace("&", "&amp;") in page.text
+    md = client.get(f"/runs/{stored_run}/report.md?{query}").text
+    assert "What-if" in md
+    assert "5 ms per token" in md
+    plain = client.get(f"/runs/{stored_run}").text
+    assert "What-if:" not in plain
+    # A baseline-only run has nothing to estimate from.
+    est = client.get(f"/runs/{stored_run}/estimate?isl=2000&osl=500")
+    assert "no request-size sweep" in est.text
+
+
+def test_compare_two_runs(home: Path) -> None:
+    conn = connect(home / DB_FILENAME)
+    a = store_fixture_run(conn)
+    b = store_fixture_run(conn, gpu="h100-sxm")
+    conn.close()
+    client = TestClient(create_app(home))
+    assert "Compare" in client.get("/").text
+    page = client.get(f"/compare?a={a}&b={b}")
+    assert page.status_code == 200
+    assert "One thing changed: GPU" in page.text
+    assert 'class="changed"' in page.text
+    md = client.get(f"/compare.md?a={a}&b={b}")
+    assert md.status_code == 200
+    assert "| **GPU** |" in md.text
+    assert client.get(f"/compare?a={a}&b={a}").status_code == 400
+    assert client.get(f"/compare?a={a}&b=999").status_code == 404

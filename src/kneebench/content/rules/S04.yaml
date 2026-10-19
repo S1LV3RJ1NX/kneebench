@@ -1,0 +1,44 @@
+id: S04
+title: Long answers hold their seat longer
+status_line:
+  info: >-
+    At {{ num(concurrency) }} users, requests finished per second fall from
+    {{ num(req_s_short, 2) }} to {{ num(req_s_long, 2) }} as answers grow from
+    {{ num(shortest_osl) }} to {{ num(longest_osl) }} tokens{% if tok_ratio and 0.8 < tok_ratio < 1.25 %},
+    while output tokens per second stay about the same{% elif tok_ratio %}, while output tokens
+    per second change {{ times(tok_ratio) }}{% endif %}.
+  warn: >-
+    At {{ num(concurrency) }} users, long answers made the server evict
+    {{ num(preemptions) }} running requests, and finished requests per second fell from
+    {{ num(req_s_short, 2) }} to {{ num(req_s_long, 2) }}.
+measured: >-
+  The output-length sweep repeated at the operating point, prompts fixed.
+meaning:
+  info: >-
+    Tokens per second can look healthy while far fewer requests finish. Size for requests per
+    second at your real answer length.
+  warn: >-
+    Long answers outgrow the cache mid-flight. Lower the concurrency cap for long-output
+    traffic, or give the server more cache.
+why: >-
+  A request keeps its {{ term("KV cache") }} until its last token. Requests that decode for a
+  minute hold memory for a minute, and requests that start small can grow into each other
+  later, which forces {{ term("preemption") }}.
+learn_more: {note: "26", anchor: "4-shape-decides-how-many-fit", label: "Shape decides how many fit"}
+actions:
+  - when: [warn]
+    title: Cap concurrent sequences for long answers
+    flag: --max-num-seqs {% if sustain %}{{ sustain }}{% else %}<cache tokens ÷ (prompt + output)>{% endif %}
+    expected: >-
+      The preemption counter stays at 0; extra long requests wait in the queue instead of
+      being evicted.
+    risk: Fewer requests run at once, so short requests may queue longer.
+    verify: Rerun the output-length sweep and check that preemptions stay at 0.
+table:
+  rows: rows
+  columns:
+    - {key: osl, label: Output tokens, fmt: num}
+    - {key: req_s, label: Requests/s, fmt: num}
+    - {key: tok_s, label: Output tokens/s, fmt: num0}
+    - {key: kv_max, label: Peak cache, fmt: pct}
+    - {key: preemptions, label: Evictions, fmt: num}

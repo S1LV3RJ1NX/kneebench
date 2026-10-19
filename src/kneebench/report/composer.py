@@ -41,6 +41,8 @@ CAPACITY_RULES = (
     "W09",
     "W08",
 )
+# Note 26: the shape map leads; the rest explain why shapes differ.
+SHAPE_RULES = ("S06", "S01", "S02", "S03", "S04", "S07", "S05")
 CAVEAT_RULES = ("H06",)
 LIMITER_TEXT = {
     "slo_tpot": "per-token latency crosses your target",
@@ -85,6 +87,7 @@ class Report:
     scorecard: list[Tile]
     problems: list[RenderedFinding]
     capacity: list[RenderedFinding]
+    shapes: list[RenderedFinding]
     context: list[RenderedFinding]
     passed: list[RenderedFinding]
     skipped: list[RenderedFinding]
@@ -94,6 +97,8 @@ class Report:
     appendix: list[AppendixTable]
     sections: dict[str, str]
     findings_json: list[dict[str, Any]] = field(default_factory=list)
+    # Set when the report judges the run against targets other than the ones it ran with.
+    what_if: str | None = None
 
 
 def common_vars(ctx: RunContext) -> dict[str, Any]:
@@ -123,7 +128,11 @@ def _by(findings: list[Finding], rule_id: str) -> Finding | None:
 
 
 def compose(
-    ctx: RunContext, findings: list[Finding], now: str | None = None, style: str = "md"
+    ctx: RunContext,
+    findings: list[Finding],
+    now: str | None = None,
+    style: str = "md",
+    what_if: dict[str, Any] | None = None,
 ) -> Report:
     tracker = TermTracker(style)
     env = make_env(tracker)
@@ -158,12 +167,23 @@ def compose(
         for f in findings
         if f.rule_id == rid and f.status in (Status.INFO, Status.OK)
     ]
+    shapes_f = sorted(
+        (f for f in findings if f.rule_id in SHAPE_RULES and f.status in (Status.INFO, Status.OK)),
+        # The map is the overview, so it stays on top whatever the profile.
+        key=lambda f: (f.rule_id != "S06", -_weight(f, product), SHAPE_RULES.index(f.rule_id)),
+    )
     problem_ids = {f.rule_id for f in problems_f}
     # Render in reading order so each term is defined where it first appears.
     problems = [render_finding(f, common, env) for f in problems_f]
     capacity_r = [render_finding(f, common, env) for f in capacity_f]
+    shapes_r = [render_finding(f, common, env) for f in shapes_f]
     context_r = [render_finding(f, common, env) for f in context_f]
-    shown = problem_ids | {f.rule_id for f in capacity_f} | {f.rule_id for f in charted_ok}
+    shown = (
+        problem_ids
+        | {f.rule_id for f in capacity_f}
+        | {f.rule_id for f in shapes_f}
+        | {f.rule_id for f in charted_ok}
+    )
     passed = [
         render_finding(f, common, env)
         for f in findings
@@ -204,11 +224,17 @@ def compose(
             "aiperf_version": ctx.aiperf_version,
             "rules_version": RULES_VERSION,
             "max_model_len": ctx.max_model_len,
+            "slo": {
+                "ttft_ms": ctx.workload.slo.ttft_ms,
+                "tpot_ms": ctx.workload.slo.tpot_ms,
+                "percentile": ctx.workload.slo.percentile,
+            },
         },
         verdict=verdict,
         scorecard=scorecard,
         problems=problems,
         capacity=capacity_r,
+        shapes=shapes_r,
         context=context_r,
         passed=passed,
         skipped=skipped,
@@ -218,6 +244,7 @@ def compose(
         appendix=_appendix(ctx),
         sections=text["sections"],
         findings_json=[f.to_json() for f in findings],
+        what_if=render_text(text["what_if"], **what_if) if what_if else None,
     )
 
 

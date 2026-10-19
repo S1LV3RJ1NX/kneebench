@@ -9,6 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from sqlite3 import Connection
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -16,13 +17,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from kneebench import content
+from kneebench.analysis.context import context_from_bundle
+from kneebench.analysis.whatif import estimate
 from kneebench.config import load_local_config
 from kneebench.content.render import ms, num, pct
 from kneebench.detect.server import detect_server
 from kneebench.doctor import exit_code, run_doctor
-from kneebench.domain import ProductType
+from kneebench.domain import ProductType, Slo, user_shapes
 from kneebench.physics.gpus import catalog, get_gpu
 from kneebench.report.build import build_report
+from kneebench.report.compare import build_comparison, render_comparison_md
 from kneebench.report.pdf import PdfUnavailableError, attach, html_to_pdf, install_chromium
 from kneebench.report.render_html import plotly_js, render_html, templates
 from kneebench.report.render_json import render_json
@@ -92,6 +96,29 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             rows = [dict(r) for r in repo.list_runs(conn)]
         return page("home.html", runs=rows, active=holder(home))
 
+    def comparison(a: int, b: int) -> Any:
+        if a == b:
+            raise HTTPException(400, "Pick two different runs.")
+        with db() as conn:
+            try:
+                return build_comparison(conn, a, b, style="html")
+            except KeyError as exc:
+                raise HTTPException(404, str(exc)) from exc
+
+    @app.get("/compare", response_class=HTMLResponse)
+    def compare_page(a: int, b: int) -> HTMLResponse:
+        c = comparison(a, b)
+        figures = json.dumps(c.figures).replace("</", "<\\/")
+        return page("compare.html", c=c, figures_json=figures)
+
+    @app.get("/compare.md")
+    def compare_md(a: int, b: int) -> Response:
+        return Response(
+            render_comparison_md(comparison(a, b)),
+            media_type="text/markdown",
+            headers=_download(f"kneebench-compare-{a}-{b}.md"),
+        )
+
     @app.get("/runs/new", response_class=HTMLResponse)
     def new_run() -> HTMLResponse:
         profiles = content.load("profiles.yaml")["profiles"]
@@ -137,6 +164,13 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
         if not phases:
             raise PrepareError("Choose at least one phase to run.")
         eager = form.get("enforce_eager", "")
+        isl, osl = form.get("shape_isl", "").strip(), form.get("shape_osl", "").strip()
+        if bool(isl) != bool(osl):
+            raise PrepareError("Give both prompt and output tokens for your typical request.")
+        try:
+            shapes = user_shapes(f"{isl}/{osl}") if isl else ()
+        except ValueError as exc:
+            raise PrepareError(str(exc)) from exc
         return RunRequest(
             url=form["url"].strip(),
             gpu=get_gpu(form["gpu"]),
@@ -154,6 +188,7 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             max_concurrency=opt_int("max_concurrency") or 256,
             budget_s=(opt_float("budget_min") or 0) * 60 or None,
             label=form.get("label") or None,
+            shapes=shapes,
         )
 
     async def form_dict(request: Request) -> dict[str, str]:
@@ -250,44 +285,85 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             delete_run_data(conn, home, run_id)
         return RedirectResponse("/", status_code=303)
 
-    def _report(run_id: int, style: str) -> Any:
+    def what_if_slo(request: Request) -> Slo | None:
+        """Latency targets from the report's what-if form; an empty box means no target."""
+        q = request.query_params
+        if not q.get("whatif"):
+            return None
+
+        def number(key: str) -> float | None:
+            try:
+                value = float(q.get(key) or "")
+            except ValueError:
+                return None
+            return value if value > 0 else None
+
+        pct = q.get("slo_percentile")
+        return Slo(number("slo_ttft_ms"), number("slo_tpot_ms"), 90 if pct == "90" else 99)
+
+    def what_if_query(request: Request) -> str:
+        keys = ("whatif", "slo_ttft_ms", "slo_tpot_ms", "slo_percentile")
+        q = request.query_params
+        return urlencode({k: q[k] for k in keys if k in q}) if q.get("whatif") else ""
+
+    def _report(run_id: int, style: str, request: Request | None = None) -> Any:
         with db() as conn:
             if repo.get_run(conn, run_id) is None:
                 raise HTTPException(404)
-            return build_report(conn, run_id, style=style)
+            slo = what_if_slo(request) if request else None
+            return build_report(conn, run_id, style=style, slo=slo)
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
-    def report_page(run_id: int) -> HTMLResponse:
-        return HTMLResponse(render_html(_report(run_id, "html")))
+    def report_page(run_id: int, request: Request) -> HTMLResponse:
+        return HTMLResponse(
+            render_html(_report(run_id, "html", request), query=what_if_query(request))
+        )
+
+    @app.get("/runs/{run_id}/estimate", response_class=HTMLResponse)
+    def estimate_route(run_id: int, isl: int, osl: int) -> HTMLResponse:
+        with db() as conn:
+            if repo.get_run(conn, run_id) is None:
+                raise HTTPException(404)
+            ctx = context_from_bundle(repo.run_bundle(conn, run_id))
+        if isl <= 0 or osl <= 0:
+            return page("_estimate.html", error="Enter positive token counts.", e=None)
+        e = estimate(ctx, isl, osl)
+        if e is None:
+            return page(
+                "_estimate.html",
+                error="This run has no request-size sweep to estimate from.",
+                e=None,
+            )
+        return page("_estimate.html", error=None, e=e, ms=ms)
 
     @app.get("/runs/{run_id}/report.html")
-    def report_html(run_id: int) -> Response:
+    def report_html(run_id: int, request: Request) -> Response:
         return Response(
-            render_html(_report(run_id, "html"), inline=True),
+            render_html(_report(run_id, "html", request), inline=True),
             media_type="text/html",
             headers=_download(f"kneebench-run-{run_id}.html"),
         )
 
     @app.get("/runs/{run_id}/report.md")
-    def report_md(run_id: int) -> Response:
+    def report_md(run_id: int, request: Request) -> Response:
         return Response(
-            render_markdown(_report(run_id, "md")),
+            render_markdown(_report(run_id, "md", request)),
             media_type="text/markdown",
             headers=_download(f"kneebench-run-{run_id}.md"),
         )
 
     @app.get("/runs/{run_id}/report.json")
-    def report_json(run_id: int) -> Response:
+    def report_json(run_id: int, request: Request) -> Response:
         return Response(
-            render_json(_report(run_id, "md")),
+            render_json(_report(run_id, "md", request)),
             media_type="application/json",
             headers=_download(f"kneebench-run-{run_id}.json"),
         )
 
     @app.get("/runs/{run_id}/report.pdf")
-    async def report_pdf(run_id: int) -> Response:
-        html = render_html(_report(run_id, "html"), inline=True)
-        md_report = _report(run_id, "md")
+    async def report_pdf(run_id: int, request: Request) -> Response:
+        html = render_html(_report(run_id, "html", request), inline=True)
+        md_report = _report(run_id, "md", request)
         try:
             pdf = await run_in_threadpool(html_to_pdf, html)
         except PdfUnavailableError as exc:

@@ -21,6 +21,9 @@ def test_r01_max_rate_within_targets() -> None:
     assert f is not None
     assert f.status is Status.INFO
     assert f.data["max_rps"] == pytest.approx(2.6)  # 3.2 req/s has a growing queue
+    level = run_rule("R01", _ctx((rate_point(2.2), rate_point(3.1, seq=61))))
+    assert level is not None
+    assert level.data["max_rps"] == pytest.approx(2.2)  # 3.1 is above the 3.0 capacity
     assert f.data["knee_rps"] == pytest.approx(2.2)
     assert len(f.data["rows"]) == 5
     assert run_rule("R01", _ctx()) is None

@@ -65,6 +65,9 @@ Prefer the terminal? Everything in the UI is also a command:
 uv run kneebench doctor --url http://your-vllm-host:8000      # check the setup, with fixes
 uv run kneebench run --url http://your-vllm-host:8000 --gpu h100-sxm   # see `kneebench gpus`
 uv run kneebench report 1 --format pdf                         # or md, json, html
+uv run kneebench run ... --shapes 2000/500                     # your typical request size
+uv run kneebench report 1 --slo-tpot-ms 30                     # what-if: other targets, no rerun
+uv run kneebench compare 1 2                                   # before and after a change
 ```
 
 If your server needs a key, set `KNEEBENCH_API_KEY` (the CLI) or paste it into the form (the UI); it is never saved. Entered the wrong GPU? `kneebench report <run-id> --gpu <id>`, or **Correct GPU** in the report, recomputes everything from stored data with no rerun. PDF export downloads a headless Chromium once: `kneebench doctor --install-pdf`.
@@ -87,8 +90,8 @@ kneebench never starts, stops or reconfigures your server. It only benchmarks an
 | 0. Theory | What is the fastest this model can possibly run on this GPU? How many requests fit in memory? | Available |
 | 1. Single-request baseline | With the GPU idle, how close to that limit do you get? | Available |
 | 2. Concurrency sweep | How do throughput and per-user speed trade off from 1 to hundreds of users? | Available |
-| 3. Request-rate sweep | What happens when users arrive at random, including in bursts? | M3 |
-| 4. Shape sweep | How do prompt length and answer length change everything? | M4 |
+| 3. Request-rate sweep | What happens when users arrive at random, including in bursts? | Available |
+| 4. Shape sweep | How do prompt length and answer length change everything? Does every request size meet your targets at the same load? | Available |
 | 5. Three walls | Where does it saturate, miss your latency target, or run out of memory? | Available |
 
 Every run also checks that the test itself is trustworthy: steady state reached (throughput counts only the window at full load), client not the bottleneck, outputs really as long as requested, tails and not just medians, errors counted as failures, gateways not limiting load, versions recorded.
@@ -112,9 +115,9 @@ Exports are built for people and for LLMs: the PDF keeps real text, puts a data 
 - [x] **M0 Skeleton:** packaging with bundled, pinned AIPerf; `kneebench doctor`; CI.
 - [x] **M1 Detect, theory and baseline:** auto-detection, physics floors, SQLite, single-request baseline, Markdown report.
 - [x] **M2 MVP:** concurrency sweep, the three walls, web UI, full report with charts and PDF export.
-- [ ] **M3 Rate sweep:** Poisson and bursty arrivals.
-- [ ] **M4 Shape sweep:** prompt and output length map, multi-shape workloads.
-- [ ] **M5 What-ifs and compare:** move the SLO and watch capacity move; before and after runs.
+- [x] **M3 Rate sweep:** Poisson and bursty arrivals.
+- [x] **M4 Shape sweep:** prompt and output length, your own request size, the shape map.
+- [x] **M5 What-ifs and compare:** move the SLO and watch capacity move; estimate other request sizes; before and after runs.
 - [ ] **M6 Release:** v0.1.0 on PyPI.
 - [ ] **Later:** MoE and MLA physics, GuideLLM backend, SGLang servers, optional friendlier wording layer.
 

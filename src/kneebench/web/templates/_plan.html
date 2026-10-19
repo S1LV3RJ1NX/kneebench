@@ -5,7 +5,8 @@
   <thead><tr><th>#</th><th>Phase</th><th>Prompt</th><th>Output</th><th>In flight</th><th>Requests</th><th>Estimate</th></tr></thead>
   <tbody>{% for p in plan.points %}
     <tr><td class="meta">{{ loop.index }}</td><td>{{ p.phase }}</td><td>{{ p.spec.isl }}</td><td>{{ p.spec.osl }}</td>
-      <td>{{ p.spec.concurrency }}</td><td>{{ p.spec.request_count }}</td><td>{{ "%.0f"|format(p.eta_s) }} s</td></tr>
+      <td>{% if p.at_operating_point %}<span class="muted">best load found</span>{% elif p.rate_factor %}<span class="muted">{{ "%.0f"|format(p.rate_factor * 100) }}% of capacity</span>{% else %}{{ p.spec.concurrency }}{% endif %}</td>
+      <td>{% if p.at_operating_point or p.rate_factor %}<span class="muted">set at run time</span>{% else %}{{ p.spec.request_count }}{% endif %}</td><td>{{ "%.0f"|format(p.eta_s) }} s</td></tr>
   {% endfor %}</tbody>
 </table>
 {% if plan.dropped_for_budget %}<p class="muted small">Dropped to fit the budget: {{ plan.dropped_for_budget | join(", ") }} users.</p>{% endif %}

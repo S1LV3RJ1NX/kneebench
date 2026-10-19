@@ -54,7 +54,8 @@ def rate_capacity(ctx: RunContext) -> Finding | None:
         ),
         None,
     )
-    passing = [p for p in poisson if p.meets(slo)]
+    # Note 25 section 4: above capacity the queue grows without limit, however short runs look.
+    passing = [p for p in poisson if p.meets(slo) and (mu is None or p.requested <= mu)]
     best = passing[-1].requested if passing else None
     data = {
         "rows": [_row(p, pct, mu) for p in poisson],

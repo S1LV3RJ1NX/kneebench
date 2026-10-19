@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (M5: what-ifs and compare)
+- What-if targets: re-judge a stored run against other latency targets from the report page
+  or `kneebench report <id> --slo-ttft-ms/--slo-tpot-ms/--slo-percentile`. Nothing is rerun
+  or saved, and exports keep the what-if.
+- Request-size estimates in the report: first-token time, per-token speed, answer time and
+  cache fit for a prompt and output length the run didn't test, from the shape sweep.
+- Compare two runs (`kneebench compare <before> <after>`, or the form on the run list): setup
+  and workload diff, results with ratios and a 5% noise band, overlaid curves, and rules X01
+  (what changed, and whether the comparison is clean) and X02 (what it did).
+
+### Added (M4: shape sweep)
+- Your own request size (`--shapes 2000/500`, or "Typical request" in the form) becomes the
+  main shape, tested next to the standard chat, reasoning and summarization shapes.
+- Request-size sweep: prompt length (output fixed at 256) and output length (prompt fixed at
+  1,024), each at 1 user and at the operating point, capped to the context window, plus the
+  shape map: every shape at the same load, never averaged.
+- Rules S01-S07 (first-token cost per prompt token, long prompts slowing decode, answer time
+  per output token, long answers holding cache, your traffic, the shape map, the prompt to
+  output exchange rate), with charts and their own report section ordered by product type.
+
+### Added (M3: request-rate sweep)
+- Poisson arrivals at 25% to 110% of the measured capacity and bursty (gamma) arrivals near
+  it, 90 seconds each; rates come from the concurrency sweep at run time.
+- Rules R01-R04 (sustainable request rate, run-length dependence past capacity, client
+  shortfall, burst penalty).
+
 ### Added (M2: concurrency sweep, walls, web UI and PDF)
 - Concurrency sweep (1, 2, 4 ... 256, capped by memory and `max_num_seqs`) with 5% length
   variation, a time budget, and early stop once the walls are found or on errors and

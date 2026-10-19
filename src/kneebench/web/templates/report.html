@@ -2,16 +2,39 @@
 {% block title %}{{ report.title }}{% endblock %}
 {% block main %}
 <div class="toolbar no-print">
-  <a class="button" href="/runs/{{ report.run_id }}/report.pdf">Download PDF</a>
+  <a class="button" href="/runs/{{ report.run_id }}/report.pdf{{ export_query }}">Download PDF</a>
   <button class="secondary" onclick="window.print()">Print</button>
-  <a class="button secondary" href="/runs/{{ report.run_id }}/report.html">HTML</a>
-  <a class="button secondary" href="/runs/{{ report.run_id }}/report.md">Markdown</a>
-  <a class="button secondary" href="/runs/{{ report.run_id }}/report.json">JSON</a>
+  <a class="button secondary" href="/runs/{{ report.run_id }}/report.html{{ export_query }}">HTML</a>
+  <a class="button secondary" href="/runs/{{ report.run_id }}/report.md{{ export_query }}">Markdown</a>
+  <a class="button secondary" href="/runs/{{ report.run_id }}/report.json{{ export_query }}">JSON</a>
   <span class="spacer"></span>
   <form method="post" action="/runs/{{ report.run_id }}/delete"
         onsubmit="return confirm('Delete run #{{ report.run_id }} and its measurements? This cannot be undone.')">
     <button class="danger" type="submit">Delete</button></form>
 </div>
+{% if not inline_assets %}{% set slo = report.summary.slo %}
+<details class="card whatif no-print"{% if report.what_if %} open{% endif %}>
+  <summary><b>What if…</b> <span class="muted small">judge this run against other targets{% if has_estimates %}, or estimate another request size{% endif %}. Uses the stored measurements; nothing is re-run.</span></summary>
+  <form method="get" class="whatif-form">
+    <input type="hidden" name="whatif" value="1">
+    <label>First token <input name="slo_ttft_ms" type="number" min="1" step="any" value="{{ slo.ttft_ms if slo.ttft_ms is not none else '' }}" placeholder="no target"> ms</label>
+    <label>Per token <input name="slo_tpot_ms" type="number" min="0.1" step="any" value="{{ slo.tpot_ms if slo.tpot_ms is not none else '' }}" placeholder="no target"> ms</label>
+    <label>Met by <select name="slo_percentile">
+      <option value="99"{% if slo.percentile == 99 %} selected{% endif %}>P99</option>
+      <option value="90"{% if slo.percentile == 90 %} selected{% endif %}>P90</option></select></label>
+    <button type="submit">Re-judge</button>
+    {% if report.what_if %}<a href="/runs/{{ report.run_id }}">Back to the run's own targets</a>{% endif %}
+  </form>
+  {% if has_estimates %}
+  <form class="whatif-form" hx-get="/runs/{{ report.run_id }}/estimate" hx-target="#estimate" hx-include="this">
+    <label>Prompt <input name="isl" type="number" min="1" required placeholder="tokens"></label>
+    <label>Output <input name="osl" type="number" min="1" required placeholder="tokens"></label>
+    <button type="submit" class="secondary">Estimate</button>
+  </form>
+  <div id="estimate"></div>
+  {% endif %}
+</details>
+{% endif %}
 {% include "report_body.html" %}
 {% endblock %}
 {% block scripts %}

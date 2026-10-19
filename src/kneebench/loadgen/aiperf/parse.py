@@ -37,6 +37,8 @@ class RequestRecord:
     osl: int | None
     error: str | None = None
     error_code: int | None = None
+    # DNS lookup plus TCP and TLS setup when the request opened a new connection; 0 if reused.
+    connect_ms: float | None = None
 
     @property
     def ok(self) -> bool:
@@ -166,6 +168,7 @@ def _records(path: Path) -> list[RequestRecord]:
                     osl=_int(_value(metrics, "output_sequence_length")),
                     error=_error_text(error),
                     error_code=_error_code(error),
+                    connect_ms=_connect_ms(metrics),
                 )
             )
     return out
@@ -221,6 +224,12 @@ def _profiling_window(server: dict[str, Any] | None, artifact_dir: Path) -> tupl
     ranges = ((server or {}).get("summary") or {}).get("phase_time_ranges") or {}
     prof = ranges.get("profiling")
     return (int(prof["start_ns"]), int(prof["end_ns"])) if prof else None
+
+
+def _connect_ms(metrics: dict[str, Any]) -> float | None:
+    parts = [_value(metrics, k) for k in ("http_req_dns_lookup", "http_req_connecting")]
+    known = [p for p in parts if p is not None]
+    return sum(known) if known else None
 
 
 def _value(metrics: dict[str, Any], name: str) -> float | None:

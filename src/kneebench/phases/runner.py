@@ -12,13 +12,29 @@ from sqlite3 import Connection
 
 from kneebench import __version__
 from kneebench.analysis.context import point_from_dict
-from kneebench.analysis.sweep import SATURATION_GAIN, SweepPoint, meets, steps, summarize
+from kneebench.analysis.shape import comparison_load
+from kneebench.analysis.sweep import (
+    SATURATION_GAIN,
+    SweepPoint,
+    meets,
+    steps,
+    summarize,
+)
 from kneebench.detect.server import ModelMetadata, ServedModel, ServerSnapshot
 from kneebench.domain import ServerSetup, Slo, Workload
 from kneebench.loadgen.aiperf.overhead import point_overhead_s
 from kneebench.loadgen.aiperf.parse import parse_point
 from kneebench.loadgen.base import Endpoint, LoadGenerator, PointResult
-from kneebench.phases.plan import PlannedPoint, RunPlan
+from kneebench.phases.plan import (
+    SHAPE_MIN_ROUNDS,
+    SHAPE_PHASES,
+    SHAPE_POINT_TARGET_S,
+    SWEEP_MAX_WARMUP,
+    SWEEP_MIN_REQUESTS,
+    SWEEP_ROUNDS,
+    PlannedPoint,
+    RunPlan,
+)
 from kneebench.phases.theory import Theory
 from kneebench.store import repo
 
@@ -70,6 +86,26 @@ def sweep_stop_reason(curve: list[SweepPoint], slo: Slo) -> str | None:
     if saturated and not meets(last, slo):
         return "walls_found"
     return None
+
+
+def _resolve_operating_point(
+    planned: PlannedPoint, curve: list[SweepPoint], slo: Slo
+) -> tuple[PlannedPoint, str | None]:
+    op = comparison_load(curve, slo)
+    if op is None:
+        return planned, "no_operating_point"
+    c = op.concurrency
+    # Long outputs at high load take minutes per request: size the point by time, keeping
+    # at least two rounds so there is a steady-state window.
+    e2e_s = ((op.tpot.get("p50") or 10.0) * planned.spec.osl) / 1000
+    rounds = max(SHAPE_MIN_ROUNDS, min(SWEEP_ROUNDS, int(SHAPE_POINT_TARGET_S / e2e_s)))
+    spec = replace(
+        planned.spec,
+        concurrency=c,
+        request_count=max(rounds * c, SWEEP_MIN_REQUESTS),
+        warmup_count=min(c, SWEEP_MAX_WARMUP),
+    )
+    return replace(planned, spec=spec), None
 
 
 def _resolve_rate(
@@ -133,6 +169,12 @@ def execute_run(
                 if on_event:
                     on_event(PointEvent(i, total, planned, skipped=stopped))
                 continue
+            if planned.at_operating_point:
+                planned, op_skip = _resolve_operating_point(planned, curve, inputs.workload.slo)
+                if op_skip:
+                    if on_event:
+                        on_event(PointEvent(i, total, planned, skipped=op_skip))
+                    continue
             if planned.phase == "rate":
                 planned, rate_skip = _resolve_rate(planned, curve, rate_stopped)
                 if rate_skip:
@@ -165,6 +207,9 @@ def execute_run(
             if not result.ok and planned.phase == "rate":
                 rate_stopped = "point_failed"
                 repo.set_stop_reason(conn, point_id, rate_stopped)
+                continue
+            if not result.ok and planned.phase in SHAPE_PHASES:
+                repo.set_stop_reason(conn, point_id, "point_failed")
                 continue
             if not result.ok:
                 if planned.phase != "concurrency":

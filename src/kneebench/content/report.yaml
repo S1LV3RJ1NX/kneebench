@@ -93,11 +93,22 @@ caveats:
     /metrics was not reachable, so memory findings are estimates from the model's size rather
     than the server's own numbers.
 
+# Shown when the report is re-judged against other latency targets.
+what_if: >-
+  What-if: this report judges the stored measurements against
+  {% if judged_with.ttft_ms %}{{ ms(judged_with.ttft_ms) }} to the first token{% else %}no
+  first-token target{% endif %} and {% if judged_with.tpot_ms %}{{ ms(judged_with.tpot_ms) }}
+  per token{% else %}no per-token target{% endif %} at P{{ judged_with.percentile }}, instead
+  of the targets the run used
+  ({% if measured_with.ttft_ms %}{{ ms(measured_with.ttft_ms) }}{% else %}none{% endif %} and
+  {% if measured_with.tpot_ms %}{{ ms(measured_with.tpot_ms) }}{% else %}none{% endif %} at
+  P{{ measured_with.percentile }}). Nothing was re-run.
 sections:
   verdict: Verdict
   scorecard: Scorecard
   problems: What needs attention
   capacity: How much load it takes
+  shapes: How request size changes things
   context: What the hardware allows
   passed: Checks that passed
   skipped: Not checked

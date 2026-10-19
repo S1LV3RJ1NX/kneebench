@@ -18,7 +18,7 @@ from kneebench.analysis.engine import REGISTRY, Finding
 
 UNKNOWN = "n/a"
 # OK findings the report shows as full cards (see report/composer.py).
-DETAILED_OK = ("B01", "B04")
+DETAILED_OK = ("B01", "B04", "X01", "X02")
 
 
 # ---- number formatting ----
@@ -80,6 +80,10 @@ def num0(value: float | None) -> str:
     return num(value, 0)
 
 
+def yesno(value: bool | None) -> str:
+    return UNKNOWN if value is None else "yes" if value else "no"
+
+
 FORMATTERS: dict[str, Callable[..., str]] = {
     "ms": ms,
     "pct": pct,
@@ -88,6 +92,7 @@ FORMATTERS: dict[str, Callable[..., str]] = {
     "gib": gib,
     "kib": kib,
     "times": times,
+    "yesno": yesno,
 }
 
 
@@ -257,7 +262,9 @@ def render_finding(
         )
         table = RenderedTable(tuple(c["label"] for c in cols), rows)
 
-    rule = REGISTRY[finding.rule_id]
+    from kneebench.analysis.compare import COMPARE_REGISTRY
+
+    rule = REGISTRY.get(finding.rule_id) or COMPARE_REGISTRY[finding.rule_id]
     return RenderedFinding(
         rule_id=finding.rule_id,
         status=status,

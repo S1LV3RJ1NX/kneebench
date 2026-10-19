@@ -79,7 +79,7 @@ def _trend(requests: Sequence[RequestView], offset_ms: float) -> tuple[tuple[flo
     for r in timed:
         assert r.ttft_ms is not None
         bins.setdefault(int((r.start_ns - t0) / NS // TREND_BIN_S), []).append(
-            max(r.ttft_ms - offset_ms, 0.0)
+            max(r.ttft_ms - (r.connect_ms or 0.0) - offset_ms, 0.0)
         )
     return tuple(
         ((i + 0.5) * TREND_BIN_S, statistics.median(v))
@@ -93,13 +93,10 @@ def summarize_rate(point: PointView, ttft_offset_ms: float = 0.0) -> RatePoint:
     starts = sorted(r.start_ns for r in reqs)
     span = (starts[-1] - starts[0]) if len(starts) > 1 else 0
     ends = sorted(r.end_ns for r in reqs if r.ok)
-    stats = {
-        metric: {
-            k: max(v - (ttft_offset_ms if metric == "time_to_first_token" else 0), 0.0)
-            for k, v in point.metrics.get(metric, {}).items()
-            if k in ("p50", "p90", "p99", "avg")
-        }
-        for metric in ("time_to_first_token", "inter_token_latency")
+    tpot = {
+        k: v
+        for k, v in point.metrics.get("inter_token_latency", {}).items()
+        if k in ("p50", "p90", "p99", "avg")
     }
     errors = sum(1 for r in reqs if not r.ok)
     return RatePoint(
@@ -109,8 +106,8 @@ def summarize_rate(point: PointView, ttft_offset_ms: float = 0.0) -> RatePoint:
         requested=point.request_rate or 0.0,
         issued=_rate(starts, span),
         completed=_rate(ends, (ends[-1] - starts[0]) if ends and starts else 0),
-        ttft=stats["time_to_first_token"],
-        tpot=stats["inter_token_latency"],
+        ttft=point.server_ttft(ttft_offset_ms),
+        tpot=tpot,
         error_rate=errors / len(reqs) if reqs else 0.0,
         trend=_trend(reqs, ttft_offset_ms),
     )

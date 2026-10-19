@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Compare run {{ c.a_id }} and run {{ c.b_id }}{% endblock %}
+{% block main %}
+<div class="toolbar no-print">
+  <a class="button secondary" href="/compare.md?a={{ c.a_id }}&b={{ c.b_id }}">Markdown</a>
+  <a class="button secondary" href="/compare?a={{ c.b_id }}&b={{ c.a_id }}">Swap before and after</a>
+</div>
+<div class="report">
+<div class="eyebrow">Comparison</div>
+<h1>Run {{ c.a_id }}{% if c.a_label %} <span class="muted">({{ c.a_label }})</span>{% endif %}
+  → run {{ c.b_id }}{% if c.b_label %} <span class="muted">({{ c.b_label }})</span>{% endif %}</h1>
+
+<div class="card verdict">{% for s in c.summary %}{{ s | safe }} {% endfor %}</div>
+
+<h2>Setup</h2>
+<div class="card" style="padding:6px 8px">
+<table>
+  <thead><tr><th></th><th>Before (run {{ c.a_id }})</th><th>After (run {{ c.b_id }})</th></tr></thead>
+  <tbody>{% for label, a, b, changed in c.setup %}
+    <tr{% if changed %} class="changed"{% endif %}><td>{{ label }}</td><td>{{ a }}</td><td>{{ b }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+</div>
+
+<h2>Results</h2>
+<div class="card" style="padding:6px 8px">
+<table>
+  <thead><tr><th>Measure</th><th>Before</th><th>After</th><th>Change</th><th></th></tr></thead>
+  <tbody>{% for label, a, b, change, verdict in c.metrics %}
+    <tr><td>{{ label }}</td><td>{{ a }}</td><td>{{ b }}</td><td>{{ change }}</td>
+      <td><span class="badge {{ {'better': 'ok', 'worse': 'bad', 'same': '', 'unknown': ''}[verdict] }}">{{ verdict }}</span></td></tr>
+  {% endfor %}</tbody>
+</table>
+</div>
+
+{% for fig in c.figures %}<div class="card"><div class="chart" data-chart="X-{{ loop.index0 }}"></div></div>{% endfor %}
+
+{% for f in c.findings %}
+<div class="card">
+  <h3>{{ f.title }}</h3>
+  {% if f.meaning %}<p><b>What it means.</b> {{ f.meaning | safe }}</p>{% endif %}
+  {% if f.why %}<p class="muted"><b>Why.</b> {{ f.why | safe }}
+    {% if f.learn_more_url %}<a href="{{ f.learn_more_url }}" target="_blank" rel="noopener">{{ f.learn_more_label }}</a>{% endif %}</p>{% endif %}
+</div>
+{% endfor %}
+</div>
+<script type="application/json" id="kb-figures">{{ figures_json | safe }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="/static/plotly.min.js"></script>
+<script>
+  window.addEventListener("load", () => {
+    const figs = JSON.parse(document.getElementById("kb-figures").textContent);
+    document.querySelectorAll(".chart").forEach((el) => {
+      const fig = figs[Number(el.dataset.chart.split("-")[1])];
+      if (fig && window.Plotly) Plotly.newPlot(el, fig.data, fig.layout, {displaylogo: false, responsive: true});
+    });
+  });
+</script>
+{% endblock %}

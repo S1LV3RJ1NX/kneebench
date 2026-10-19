@@ -10,7 +10,15 @@ from sqlite3 import Connection
 
 from kneebench import content
 from kneebench.detect.server import ServerSnapshot, detect_server, fetch_model_metadata
-from kneebench.domain import STANDARD_SHAPES, ProductType, ServerSetup, Slo, Source, Workload
+from kneebench.domain import (
+    STANDARD_SHAPES,
+    ProductType,
+    ServerSetup,
+    Shape,
+    Slo,
+    Source,
+    Workload,
+)
 from kneebench.loadgen.base import Endpoint
 from kneebench.phases.plan import DEFAULT_MAX_CONCURRENCY, RunPlan, plan_run
 from kneebench.phases.runner import RunInputs
@@ -20,7 +28,7 @@ from kneebench.physics.gpus import GpuSpec, get_gpu, gpu_from_json
 from kneebench.physics.model import model_spec_from_hf
 from kneebench.store import repo
 
-ALL_PHASES = ("baseline", "concurrency", "rate")
+ALL_PHASES = ("baseline", "concurrency", "rate", "shape")
 
 
 class PrepareError(ValueError):
@@ -47,6 +55,7 @@ class RunRequest:
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY
     budget_s: float | None = None
     label: str | None = None
+    shapes: tuple[Shape, ...] = ()  # the user's own traffic; the standard shapes are added
 
 
 def slo_for(req: RunRequest) -> Slo:
@@ -75,7 +84,10 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
 
     slo = slo_for(req)
     workload = Workload(
-        product=req.product, shapes=STANDARD_SHAPES, slo=slo, time_budget_s=req.budget_s
+        product=req.product,
+        shapes=(*req.shapes, *STANDARD_SHAPES),
+        slo=slo,
+        time_budget_s=req.budget_s,
     )
     setup = ServerSetup(
         gpu=req.gpu,
@@ -101,6 +113,11 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
         raise PrepareError(
             "The request-rate sweep needs the concurrency sweep (it measures "
             "the capacity the rates are based on)."
+        )
+    if "shape" in req.phases and "concurrency" not in req.phases:
+        raise PrepareError(
+            "The request-size sweep needs the concurrency sweep (it finds the load "
+            "the sizes are compared at)."
         )
     plan = plan_run(
         theory,

@@ -6,12 +6,22 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from kneebench.domain import PRIMARY_SHAPE, ProductType, Shape, Slo
+from kneebench.domain import ProductType, Shape, Slo, primary_shape_name
 from kneebench.phases.theory import Theory, theory_from_json
 from kneebench.servers.vllm import metric_names
 
 # Network share of TTFT at or above which subtracting it leaves too little to trust.
 UNRELIABLE_NETWORK_SHARE = 0.5
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """Linear interpolation between closest ranks, as numpy and AIPerf compute it."""
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    rank = (len(sorted_values) - 1) * pct / 100
+    lo = int(rank)
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (rank - lo)
 
 
 @dataclass(frozen=True)
@@ -25,6 +35,7 @@ class RequestView:
     osl: int | None
     error: str | None = None
     error_code: int | None = None
+    connect_ms: float | None = None
 
     @property
     def ok(self) -> bool:
@@ -52,6 +63,35 @@ class PointView:
 
     def m(self, metric: str, stat: str = "p50") -> float | None:
         return self.metrics.get(metric, {}).get(stat)
+
+    @property
+    def new_connections(self) -> list[float]:
+        """Setup times of requests that opened a new connection during the measurement."""
+        return [r.connect_ms for r in self.requests if r.ok and r.connect_ms]
+
+    def server_ttft(self, offset_ms: float = 0.0) -> dict[str, float]:
+        """TTFT percentiles without the network round trip and without connection setup.
+
+        A client far from the server pays DNS, TCP and TLS on every new connection; that
+        isn't the server's time, and it only lands on some requests, so it inflates the tail.
+        """
+        timed = [r for r in self.requests if r.ok and r.ttft_ms is not None]
+        if not self.new_connections or not timed:
+            stats = self.metrics.get("time_to_first_token", {})
+            return {
+                k: max(v - offset_ms, 0.0)
+                for k, v in stats.items()
+                if k in ("p50", "p90", "p99", "avg")
+            }
+        values = sorted(
+            max((r.ttft_ms or 0.0) - (r.connect_ms or 0.0) - offset_ms, 0.0) for r in timed
+        )
+        return {
+            "p50": _percentile(values, 50),
+            "p90": _percentile(values, 90),
+            "p99": _percentile(values, 99),
+            "avg": sum(values) / len(values),
+        }
 
     def server_stat(self, signal: str, stat: str) -> float | None:
         for name in metric_names(signal):
@@ -111,7 +151,9 @@ class RunContext:
 
     @property
     def primary_shape(self) -> str:
-        return PRIMARY_SHAPE[self.workload.product]
+        return primary_shape_name(
+            self.workload.product, tuple(s.name for s in self.workload.shapes)
+        )
 
     @property
     def http_rtt_ms(self) -> float | None:

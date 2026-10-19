@@ -1,0 +1,38 @@
+id: S05
+title: Test with your own request sizes
+status_line:
+  info: >-
+    These results use standard request sizes ({{ primary }} as the main one), not your
+    traffic.
+  warn: >-
+    {{ num(trimmed) }} of your request sizes didn't fit the context window and were trimmed
+    to fit.
+measured: >-
+  {% if shapes is defined %}{% for s in shapes %}{{ s.name }}: {{ num(s.original_isl) }}
+  prompt and {{ num(s.original_osl) }} output tokens{% if s.isl != s.original_isl or
+  s.osl != s.original_osl %}, tested as {{ num(s.isl) }} and {{ num(s.osl) }}{% endif %}.
+  {% endfor %}{% else %}No typical request size was given for this run.{% endif %}
+meaning:
+  info: >-
+    A server tuned for one request size can miss its targets at another. Your own sizes give
+    the numbers that matter.
+  warn: >-
+    The server rejects or truncates requests longer than its context window, so your real
+    requests of that size will fail.
+why: >-
+  Every number in this report depends on the request's {{ term("shape") }}: prompt length
+  drives first-token time and cache use, and output length drives answer time.
+learn_more: {note: "26", anchor: "6-the-shape-map", label: "The shape map"}
+actions:
+  - when: [info]
+    title: Rerun kneebench with your typical request
+    flag: kneebench run --shapes 2000/500
+    expected: Your own size becomes the main shape in the report, next to the standard ones.
+    risk: None; pull the prompt and output token counts from your logs (median and P90).
+    verify: The report header lists your shape as the main one.
+  - when: [warn]
+    title: Raise the context window
+    flag: --max-model-len {{ num0(shapes[0].original_isl + shapes[0].original_osl) }}
+    expected: Requests of your size run untrimmed.
+    risk: A longer window leaves room for fewer requests in the cache at once.
+    verify: Rerun; this finding should disappear.

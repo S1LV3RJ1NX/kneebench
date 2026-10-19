@@ -9,6 +9,7 @@
     {% if report.problems %}<a href="#problems">{{ s.problems }} <span class="count">{{ report.problems | length }}</span></a>{% endif %}
     {% if report.next_steps %}<a href="#next">{{ s.next }}</a>{% endif %}
     {% if report.capacity %}<a href="#capacity">{{ s.capacity }}</a>{% endif %}
+    {% if report.shapes %}<a href="#shapes">{{ s.shapes }}</a>{% endif %}
     {% if report.context %}<a href="#context">{{ s.context }}</a>{% endif %}
     {% if report.passed %}<a href="#passed">{{ s.passed }} <span class="count">{{ report.passed | length }}</span></a>{% endif %}
     {% if report.skipped %}<a href="#skipped">{{ s.skipped }}</a>{% endif %}
@@ -32,6 +33,7 @@
 {% if report.summary.run_error %}<div class="notice bad">This run {{ report.summary.run_status }}: {{ report.summary.run_error }}
   The report below uses the points measured before it stopped.</div>{% endif %}
 
+{% if report.what_if %}<div class="notice warn">{{ report.what_if | safe }}</div>{% endif %}
 <h2 id="verdict">{{ s.verdict }}</h2>
 <div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
 
@@ -65,6 +67,10 @@
 {% if report.capacity %}
 <h2 id="capacity">{{ s.capacity }}</h2>
 {% for f in report.capacity %}{% with open = f.rule_id in open_capacity %}{% include "_finding.html" %}{% endwith %}{% endfor %}
+{% endif %}
+{% if report.shapes %}
+<h2 id="shapes">{{ s.shapes }}</h2>
+{% for f in report.shapes %}{% with open = f.rule_id == "S06" %}{% include "_finding.html" %}{% endwith %}{% endfor %}
 {% endif %}
 
 {% if report.context %}

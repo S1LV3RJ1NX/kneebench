@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -174,8 +174,15 @@ def run(
     slo_tpot_ms: Annotated[float | None, typer.Option(help="TPOT target (ms)")] = None,
     label: Annotated[str | None, typer.Option(help="A note to tell runs apart")] = None,
     phases: Annotated[
-        str, typer.Option(help="Comma-separated: baseline, concurrency, rate")
-    ] = "baseline,concurrency,rate",
+        str, typer.Option(help="Comma-separated: baseline, concurrency, rate, shape")
+    ] = "baseline,concurrency,rate,shape",
+    shapes: Annotated[
+        str | None,
+        typer.Option(
+            help="Your typical requests as prompt/output tokens, e.g. 2000/500,300/50; "
+            "the first one becomes the main shape"
+        ),
+    ] = None,
     max_concurrency: Annotated[int, typer.Option(help="Highest concurrency to sweep")] = 256,
     budget_min: Annotated[
         float | None, typer.Option(help="Time budget in minutes; trims the top of the sweep")
@@ -184,7 +191,7 @@ def run(
 ) -> None:
     """Detect the server, run the benchmark phases and write a report."""
     from kneebench.detect.server import detect_server
-    from kneebench.domain import ProductType
+    from kneebench.domain import ProductType, user_shapes
     from kneebench.loadgen.aiperf.runner import AiperfLoadGenerator
     from kneebench.phases.runner import PointEvent, execute_run
     from kneebench.physics.gpus import get_gpu
@@ -195,6 +202,10 @@ def run(
     url = url or local.url
     if not url:
         raise typer.BadParameter("pass --url or set it in kneebench.local.toml")
+    try:
+        mine = user_shapes(shapes) if shapes else ()
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     req = RunRequest(
         url=url,
         gpu=get_gpu(gpu),
@@ -211,6 +222,7 @@ def run(
         max_concurrency=max_concurrency,
         budget_s=budget_min * 60 if budget_min else None,
         label=label,
+        shapes=mine,
     )
 
     console.print("[bold]Detecting the server…[/]")
@@ -320,14 +332,38 @@ def report(
         str | None, typer.Option(help="Correct the GPU entry (catalog id); no rerun needed")
     ] = None,
     gpu_count: Annotated[int | None, typer.Option(help="Correct the GPU count")] = None,
+    slo_ttft_ms: Annotated[
+        float | None, typer.Option(help="What-if: judge against this TTFT target (0 for none)")
+    ] = None,
+    slo_tpot_ms: Annotated[
+        float | None, typer.Option(help="What-if: judge against this TPOT target (0 for none)")
+    ] = None,
+    slo_percentile: Annotated[int | None, typer.Option(help="What-if: 90 or 99")] = None,
 ) -> None:
     """Regenerate a report from stored data (no network)."""
+    from dataclasses import replace
+
+    from kneebench.analysis.context import context_from_bundle
+    from kneebench.store import repo
     from kneebench.store.db import DB_FILENAME, connect
 
     conn = connect(data_dir() / DB_FILENAME)
     if gpu or gpu_count:
         _correct_gpu(conn, run_id, gpu, gpu_count)
-    _write_report(conn, run_id, output, fmt, show_verdict=gpu is not None or gpu_count is not None)
+    slo = None
+    if slo_ttft_ms is not None or slo_tpot_ms is not None or slo_percentile is not None:
+        if slo_percentile not in (None, 90, 99):
+            raise typer.BadParameter("--slo-percentile must be 90 or 99")
+        slo = context_from_bundle(repo.run_bundle(conn, run_id)).workload.slo
+        if slo_ttft_ms is not None:
+            slo = replace(slo, ttft_ms=slo_ttft_ms or None)
+        if slo_tpot_ms is not None:
+            slo = replace(slo, tpot_ms=slo_tpot_ms or None)
+        if slo_percentile is not None:
+            slo = replace(slo, percentile=slo_percentile)
+    _write_report(
+        conn, run_id, output, fmt, show_verdict=gpu is not None or gpu_count is not None, slo=slo
+    )
 
 
 def _correct_gpu(conn: object, run_id: int, gpu: str | None, gpu_count: int | None) -> None:
@@ -338,6 +374,35 @@ def _correct_gpu(conn: object, run_id: int, gpu: str | None, gpu_count: int | No
     assert isinstance(conn, Connection)
     spec, count = correct_gpu(conn, run_id, gpu, gpu_count)
     console.print(f"Run {run_id} now uses {count}× {spec.name}.")
+
+
+@app.command(name="compare")
+def compare_cmd(
+    before: Annotated[int, typer.Argument(help="Run id before the change")],
+    after: Annotated[int, typer.Argument(help="Run id after the change")],
+    output: Annotated[Path | None, typer.Option("--output", "-o", help="File to write")] = None,
+) -> None:
+    """Compare two runs: what changed in the setup, and what it did (no network)."""
+    from kneebench.report.compare import build_comparison, render_comparison_md
+    from kneebench.store.db import DB_FILENAME, connect
+
+    if before == after:
+        raise typer.BadParameter("pick two different runs")
+    conn = connect(data_dir() / DB_FILENAME)
+    try:
+        c = build_comparison(conn, before, after)
+    except KeyError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    md = render_comparison_md(c)
+    if output:
+        output.write_text(md)
+        console.print(f"Comparison written to {output}")
+    else:
+        console.print("\n".join(c.summary))
+        path = data_dir() / "reports" / f"compare-{before}-{after}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(md)
+        console.print(f"\nComparison written to {path}")
 
 
 @app.command()
@@ -377,7 +442,12 @@ def gpus() -> None:
 
 
 def _write_report(
-    conn: object, run_id: int, output: Path | None, fmt: str, show_verdict: bool
+    conn: object,
+    run_id: int,
+    output: Path | None,
+    fmt: str,
+    show_verdict: bool,
+    slo: Any = None,
 ) -> None:
     from sqlite3 import Connection
 
@@ -389,13 +459,14 @@ def _write_report(
     assert isinstance(conn, Connection)
     if fmt not in ("md", "json", "html", "pdf"):
         raise typer.BadParameter("format must be md, json, html or pdf")
-    rep = build_report(conn, run_id)
-    path = output or data_dir() / "reports" / f"run-{run_id}.{fmt}"
+    rep = build_report(conn, run_id, slo=slo)
+    suffix = "-what-if" if rep.what_if else ""
+    path = output or data_dir() / "reports" / f"run-{run_id}{suffix}.{fmt}"
     path.parent.mkdir(parents=True, exist_ok=True)
     if fmt == "pdf":
         from kneebench.report.pdf import PdfUnavailableError, attach, html_to_pdf
 
-        html = render_html(build_report(conn, run_id, style="html"), inline=True)
+        html = render_html(build_report(conn, run_id, style="html", slo=slo), inline=True)
         try:
             pdf = html_to_pdf(html)
         except PdfUnavailableError as exc:
@@ -411,7 +482,7 @@ def _write_report(
             )
         )
     elif fmt == "html":
-        path.write_text(render_html(build_report(conn, run_id, style="html"), inline=True))
+        path.write_text(render_html(build_report(conn, run_id, style="html", slo=slo), inline=True))
     else:
         path.write_text(render_json(rep) if fmt == "json" else render_markdown(rep))
     if show_verdict:

@@ -1,0 +1,39 @@
+id: S02
+title: Long prompts slow every answer in the batch
+status_line:
+  ok: >-
+    Per-token speed barely changes with prompt length at {{ num(concurrency) }}
+    {{ "user" if concurrency == 1 else "users" }} ({{ ms(tpot_short_ms) }} to
+    {{ ms(tpot_long_ms) }}).
+  info: >-
+    At {{ num(concurrency) }} {{ "user" if concurrency == 1 else "users" }}, time per output
+    token rises {{ times(growth) }} from {{ num(shortest_isl) }}-token to
+    {{ num(longest_isl) }}-token prompts ({{ ms(tpot_short_ms) }} to {{ ms(tpot_long_ms) }}).
+  warn: >-
+    At {{ num(concurrency) }} users, {{ num(longest_isl) }}-token prompts push time per output
+    token to {{ ms(tpot_long_ms) }} ({{ times(growth) }} the short-prompt speed), past your
+    {{ ms(tpot_target_ms) }} target.
+measured: >-
+  The same prompt-length sweep, repeated at the operating point the concurrency sweep found,
+  with the output fixed.
+meaning:
+  ok: >-
+    Mixing long and short prompts won't noticeably slow down streaming answers here.
+  info: >-
+    Users with short prompts stream slower when they share the server with long-prompt
+    traffic. Plan latency for your longest common prompts, not the average.
+  warn: >-
+    Long-prompt traffic alone can break your speed target. Consider a separate pool or a
+    lower concurrency cap for long-context requests.
+why: >-
+  Each step of {{ term("decode") }} rereads the {{ term("KV cache") }} of every earlier
+  token, for every request in the batch. Longer prompts mean more cache to reread, so each step, and
+  every user in it, gets slower.
+learn_more: {note: "26", anchor: "2-sweep-the-prompt-output-fixed-at-256", label: "Sweep the prompt"}
+table:
+  rows: rows
+  columns:
+    - {key: isl, label: Prompt tokens, fmt: num}
+    - {key: tpot_p50, label: TPOT P50, fmt: ms}
+    - {key: tpot_tail, label: TPOT tail, fmt: ms}
+    - {key: kv_max, label: Peak cache, fmt: pct}
