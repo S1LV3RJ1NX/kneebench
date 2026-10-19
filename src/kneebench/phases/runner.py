@@ -78,6 +78,7 @@ def execute_run(
     loadgen: LoadGenerator,
     data_dir: Path,
     on_event: Callable[[PointEvent], None] | None = None,
+    on_created: Callable[[int], None] | None = None,
 ) -> int:
     endpoint_id = repo.upsert_endpoint(conn, inputs.snapshot.base_url)
     snapshot_id = repo.insert_snapshot(
@@ -98,6 +99,8 @@ def execute_run(
         theory=inputs.theory.to_json(),
         label=inputs.label,
     )
+    if on_created:
+        on_created(run_id)
 
     status = "done"
     curve: list[SweepPoint] = []
@@ -120,7 +123,8 @@ def execute_run(
 
             summary = None
             if planned.phase == "concurrency" and result.ok:
-                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)))
+                rtt = inputs.snapshot.network.http_rtt_ms if inputs.snapshot.network else None
+                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)), rtt or 0.0)
                 curve.append(summary)
                 stopped = sweep_stop_reason(curve, inputs.workload.slo)
                 if stopped:

@@ -16,7 +16,7 @@ from kneebench.analysis.sweep import (
 
 
 def sweep(ctx: RunContext) -> list[SweepPoint]:
-    return curve(ctx.points_in("concurrency"))
+    return curve(ctx.points_in("concurrency"), ctx.http_rtt_ms or 0.0)
 
 
 def _row(p: SweepPoint, pct: int) -> dict[str, object]:
@@ -42,6 +42,7 @@ def _slo_data(ctx: RunContext) -> dict[str, object]:
         "slo_ttft_ms": slo.ttft_ms,
         "slo_tpot_ms": slo.tpot_ms,
         "shape_name": ctx.primary_shape,
+        "ttft_offset_ms": ctx.http_rtt_ms or 0.0,
     }
 
 

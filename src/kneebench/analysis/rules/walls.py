@@ -73,6 +73,7 @@ def slo_wall(ctx: RunContext) -> Finding | None:
         "slo_ttft_ms": slo.ttft_ms,
         "slo_tpot_ms": slo.tpot_ms,
         "max_tested": pts[-1].concurrency,
+        "ttft_offset_ms": ctx.http_rtt_ms or 0.0,
     }
     if not crossings:
         return ok("W02", **data)

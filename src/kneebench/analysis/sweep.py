@@ -42,9 +42,11 @@ class SweepPoint:
         return values.get(f"p{percentile}")
 
 
-def _pcts(point: PointView, metric: str) -> dict[str, float]:
+def _pcts(point: PointView, metric: str, offset_ms: float = 0.0) -> dict[str, float]:
     stats = point.metrics.get(metric, {})
-    return {k: v for k, v in stats.items() if k in ("p50", "p90", "p99", "avg")}
+    return {
+        k: max(v - offset_ms, 0.0) for k, v in stats.items() if k in ("p50", "p90", "p99", "avg")
+    }
 
 
 def _error_rate(point: PointView, errors: int, total: int) -> float:
@@ -53,7 +55,9 @@ def _error_rate(point: PointView, errors: int, total: int) -> float:
     return (point.m("request_error_rate", "avg") or 0.0) / 100  # AIPerf reports a percentage
 
 
-def summarize(point: PointView) -> SweepPoint:
+def summarize(point: PointView, ttft_offset_ms: float = 0.0) -> SweepPoint:
+    """One concurrency level. TTFT has the client's network round trip removed, because
+    that time doesn't change with load and users elsewhere add their own instead."""
     steady = steady_state(point.requests, point.concurrency) if point.requests else None
     total = len(point.requests)
     errors = [r for r in point.requests if not r.ok]
@@ -68,7 +72,7 @@ def summarize(point: PointView) -> SweepPoint:
         requests_s=steady.requests_s if steady else point.m("request_throughput", "avg"),
         steady_reliable=bool(steady and steady.reliable),
         steady_share=steady.share if steady else None,
-        ttft=_pcts(point, "time_to_first_token"),
+        ttft=_pcts(point, "time_to_first_token", ttft_offset_ms),
         tpot=_pcts(point, "inter_token_latency"),
         error_rate=_error_rate(point, len(errors), total),
         gateway_errors=sum(n for c, n in codes.items() if c in GATEWAY_CODES),
@@ -81,8 +85,11 @@ def summarize(point: PointView) -> SweepPoint:
     )
 
 
-def curve(points: Sequence[PointView]) -> list[SweepPoint]:
-    return sorted((summarize(p) for p in points if p.concurrency), key=lambda s: s.concurrency)
+def curve(points: Sequence[PointView], ttft_offset_ms: float = 0.0) -> list[SweepPoint]:
+    return sorted(
+        (summarize(p, ttft_offset_ms) for p in points if p.concurrency),
+        key=lambda s: s.concurrency,
+    )
 
 
 @dataclass(frozen=True)

@@ -18,6 +18,9 @@ measured: >-
   {{ ms(first.tpot_tail) }}{% if slo_tpot_ms %} (target {{ ms(slo_tpot_ms) }}){% endif %}, TTFT
   P{{ pct_label }} {{ ms(first.ttft_tail) }}{% if slo_ttft_ms %} (target
   {{ ms(slo_ttft_ms) }}){% endif %}.{% endif %}
+  {% if ttft_offset_ms > 1 %} Time to first token is judged server side: the
+  {{ ms(ttft_offset_ms) }} network round trip from where kneebench ran is removed, because it
+  doesn't change with load and your users add their own.{% endif %}
 meaning:
   ok: >-
     This is how much load to run at: the rightmost point on the curve still under every
