@@ -1,0 +1,27 @@
+id: R04
+title: What bursts of traffic cost
+status_line:
+  info: >-
+    Bursty arrivals at the same average rate raise P{{ pct_label }} time to first token by
+    {{ times(worst.penalty) }} ({{ ms(worst.smooth_ms) }} to {{ ms(worst.bursty_ms) }}).
+  warn: >-
+    {% if breaks %}Bursts break your target at a rate that steady random traffic meets:
+    {% endif %}P{{ pct_label }} time to first token goes from {{ ms(worst.smooth_ms) }} to
+    {{ ms(worst.bursty_ms) }} ({{ times(worst.penalty) }}) when the same traffic arrives in bursts.
+measured: >-
+  The same average rates sent twice: with random (Poisson) gaps, and with clustered gaps
+  (gamma, burstiness {{ num(burstiness, 1) }}).
+meaning:
+  info: Real traffic is often burstier than Poisson; leave room for it.
+  warn: >-
+    Plan capacity with headroom for bursts, or smooth them before they reach the server.
+why: >-
+  Bursts briefly push the arrival rate above what the server can start, so requests queue even
+  though the average looks fine. The tail pays first.
+learn_more: {note: "25", anchor: "5-running-both-with-vllm", label: "Running both with vLLM"}
+actions:
+  - when: [warn]
+    title: Keep more headroom, or queue requests in front of the server
+    expected: Burst peaks stay below capacity, so the tail meets the target.
+    risk: Lower average utilization of the GPU.
+    verify: Rerun with the rate sweep; bursty and steady results move closer.

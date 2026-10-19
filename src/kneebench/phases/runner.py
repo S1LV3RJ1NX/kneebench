@@ -6,7 +6,7 @@ import platform
 import sys
 import threading
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from sqlite3 import Connection
 
@@ -72,6 +72,19 @@ def sweep_stop_reason(curve: list[SweepPoint], slo: Slo) -> str | None:
     return None
 
 
+def _resolve_rate(
+    planned: PlannedPoint, curve: list[SweepPoint], stopped: str | None
+) -> tuple[PlannedPoint, str | None]:
+    """Set a rate point's arrival rate from the capacity the concurrency sweep measured."""
+    if stopped:
+        return planned, stopped
+    peak = max((p.requests_s for p in curve if p.requests_s), default=None)
+    if not peak or planned.rate_factor is None:
+        return planned, "no_capacity_measured"
+    rate = round(planned.rate_factor * peak, 3)
+    return replace(planned, spec=replace(planned.spec, request_rate=rate)), None
+
+
 def execute_run(
     conn: Connection,
     inputs: RunInputs,
@@ -109,6 +122,7 @@ def execute_run(
     error: str | None = None
     curve: list[SweepPoint] = []
     stopped: str | None = None
+    rate_stopped: str | None = None
     total = len(plan.points)
     try:
         for i, planned in enumerate(plan.points):
@@ -119,6 +133,12 @@ def execute_run(
                 if on_event:
                     on_event(PointEvent(i, total, planned, skipped=stopped))
                 continue
+            if planned.phase == "rate":
+                planned, rate_skip = _resolve_rate(planned, curve, rate_stopped)
+                if rate_skip:
+                    if on_event:
+                        on_event(PointEvent(i, total, planned, skipped=rate_skip))
+                    continue
             if on_event:
                 on_event(PointEvent(i, total, planned))
             point_id = repo.create_point(conn, run_id, i, planned.phase, planned.spec)
@@ -142,6 +162,10 @@ def execute_run(
                     repo.set_stop_reason(conn, point_id, stopped)
             if on_event:
                 on_event(PointEvent(i, total, planned, result, summary=summary))
+            if not result.ok and planned.phase == "rate":
+                rate_stopped = "point_failed"
+                repo.set_stop_reason(conn, point_id, rate_stopped)
+                continue
             if not result.ok:
                 if planned.phase != "concurrency":
                     status = "failed"

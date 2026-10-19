@@ -72,3 +72,28 @@ def test_budget_trims_the_top_of_the_sweep() -> None:
 )
 def test_sweep_stops_early(points: tuple, reason: str | None) -> None:  # type: ignore[type-arg]
     assert sweep_stop_reason(curve(points), SLO) == reason
+
+
+def test_rate_phase_follows_the_concurrency_sweep() -> None:
+    plan = plan_run(theory_for(), ("baseline", "concurrency", "rate"), slo=SLO)
+    rate = [p for p in plan.points if p.phase == "rate"]
+    assert [p.rate_factor for p in rate] == [0.25, 0.5, 0.75, 0.9, 1.1, 0.75, 0.9]
+    assert {p.spec.arrival.value for p in rate} == {"poisson", "gamma"}
+    assert all(p.spec.duration_s == 90 for p in rate)
+    phases = [p.phase for p in plan.points]
+    assert phases.index("rate") > max(i for i, ph in enumerate(phases) if ph == "concurrency")
+    assert phases[-1] == "baseline_end"
+    with pytest.raises(ValueError, match="concurrency sweep"):
+        plan_run(theory_for(), ("baseline", "rate"), slo=SLO)
+
+
+def test_rate_points_are_resolved_from_measured_capacity() -> None:
+    from kneebench.phases.runner import _resolve_rate
+
+    plan = plan_run(theory_for(), ("concurrency", "rate"), slo=SLO)
+    planned = next(p for p in plan.points if p.phase == "rate" and p.rate_factor == 0.5)
+    resolved, skip = _resolve_rate(planned, curve(healthy_sweep()), None)
+    assert skip is None
+    assert resolved.spec.request_rate == pytest.approx(0.5 * 3080 / 1024, rel=0.05)
+    _, skip = _resolve_rate(planned, [], None)
+    assert skip == "no_capacity_measured"

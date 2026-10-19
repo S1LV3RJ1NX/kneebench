@@ -77,6 +77,7 @@
       <div class="choices">
         <label><input type="checkbox" name="phase_baseline" value="1" checked> Single-request baseline <span class="muted small">how close one request gets to the hardware limit</span></label>
         <label><input type="checkbox" name="phase_concurrency" value="1" checked> Concurrency sweep <span class="muted small">capacity, the three walls, and what to change</span></label>
+        <label><input type="checkbox" name="phase_rate" value="1" checked> Request-rate sweep <span class="muted small">random and bursty arrivals; adds about 15 minutes</span></label>
       </div></div>
     <div class="row"><label for="max_concurrency">Highest concurrency</label>
       <div><input id="max_concurrency" name="max_concurrency" type="number" min="1" value="256">

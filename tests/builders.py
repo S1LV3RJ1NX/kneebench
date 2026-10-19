@@ -386,3 +386,78 @@ def store_fixture_run(
 
 def without_metrics(snap: ServerSnapshot) -> ServerSnapshot:
     return replace(snap, cache=None, metrics_available=False, metrics_text=None)
+
+
+def rate_point(
+    requested: float,
+    ttft_ms: float = 150.0,
+    ttft_end_ms: float | None = None,
+    arrival: str = "poisson",
+    issued_share: float = 1.0,
+    duration_s: float = 90.0,
+    tpot_p99: float = 12.0,
+    seq: int = 50,
+    errors: int = 0,
+) -> PointView:
+    """A rate point whose requests start evenly over the run; TTFT ramps if ttft_end_ms."""
+    count = max(int(requested * issued_share * duration_s), 4)
+    end_ttft = ttft_end_ms if ttft_end_ms is not None else ttft_ms
+    reqs = []
+    for i in range(count):
+        frac = i / (count - 1)
+        start = int(frac * duration_s * 1e9)
+        ttft = ttft_ms + (end_ttft - ttft_ms) * frac
+        reqs.append(
+            RequestView(
+                start_ns=start,
+                end_ns=start + int((ttft + 5000) * 1e6),
+                ttft_ms=ttft,
+                tpot_ms=8.0,
+                e2e_ms=ttft + 5000,
+                isl=1024,
+                osl=1024,
+                error="e" if i < errors else None,
+            )
+        )
+    tail = max(ttft_ms, end_ttft)
+    return PointView(
+        id=200 + seq,
+        seq=seq,
+        phase="rate",
+        isl=1024,
+        osl=1024,
+        mode="rate",
+        concurrency=2048,
+        status="done",
+        metrics={
+            "time_to_first_token": {
+                "p50": (ttft_ms + end_ttft) / 2,
+                "p90": tail * 0.95,
+                "p99": tail,
+            },
+            "inter_token_latency": {"p50": 8.0, "p90": tpot_p99 * 0.9, "p99": tpot_p99},
+            "request_count": {"avg": float(count)},
+        },
+        server={},
+        requests=tuple(reqs),
+        request_rate=requested,
+        arrival=arrival,
+        burstiness=0.5 if arrival == "gamma" else None,
+    )
+
+
+def rate_sweep() -> tuple[PointView, ...]:
+    """Capacity from healthy_sweep is ~2.9 req/s; flat TTFT below, a growing queue past it."""
+    rows = [
+        (0.73, 120, None),
+        (1.46, 140, None),
+        (2.2, 260, None),
+        (2.6, 420, None),
+        (3.2, 600, 9000),
+    ]
+    pts = [rate_point(r, t, e, seq=60 + i) for i, (r, t, e) in enumerate(rows)]
+    pts += [
+        rate_point(2.2, 700, arrival="gamma", seq=70),
+        rate_point(2.6, 1400, arrival="gamma", seq=71),
+    ]
+    return tuple(pts)

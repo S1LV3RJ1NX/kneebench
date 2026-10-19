@@ -85,6 +85,7 @@ def _load_rules() -> None:
         baseline,
         concurrency,
         hygiene,
+        rate,
         theory,
         walls,
     )

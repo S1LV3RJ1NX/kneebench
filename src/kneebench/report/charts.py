@@ -58,6 +58,16 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         if fig:
             out[rule_id] = [fig]
 
+    r01 = _data(report, "R01")
+    if r01 and r01.get("rows"):
+        out["R01"] = [_rate_ttft(r01)]
+    r02 = _data(report, "R02")
+    if r02 and any(r.get("trend") for r in r02.get("rows", [])):
+        out["R02"] = [_rate_trend(r02)]
+    r04 = _data(report, "R04")
+    if r04 and r04.get("pairs"):
+        out["R04"] = [_bursts(r04)]
+
     c02 = _data(report, "C02")
     pts = [p for p in (c02 or {}).get("points", []) if p.get("tok_s")]
     if c02 and pts:
@@ -427,4 +437,102 @@ def _memory(pts: list[dict[str, Any]]) -> dict[str, Any]:
             "rangemode": "tozero",
             "showgrid": False,
         },
+    )
+
+
+# ---- request-rate sweep ----
+
+
+def _rate_ttft(d: dict[str, Any]) -> dict[str, Any]:
+    rows = d["rows"]
+    pct = d["pct_label"]
+    xs = [r["requested"] for r in rows]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=xs,
+        y=[r["ttft_tail"] for r in rows],
+        mode="lines+markers",
+        name=f"P{pct} time to first token",
+        line={"color": ACCENT, "width": 2.5},
+        marker={"size": 9, "color": [BAD if r["past_capacity"] else ACCENT for r in rows]},
+        hovertemplate="%{x:.2f} req/s: %{y:,.0f} ms<extra></extra>",
+    )
+    fig.add_scatter(
+        x=xs,
+        y=[r["completed"] for r in rows],
+        mode="lines+markers",
+        name="Completed req/s",
+        line={"color": SECOND, "dash": "dot"},
+        yaxis="y2",
+        hovertemplate="%{y:.2f} completed req/s<extra></extra>",
+    )
+    fig.add_scatter(
+        x=xs,
+        y=xs,
+        mode="lines",
+        name="Requested req/s",
+        line={"color": MUTED, "width": 1},
+        yaxis="y2",
+        hoverinfo="skip",
+    )
+    if d.get("slo_ttft_ms"):
+        fig.add_hline(
+            y=d["slo_ttft_ms"],
+            line_dash="dash",
+            line_color=BAD,
+            opacity=0.6,
+            annotation_text=f"target {d['slo_ttft_ms']:g} ms",
+            annotation_position="top left",
+        )
+    return _fig(
+        fig,
+        "Random arrivals: first-token time as the rate rises (red: queue keeps growing)",
+        xaxis={"title": "Requested requests per second"},
+        yaxis={"title": f"P{pct} time to first token (ms)", "rangemode": "tozero"},
+        yaxis2={
+            "title": "Requests per second",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+            "showgrid": False,
+        },
+    )
+
+
+def _rate_trend(d: dict[str, Any]) -> dict[str, Any]:
+    fig = go.Figure()
+    rows = [r for r in d["rows"] if r.get("trend") and r["arrival"] == "poisson"]
+    palette = ["#e8c3b3", "#e0a088", "#d97757", "#b5533a", "#7d3324"]
+    for i, r in enumerate(rows):
+        t = r["trend"]
+        fig.add_scatter(
+            x=[x for x, _ in t],
+            y=[y for _, y in t],
+            mode="lines+markers",
+            name=f"{r['requested']:.2f} req/s",
+            line={"color": palette[min(i, len(palette) - 1)], "width": 2},
+            hovertemplate="%{x:.0f} s: %{y:,.0f} ms<extra></extra>",
+        )
+    return _fig(
+        fig,
+        "First-token time during each run (rising lines: past capacity)",
+        xaxis={"title": "Seconds into the run"},
+        yaxis={"title": "Median time to first token (ms)", "rangemode": "tozero"},
+    )
+
+
+def _bursts(d: dict[str, Any]) -> dict[str, Any]:
+    pairs = d["pairs"]
+    labels = [f"{p['rate']:.2f} req/s" for p in pairs]
+    fig = go.Figure()
+    fig.add_bar(
+        x=labels, y=[p["smooth_ms"] for p in pairs], name="Random (Poisson)", marker_color=MUTED
+    )
+    fig.add_bar(x=labels, y=[p["bursty_ms"] for p in pairs], name="Bursty", marker_color=ACCENT)
+    return _fig(
+        fig,
+        f"P{d['pct_label']} time to first token: steady vs bursty arrivals",
+        barmode="group",
+        yaxis={"title": "Milliseconds", "rangemode": "tozero"},
+        xaxis={"title": "Average arrival rate"},
     )

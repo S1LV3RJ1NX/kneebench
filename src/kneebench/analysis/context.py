@@ -46,6 +46,9 @@ class PointView:
     warnings: tuple[dict[str, str], ...] = ()
     requests: tuple[RequestView, ...] = ()
     stop_reason: str | None = None
+    request_rate: float | None = None
+    arrival: str | None = None
+    burstiness: float | None = None
 
     def m(self, metric: str, stat: str = "p50") -> float | None:
         return self.metrics.get(metric, {}).get(stat)
@@ -132,6 +135,7 @@ def _loads(value: str | None) -> Any:
 
 
 def point_from_dict(p: dict[str, Any]) -> PointView:
+    spec = _loads(p.get("spec_json")) or {}
     return PointView(
         id=p["id"],
         seq=p["seq"],
@@ -146,6 +150,9 @@ def point_from_dict(p: dict[str, Any]) -> PointView:
         warnings=tuple(p["warnings"]),
         requests=tuple(RequestView(**r) for r in p.get("requests", [])),
         stop_reason=p.get("stop_reason"),
+        request_rate=p.get("request_rate"),
+        arrival=spec.get("arrival"),
+        burstiness=spec.get("burstiness"),
     )
 
 

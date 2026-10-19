@@ -27,7 +27,20 @@ INFO_RULES_IN_CONTEXT = ("T01", "T02", "T03", "T05", "B05")
 # Healthy baseline findings still get a card here, so their charts stay one click away.
 CHARTED_OK_IN_CONTEXT = ("B01", "B04")
 # Findings that describe the load curve and its walls get their own section.
-CAPACITY_RULES = ("W03", "C02", "W02", "W01", "C01", "C04", "W05", "W09", "W08")
+CAPACITY_RULES = (
+    "W03",
+    "C02",
+    "R01",
+    "W02",
+    "R02",
+    "R04",
+    "W01",
+    "C01",
+    "C04",
+    "W05",
+    "W09",
+    "W08",
+)
 CAVEAT_RULES = ("H06",)
 LIMITER_TEXT = {
     "slo_tpot": "per-token latency crosses your target",

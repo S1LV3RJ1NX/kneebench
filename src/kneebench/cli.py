@@ -174,8 +174,8 @@ def run(
     slo_tpot_ms: Annotated[float | None, typer.Option(help="TPOT target (ms)")] = None,
     label: Annotated[str | None, typer.Option(help="A note to tell runs apart")] = None,
     phases: Annotated[
-        str, typer.Option(help="Comma-separated: baseline, concurrency")
-    ] = "baseline,concurrency",
+        str, typer.Option(help="Comma-separated: baseline, concurrency, rate")
+    ] = "baseline,concurrency,rate",
     max_concurrency: Annotated[int, typer.Option(help="Highest concurrency to sweep")] = 256,
     budget_min: Annotated[
         float | None, typer.Option(help="Time budget in minutes; trims the top of the sweep")

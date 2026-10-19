@@ -20,7 +20,7 @@ from kneebench.physics.gpus import GpuSpec, get_gpu, gpu_from_json
 from kneebench.physics.model import model_spec_from_hf
 from kneebench.store import repo
 
-ALL_PHASES = ("baseline", "concurrency")
+ALL_PHASES = ("baseline", "concurrency", "rate")
 
 
 class PrepareError(ValueError):
@@ -97,6 +97,11 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
         workload.shapes,
         snap.vllm_version,
     )
+    if "rate" in req.phases and "concurrency" not in req.phases:
+        raise PrepareError(
+            "The request-rate sweep needs the concurrency sweep (it measures "
+            "the capacity the rates are based on)."
+        )
     plan = plan_run(
         theory,
         req.phases,

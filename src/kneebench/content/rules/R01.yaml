@@ -1,0 +1,38 @@
+id: R01
+title: How many requests per second it sustains
+status_line:
+  info: >-
+    With users arriving at random, it sustains about {{ num(max_rps, 2) }} requests per second
+    within your targets{% if capacity_rps %}, against {{ num(capacity_rps, 2) }} at full
+    throughput{% endif %}.
+  warn: >-
+    With users arriving at random, no tested rate met your targets
+    {%- if capacity_rps %} (full throughput is {{ num(capacity_rps, 2) }} requests per
+    second){% endif %}.
+measured: >-
+  kneebench sent requests at fixed average rates with random (Poisson) gaps, from a quarter of
+  the measured capacity to just past it, for 90 seconds each.
+  {% if knee_rps %}Time to first token bends up from about {{ num(knee_rps, 2) }} requests per
+  second.{% endif %}
+  {% if ttft_offset_ms > 1 %}First-token times are server side: the {{ ms(ttft_offset_ms) }}
+  network round trip from this location is removed.{% endif %}
+meaning:
+  info: >-
+    Plan around this rate, not the concurrency number: it is what real, unsynchronized users
+    can do to the server.
+  warn: >-
+    Even light random traffic misses the targets; check the concurrency findings for why.
+why: >-
+  In the concurrency sweep a new request starts only when one finishes, so the test slows down
+  with the server. Real users don't wait. Near capacity, random arrivals bunch up and briefly
+  exceed what the server can start, so first-token time climbs before throughput is used up.
+learn_more: {note: "25", anchor: "4-sweep-2-fixed-request-rate", label: "Sweep 2: fixed request rate"}
+table:
+  rows: rows
+  columns:
+    - {key: requested, label: Requested req/s, fmt: num}
+    - {key: completed, label: Completed req/s, fmt: num}
+    - {key: ttft_p50, label: TTFT P50, fmt: ms}
+    - {key: ttft_tail, label: TTFT tail, fmt: ms}
+    - {key: tpot_tail, label: TPOT tail, fmt: ms}
+    - {key: growth, label: TTFT growth in run, fmt: times}

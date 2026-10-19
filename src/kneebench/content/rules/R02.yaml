@@ -1,0 +1,26 @@
+id: R02
+title: Does the answer depend on how long the test runs?
+status_line:
+  ok: First-token time stayed level through every rate tested.
+  info: >-
+    At {{ num(rate, 2) }} requests per second{% if factor %} ({{ pct(factor) }} of capacity){% endif %}
+    the queue grew for the whole run: first-token time went from {{ ms(start_ms) }} to
+    {{ ms(end_ms) }} in {{ num(seconds, 0) }} seconds.
+  warn: >-
+    The queue grew without limit already at {{ num(rate, 2) }} requests per second, only
+    {{ pct(factor) }} of the capacity the concurrency sweep found: first-token time went from
+    {{ ms(start_ms) }} to {{ ms(end_ms) }}.
+measured: >-
+  Median time to first token in 10-second windows across each 90-second run.
+meaning:
+  ok: Every rate tested is below capacity; a longer test would give the same numbers.
+  info: >-
+    Past capacity, every second adds more waiting requests than the server finishes. A longer
+    test, or a longer busy hour, would show even worse numbers.
+  warn: >-
+    Random arrivals find the limit sooner than steady load: plan for the lower rate.
+why: >-
+  The queue grows at arrivals minus completions, and the newest request waits for everyone ahead
+  of it. Below capacity the queue drains between bursts; past it, waiting time grows with the
+  run's length, which is the clearest sign a rate is too high.
+learn_more: {note: "25", anchor: "4-sweep-2-fixed-request-rate", label: "Sweep 2: fixed request rate"}

@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 
 from kneebench.domain import PRIMARY_SHAPE, ProductType, Slo
 from kneebench.loadgen.aiperf.overhead import estimate_point_overhead_s
-from kneebench.loadgen.base import LoadMode, PointSpec
+from kneebench.loadgen.base import Arrival, LoadMode, PointSpec
 from kneebench.phases.theory import ShapeTheory, Theory
 
 BASELINE_WARMUP = 10  # note 24: warm up, discarded
@@ -23,6 +23,14 @@ SWEEP_MAX_WARMUP = 32
 # Length variation per request (note 26 section 5): identical lengths make closed-loop
 # requests finish and restart in lockstep, which turns into unrealistic prefill bursts.
 SWEEP_LENGTH_VARIATION = 0.05
+# Note 25 section 4: random arrivals below, near and past capacity, then bursty ones.
+POISSON_FACTORS = (0.25, 0.5, 0.75, 0.9, 1.1)
+BURSTY_FACTORS = (0.75, 0.9)
+BURSTINESS = 0.5  # gamma shape below 1 clusters arrivals; 1.0 is Poisson
+# Long enough to see whether first-token time keeps growing (run-length dependence).
+RATE_DURATION_S = 90.0
+# Open-loop arrivals need room to queue; past this, the client is the limit.
+RATE_CONCURRENCY_CAP = 2048
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -33,6 +41,8 @@ class PlannedPoint:
     phase: str
     spec: PointSpec
     eta_s: float
+    # Rate points run at this multiple of the capacity the concurrency sweep measures.
+    rate_factor: float | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +93,24 @@ def sweep_spec(shape: ShapeTheory, concurrency: int, slo: Slo) -> PointSpec:
         request_count=max(SWEEP_ROUNDS * concurrency, SWEEP_MIN_REQUESTS),
         warmup_count=min(concurrency, SWEEP_MAX_WARMUP),
         duration_s=POINT_DURATION_CAP_S,
+        slice_duration_s=SLICE_S,
+        goodput=slo.goodput(),
+    )
+
+
+def rate_spec(shape: ShapeTheory, arrival: str, slo: Slo, rate: float = 1.0) -> PointSpec:
+    """A rate point; the real rate is filled in once capacity has been measured."""
+    return PointSpec(
+        isl=shape.isl,
+        osl=shape.osl,
+        mode=LoadMode.RATE,
+        request_rate=rate,
+        arrival=Arrival(arrival),
+        burstiness=BURSTINESS if arrival == "gamma" else None,
+        concurrency=RATE_CONCURRENCY_CAP,
+        isl_stddev=round(shape.isl * SWEEP_LENGTH_VARIATION, 1),
+        osl_stddev=round(shape.osl * SWEEP_LENGTH_VARIATION),
+        duration_s=RATE_DURATION_S,
         slice_duration_s=SLICE_S,
         goodput=slo.goodput(),
     )
@@ -139,12 +167,21 @@ def plan_run(
         add("baseline", baseline_spec(theory), base_shape)
 
     dropped: list[int] = []
+    if "rate" in phases and "concurrency" not in phases:
+        raise ValueError("the request-rate sweep needs the concurrency sweep to find capacity")
     if "concurrency" in phases:
         shape = theory.shape(PRIMARY_SHAPE[product]) or base_shape
         levels = concurrency_levels(theory, shape, max_concurrency, max_num_seqs)
         sweep = [(c, sweep_spec(shape, c, slo or Slo(None, None))) for c in levels]
         for _, spec in sweep:
             add("concurrency", spec, shape)
+        if "rate" in phases:
+            for arrival, factors in (("poisson", POISSON_FACTORS), ("gamma", BURSTY_FACTORS)):
+                for factor in factors:
+                    spec = rate_spec(shape, arrival, slo or Slo(None, None))
+                    tail_s = estimate_e2e_ms(theory, shape, 64, slowdown) / 1000
+                    eta = RATE_DURATION_S + tail_s + estimate_point_overhead_s([], False)
+                    points.append(PlannedPoint("rate", spec, eta, rate_factor=factor))
         # Re-measuring the baseline at the end catches a GPU that changed mid-run (B06).
         add("baseline_end", replace(baseline_spec(theory), warmup_count=2), base_shape)
         if budget_s is not None:

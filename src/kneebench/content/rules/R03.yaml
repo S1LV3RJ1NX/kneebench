@@ -1,0 +1,21 @@
+id: R03
+title: Did kneebench send the rate it asked for?
+status_line:
+  ok: The load generator sent every requested rate ({{ checked }} checked).
+  warn: >-
+    The load generator fell short:
+    {% for p in points %}{{ num(p.requested, 2) }} requested, {{ num(p.issued, 2) }} sent per
+    second{% if not loop.last %}; {% endif %}{% endfor %}.
+measured: Requests actually started per second, compared with the requested rate.
+meaning: >-
+  At those rates the server never saw the load the report describes, so their results are too
+  optimistic.
+why: >-
+  A sender that can't keep up (CPU, connections or network) quietly benchmarks itself.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+actions:
+  - when: [warn]
+    title: Run kneebench on a bigger machine closer to the server
+    expected: Sent rates match the requested ones.
+    risk: None.
+    verify: This check turns green.
