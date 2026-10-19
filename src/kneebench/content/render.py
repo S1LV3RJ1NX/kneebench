@@ -15,6 +15,7 @@ from markupsafe import Markup, escape
 
 from kneebench import content
 from kneebench.analysis.engine import REGISTRY, Finding
+from kneebench.domain import USER_SHAPE_PREFIX
 
 UNKNOWN = "n/a"
 # OK findings the report shows as full cards (see report/composer.py).
@@ -219,6 +220,8 @@ def render_finding(
     if clash:
         raise ValueError(f"{finding.rule_id} data keys shadow template helpers: {sorted(clash)}")
     variables = {**common, **finding.data}
+    if str(variables.get("shape_name", "")).startswith(USER_SHAPE_PREFIX):
+        variables["shape_name"] = "your"  # reads "for your requests", not "for yours requests"
     if status == "skip" and isinstance(spec.get("skip_reasons"), dict):
         line_tpl = spec["skip_reasons"].get(
             finding.data.get("reason"), _pick(spec["status_line"], status)
