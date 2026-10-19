@@ -285,3 +285,15 @@ def test_delete_from_the_ui(home: Path, stored_run: int) -> None:
     assert resp.status_code == 303
     assert client.get(f"/runs/{stored_run}").status_code == 404
     assert client.post(f"/runs/{stored_run}/delete").status_code == 404
+
+
+def test_gpu_correction_only_offered_when_measurements_contradict_it(home: Path) -> None:
+    conn = connect(home / DB_FILENAME)
+    fine = store_fixture_run(conn, gpu="h100-nvl")
+    wrong = store_fixture_run(conn, gpu="h100-sxm")
+    conn.close()
+    client = TestClient(create_app(home))
+    assert "Correct the GPU entry" not in client.get(f"/runs/{fine}").text
+    page = client.get(f"/runs/{wrong}").text
+    assert "Correct the GPU entry" in page
+    assert "fits the measurements" in page

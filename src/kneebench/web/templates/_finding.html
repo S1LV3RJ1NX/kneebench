@@ -11,19 +11,21 @@
   {% for fig in figures.get(f.rule_id, []) %}
     <div class="chart" data-chart="{{ f.rule_id }}-{{ loop.index0 }}"></div>
   {% endfor %}
-  {% if f.measured %}<div class="part"><b>What we measured</b>{{ f.measured | safe }}</div>{% endif %}
-  {% if f.table %}
-  <details class="data"{% if not figures.get(f.rule_id) %} open{% endif %}>
-    <summary>Data table</summary>
-    <table>
-      <thead><tr>{% for c in f.table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
-      <tbody>{% for row in f.table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-    </table>
-  </details>
+  {% if f.meaning %}<p class="part meaning">{{ f.meaning | safe }}</p>{% endif %}
+
+  {% if f.rule_id in ("T06", "T07") and f.status == "bad" and not inline_assets %}
+  <form class="action no-print" method="post" action="/runs/{{ report.run_id }}/gpu">
+    <b>Correct the GPU entry</b>
+    <div class="small">The measurements stay as they are; kneebench recomputes the physics floors for the GPU you pick.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <select name="gpu" aria-label="GPU">
+        {% for g in gpus %}<option value="{{ g.id }}" {% if g.name in f.data.get("candidates", [])[:1] %}selected{% endif %}>{{ g.name }}{% if g.name in f.data.get("candidates", []) %} · fits the measurements{% endif %}</option>{% endfor %}
+      </select>
+      <button type="submit">Recompute</button>
+    </div>
+  </form>
   {% endif %}
-  {% if f.meaning %}<div class="part"><b>What it means</b>{{ f.meaning | safe }}{% if f.analogy %} <i>{{ f.analogy | safe }}</i>{% endif %}</div>{% endif %}
-  {% if f.why %}<div class="part"><b>Why it happens</b>{{ f.why | safe }}
-    {% if f.learn_more_url %}<a href="{{ f.learn_more_url }}" target="_blank" rel="noopener">{{ f.learn_more_label }}</a>{% endif %}</div>{% endif %}
+
   {% for a in f.actions %}
   <div class="action"><b>{{ a.title | safe }}</b>
     {% if a.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">Copy</button><code>{{ a.flag | safe }}</code></pre>{% endif %}
@@ -32,5 +34,20 @@
     {% if a.verify %}<div class="small"><b>Verify</b> {{ a.verify | safe }}</div>{% endif %}
   </div>
   {% endfor %}
+
+  {% if f.measured or f.why or f.table or f.analogy %}
+  <details class="explain">
+    <summary>Explain: what was measured and why it happens</summary>
+    {% if f.measured %}<div class="part"><b>What we measured</b>{{ f.measured | safe }}</div>{% endif %}
+    {% if f.table %}
+    <table>
+      <thead><tr>{% for c in f.table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in f.table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+    {% if f.why %}<div class="part"><b>Why it happens</b>{{ f.why | safe }}{% if f.analogy %} <i>{{ f.analogy | safe }}</i>{% endif %}</div>{% endif %}
+    {% if f.learn_more_url %}<div class="part small"><a href="{{ f.learn_more_url }}" target="_blank" rel="noopener">Learn more: {{ f.learn_more_label }}</a></div>{% endif %}
+  </details>
+  {% endif %}
   </div>
 </details>

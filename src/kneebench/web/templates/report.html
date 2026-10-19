@@ -8,12 +8,6 @@
   <a class="button secondary" href="/runs/{{ report.run_id }}/report.md">Markdown</a>
   <a class="button secondary" href="/runs/{{ report.run_id }}/report.json">JSON</a>
   <span class="spacer"></span>
-  <form method="post" action="/runs/{{ report.run_id }}/gpu" style="display:flex;gap:6px">
-    <select name="gpu" aria-label="Correct the GPU">
-      {% for g in gpus %}<option value="{{ g.id }}" {% if report.summary.gpu.endswith(g.name) %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
-    </select>
-    <button class="secondary" type="submit" title="Recompute every number from stored data; no rerun">Correct GPU</button>
-  </form>
   <form method="post" action="/runs/{{ report.run_id }}/delete"
         onsubmit="return confirm('Delete run #{{ report.run_id }} and its measurements? This cannot be undone.')">
     <button class="danger" type="submit">Delete</button></form>

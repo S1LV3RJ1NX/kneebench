@@ -254,3 +254,16 @@ details.data > summary { display: inline-block; }
   .report { display: block; }
   details > summary .chev { display: none; }
 }
+
+/* Compact cards: the point up front, the explanation one click away. */
+.finding .meaning { font-size: 16px; margin: 4px 0 6px; }
+details.explain { margin-top: 14px; border-top: 1px solid var(--hairline); padding-top: 4px; }
+details.explain > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0;
+  list-style: none; }
+details.explain > summary::-webkit-details-marker { display: none; }
+details.explain > summary::before { content: "+"; font-family: var(--mono); color: var(--clay-press);
+  margin-right: 8px; }
+details.explain[open] > summary::before { content: "−"; }
+details.explain .part { font-size: 15px; }
+form.action select { width: auto; flex: 1; }
+@media print { details.explain > summary { display: none; } }

@@ -208,33 +208,40 @@ def compose(
     )
 
 
+VERDICT_MAX_SENTENCES = 3  # the verdict is two or three plain sentences
+
+
 def _verdict(
     ctx: RunContext, findings: list[Finding], text: dict[str, str], render: Any
 ) -> list[str]:
-    sentences: list[str] = []
+    """The few sentences that matter most, in priority order."""
     t06, t07, b01 = _by(findings, "T06"), _by(findings, "T07"), _by(findings, "B01")
-    mismatch = (t06 and t06.status is Status.BAD) or (t07 and t07.status is Status.BAD)
-    if mismatch:
-        sentences.append(render(text["gpu_mismatch"]))
-    capacity = _capacity_sentence(ctx, findings, text, render)
-    if capacity:
-        sentences.append(capacity)
-    # A health verdict against the wrong GPU would contradict the sentence above.
+    h03, h04 = _by(findings, "H03"), _by(findings, "H04")
+    mismatch = bool((t06 and t06.status is Status.BAD) or (t07 and t07.status is Status.BAD))
+
+    decode = None
+    # A health verdict against the wrong GPU would contradict the mismatch sentence.
     if b01 is not None and b01.status is not Status.SKIP and not mismatch:
         key = {
             Status.OK: "decode_healthy",
             Status.WARN: "decode_slow",
             Status.BAD: "decode_very_slow",
         }[b01.status]
-        sentences.append(render(text[key], **b01.data))
-    h03, h04 = _by(findings, "H03"), _by(findings, "H04")
+        decode = render(text[key], **b01.data)
+    network = None
     if h03 is not None and h03.status is Status.BAD and h03.data.get("unmeasurable"):
-        sentences.append(render(text["network_dominates"], **h03.data))
-    if h04 is not None and h04.status is Status.BAD:
-        sentences.append(render(text["short_outputs"]))
-    if not ctx.points_in("concurrency"):
-        sentences.append(render(text["baseline_only_next"]))
-    return sentences
+        network = render(text["network_dominates"], **h03.data)
+    short = render(text["short_outputs"]) if h04 is not None and h04.status is Status.BAD else None
+    first = render(text["gpu_mismatch"]) if mismatch else None
+
+    if ctx.points_in("concurrency"):
+        ranked = [first, _capacity_sentence(ctx, findings, text, render), network, short, decode]
+        # The capacity verdict is already two sentences, so it gets one companion at most.
+        limit = VERDICT_MAX_SENTENCES - 1
+    else:
+        ranked = [first, decode, network, short, render(text["baseline_only_next"])]
+        limit = VERDICT_MAX_SENTENCES
+    return [s for s in ranked if s][:limit]
 
 
 def _capacity_sentence(
