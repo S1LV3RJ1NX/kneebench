@@ -6,6 +6,7 @@ invocation so it can stop at a wall, budget time per point and resume after a cr
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -83,4 +84,11 @@ class LoadGenerator(Protocol):
 
     def version(self) -> str: ...
 
-    def run_point(self, endpoint: Endpoint, spec: PointSpec, artifact_dir: Path) -> PointResult: ...
+    def run_point(
+        self,
+        endpoint: Endpoint,
+        spec: PointSpec,
+        artifact_dir: Path,
+        timeout_s: float | None = None,
+        cancel: threading.Event | None = None,
+    ) -> PointResult: ...

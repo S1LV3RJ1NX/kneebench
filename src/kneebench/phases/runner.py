@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import platform
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -79,6 +80,7 @@ def execute_run(
     data_dir: Path,
     on_event: Callable[[PointEvent], None] | None = None,
     on_created: Callable[[int], None] | None = None,
+    cancel: threading.Event | None = None,
 ) -> int:
     endpoint_id = repo.upsert_endpoint(conn, inputs.snapshot.base_url)
     snapshot_id = repo.insert_snapshot(
@@ -108,6 +110,9 @@ def execute_run(
     total = len(plan.points)
     try:
         for i, planned in enumerate(plan.points):
+            if cancel is not None and cancel.is_set():
+                status = "cancelled"
+                break
             if planned.phase == "concurrency" and stopped:
                 if on_event:
                     on_event(PointEvent(i, total, planned, skipped=stopped))
@@ -116,7 +121,11 @@ def execute_run(
                 on_event(PointEvent(i, total, planned))
             point_id = repo.create_point(conn, run_id, i, planned.phase, planned.spec)
             artifact_dir = data_dir / "runs" / str(run_id) / f"{i:03d}-{planned.phase}"
-            result = loadgen.run_point(inputs.endpoint, planned.spec, artifact_dir)
+            result = loadgen.run_point(inputs.endpoint, planned.spec, artifact_dir, cancel=cancel)
+            if cancel is not None and cancel.is_set():
+                repo.finish_point(conn, point_id, result, None, None, stop_reason="cancelled")
+                status = "cancelled"
+                break
             parsed = parse_point(result.artifact_dir) if result.ok else None
             overhead = point_overhead_s(result.wall_time_s, result.artifact_dir)
             repo.finish_point(conn, point_id, result, parsed, overhead)

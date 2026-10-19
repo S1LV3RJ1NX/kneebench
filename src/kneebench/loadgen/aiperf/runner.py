@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -31,6 +32,7 @@ class AiperfLoadGenerator:
         spec: PointSpec,
         artifact_dir: Path,
         timeout_s: float | None = None,
+        cancel: threading.Event | None = None,
     ) -> PointResult:
         artifact_dir = artifact_dir.resolve()
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -57,19 +59,8 @@ class AiperfLoadGenerator:
             (artifact_dir / STDOUT_LOG).open("w") as out,
             (artifact_dir / STDERR_LOG).open("w") as err,
         ):
-            try:
-                proc = subprocess.run(
-                    argv,
-                    stdout=out,
-                    stderr=err,
-                    env=env,
-                    cwd=artifact_dir,
-                    timeout=timeout_s,
-                    check=False,
-                )
-                exit_code = proc.returncode
-            except subprocess.TimeoutExpired:
-                exit_code = -9
+            proc = subprocess.Popen(argv, stdout=out, stderr=err, env=env, cwd=artifact_dir)
+            exit_code = _wait(proc, started, timeout_s, cancel)
         wall = time.monotonic() - started
 
         scrub_tree(artifact_dir, secrets)
@@ -82,6 +73,35 @@ class AiperfLoadGenerator:
             stdout_tail=_tail(artifact_dir / STDOUT_LOG, secrets),
             stderr_tail=_tail(artifact_dir / STDERR_LOG, secrets),
         )
+
+
+CANCELLED_EXIT = -15
+TIMEOUT_EXIT = -9
+_POLL_S = 0.5
+
+
+def _wait(
+    proc: subprocess.Popen[bytes],
+    started: float,
+    timeout_s: float | None,
+    cancel: threading.Event | None,
+) -> int:
+    """Wait for AIPerf, stopping it (SIGTERM, then SIGKILL) on cancel or timeout."""
+    while True:
+        try:
+            return proc.wait(timeout=_POLL_S)
+        except subprocess.TimeoutExpired:
+            pass
+        cancelled = cancel is not None and cancel.is_set()
+        timed_out = timeout_s is not None and time.monotonic() - started > timeout_s
+        if cancelled or timed_out:
+            proc.terminate()
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            return CANCELLED_EXIT if cancelled else TIMEOUT_EXIT
 
 
 def _tail(path: Path, secrets: list[str | None]) -> str:

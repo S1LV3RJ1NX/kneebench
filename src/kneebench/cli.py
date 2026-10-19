@@ -264,7 +264,22 @@ def run(
                 )
             console.print(f"      {state} in {ev.result.wall_time_s:.0f} s{extra}")
 
-    run_id = execute_run(conn, inputs, plan, AiperfLoadGenerator(), home, on_event=progress)
+    from kneebench.runlock import RunLockedError, record_run_id, run_lock
+
+    try:
+        with run_lock(home, source="the command line"):
+            run_id = execute_run(
+                conn,
+                inputs,
+                plan,
+                AiperfLoadGenerator(),
+                home,
+                on_event=progress,
+                on_created=lambda rid: record_run_id(home, rid),
+            )
+    except RunLockedError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
     _write_report(conn, run_id, None, "md", show_verdict=True)
 
 
