@@ -102,6 +102,21 @@ def check_data_dir() -> Check:
     return Check("Data directory", Status.OK, str(path))
 
 
+def check_pdf() -> Check:
+    from kneebench.report.pdf import chromium_installed
+
+    if chromium_installed():
+        return Check("PDF export", Status.OK, "headless Chromium installed")
+    return Check(
+        "PDF export",
+        Status.WARN,
+        "Headless Chromium is not installed, so `Download PDF` won't work yet.",
+        "Run `kneebench doctor --install-pdf` (on a bare Linux image, also "
+        "`sudo uv run playwright install-deps chromium`), or use the report's "
+        '"Print or save as PDF" button.',
+    )
+
+
 def check_tokenizer(tokenizer: str) -> Check:
     if tokenizer == "builtin":
         return Check(
@@ -262,7 +277,7 @@ def run_doctor(
         if on_check:
             on_check(check)
 
-    for fn in (check_python, check_platform, check_aiperf, check_data_dir):
+    for fn in (check_python, check_platform, check_aiperf, check_data_dir, check_pdf):
         add(fn())
 
     if offline:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import threading
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -37,7 +38,25 @@ class ReplayLoadGenerator:
     def version(self) -> str:
         return "0.13.0"
 
-    def run_point(self, endpoint: Endpoint, spec: PointSpec, artifact_dir: Path) -> PointResult:
+    def __init__(self, delay_s: float = 0.0) -> None:
+        self.delay_s = delay_s
+
+    def run_point(
+        self,
+        endpoint: Endpoint,
+        spec: PointSpec,
+        artifact_dir: Path,
+        timeout_s: float | None = None,
+        cancel: threading.Event | None = None,
+    ) -> PointResult:
+        if cancel is not None and cancel.wait(self.delay_s):
+            return PointResult(
+                spec=spec,
+                artifact_dir=artifact_dir,
+                exit_code=-15,
+                wall_time_s=0.1,
+                argv_redacted=("replay",),
+            )
         shutil.copytree(BASELINE_FIXTURE, artifact_dir, dirs_exist_ok=True)
         return PointResult(
             spec=spec,
@@ -97,7 +116,7 @@ def test_progress_of_a_finished_run_links_the_report(home: Path, stored_run: int
     client = TestClient(create_app(home))
     html = client.get(f"/runs/{stored_run}/progress").text
     assert f"/runs/{stored_run}" in html
-    assert "Finished" in html
+    assert "has finished" in html
 
 
 def test_correct_gpu_recomputes_without_rerun(home: Path, stored_run: int) -> None:
@@ -148,6 +167,8 @@ def test_wizard_to_report(
         "max_concurrency": "4",
         "enforce_eager": "",
         "api_key": "sk-never-stored",
+        "phase_baseline": "1",
+        "phase_concurrency": "1",
     }
 
     plan = client.post("/plan", data=form).text
@@ -183,3 +204,65 @@ def test_pdf_export_is_text_with_attachments(home: Path, stored_run: int) -> Non
     text = "".join(page.extract_text() for page in reader.pages)
     assert "Verdict" in text
     assert "Appendix" in text
+
+
+def _form(url: str) -> dict[str, str]:
+    return {
+        "url": url,
+        "gpu": "h100-nvl",
+        "gpu_count": "1",
+        "product": "chat",
+        "slo_ttft_ms": "500",
+        "slo_tpot_ms": "50",
+        "slo_percentile": "99",
+        "max_concurrency": "8",
+        "enforce_eager": "",
+        "phase_baseline": "1",
+        "phase_concurrency": "1",
+    }
+
+
+def test_start_errors_show_on_the_form(home: Path) -> None:
+    client = TestClient(create_app(home))
+    resp = client.post("/runs", data={**_form(""), "url": ""}, headers={"HX-Request": "true"})
+    assert resp.status_code == 200
+    assert "notice bad" in resp.text
+    no_phase = {k: v for k, v in _form("http://x").items() if not k.startswith("phase_")}
+    resp = client.post("/runs", data=no_phase, headers={"HX-Request": "true"})
+    assert "at least one phase" in resp.text
+
+
+def test_htmx_start_redirects_and_stop_cancels(
+    home: Path, fake_server: type[FakeServer], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server = _fake_endpoint(fake_server)
+    config, params = hf_fixture(LLAMA_8B)
+    monkeypatch.setattr(
+        service, "fetch_model_metadata", lambda hf_id: ModelMetadata(hf_id, config, params)
+    )
+    manager = RunManager(home, loadgen=ReplayLoadGenerator(delay_s=30))
+    client = TestClient(create_app(home, manager))
+    resp = client.post("/runs", data=_form(server.url), headers={"HX-Request": "true"})
+    assert resp.status_code == 204
+    run_id = int(resp.headers["HX-Redirect"].split("/")[2])
+
+    busy = client.post("/runs", data=_form(server.url), headers={"HX-Request": "true"})
+    assert "already running" in busy.text
+    assert "Stop" in client.get(f"/runs/{run_id}/progress").text
+
+    assert "Stopping" in client.post(f"/runs/{run_id}/stop").text
+    deadline = time.monotonic() + 30
+    while manager.busy and time.monotonic() < deadline:
+        time.sleep(0.1)
+    with connect(home / DB_FILENAME) as conn:
+        status = conn.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()[0]
+    assert status == "cancelled"
+    assert not (home / "active-run.lock").exists()
+
+
+def test_doctor_page(home: Path) -> None:
+    client = TestClient(create_app(home))
+    assert client.get("/doctor").status_code == 200
+    html = client.post("/doctor", data={"url": "", "api_key": "", "tokenizer": ""}).text
+    assert "AIPerf" in html
+    assert "Python" in html
