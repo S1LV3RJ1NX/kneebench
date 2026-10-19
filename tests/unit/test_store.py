@@ -10,8 +10,11 @@ from tests.builders import fixture_snapshot, store_fixture_run, without_metrics
 
 def test_migrations_are_idempotent() -> None:
     conn = connect_memory()
-    assert migrate(conn) == 1
-    assert migrate(conn) == 1
+    latest = migrate(conn)
+    assert latest >= 2
+    assert migrate(conn) == latest
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(requests)")}
+    assert "error_code" in columns
 
 
 def test_fixture_run_round_trip() -> None:

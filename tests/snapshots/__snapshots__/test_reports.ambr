@@ -16,7 +16,7 @@
   | [good] | Baseline vs physics | 70% of memory bandwidth |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [good] | Memory safety | Startup fit 65×; preemption not tested yet |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 260 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
@@ -33,9 +33,26 @@
   
   **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 260`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  
   ## Try these next
   
   1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 260
+     ```
   
   ## What the hardware allows
   
@@ -115,6 +132,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
   
@@ -123,6 +141,7 @@
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
   
   ## Appendix: raw numbers
   
@@ -179,7 +198,7 @@
   | [good] | Baseline vs physics | 70% of memory bandwidth |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [good] | Memory safety | Startup fit 65×; preemption not tested yet |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
@@ -196,9 +215,26 @@
   
   **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 66`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  
   ## Try these next
   
   1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 66
+     ```
   
   ## What the hardware allows
   
@@ -278,6 +314,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
   
@@ -286,6 +323,7 @@
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
   
   ## Appendix: raw numbers
   
@@ -342,10 +380,22 @@
   | [good] | Baseline vs physics | 70% of memory bandwidth |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [good] | Memory safety | Startup fit 65×; preemption not tested yet |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
+  
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 66`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ### [problem] Distance between kneebench and the server (H03)
   
@@ -361,7 +411,12 @@
   
   ## Try these next
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 66
+     ```
+  2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -441,6 +496,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
   
@@ -449,6 +505,7 @@
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
   
   ## Appendix: raw numbers
   
@@ -505,7 +562,7 @@
   | [problem] | Baseline vs physics | GPU entry looks wrong |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [good] | Memory safety | Startup fit 65×; preemption not tested yet |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 260 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
@@ -534,10 +591,27 @@
   
   **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
+  ### [watch] Cap concurrent sequences at what memory sustains (W06)
+  
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
+  
+  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260.
+  
+  **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
+  
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 260`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  
   ## Try these next
   
   1. **Correct the GPU type** (T07). Why: The server's cache (65.0 GiB) plus weights (15.0 GiB) need at least 90.0 GiB per GPU, more than NVIDIA H100 SXM 80GB has (79.6 GiB). The GPU entry is probably wrong. Expected: Floors and memory findings match the real hardware. Risk: None.
   2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  3. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  
+     ```
+     --max-num-seqs 260
+     ```
   
   ## What the hardware allows
   
@@ -616,6 +690,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
   
@@ -624,6 +699,7 @@
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **prefill**: the step that reads the whole prompt at once, limited by GPU math
+  - **prefix caching**: reusing work for prompts that start with the same text
   
   ## Appendix: raw numbers
   

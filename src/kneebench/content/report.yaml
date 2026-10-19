@@ -2,6 +2,23 @@
 # Which sentence or status applies is decided in report/composer.py; the words live here.
 
 verdict:
+  capacity: >-
+    For your {{ product_label }} traffic ({{ num(isl) }} tokens in, {{ num(osl) }} out), this
+    server comfortably handles about {{ num(op) }} users at your target
+    {%- if slo_tpot_ms %} of {{ ms(slo_tpot_ms) }} per token{% endif %}
+    {%- if slo_ttft_ms %}{{ " and" if slo_tpot_ms else " of" }} {{ ms(slo_ttft_ms) }} to the first
+    token{% endif %} for {{ pct_label }} out of 100 requests.
+    {% if limiter == "saturation" %}Past about {{ num(c_star, 0) }} users it saturates: the GPU stops
+    adding throughput and extra users only wait in line.{% else %}It breaks at about
+    {{ num(c_star, 0) }} because {{ limiter_text }}{% if memory_not_full %}, not because memory is
+    full: the KV cache was only {{ pct(kv_at_break) }} used there{% endif %}.{% endif %}
+  capacity_above_range: >-
+    For your {{ product_label }} traffic ({{ num(isl) }} tokens in, {{ num(osl) }} out), this
+    server met every target at {{ num(max_tested) }} users, the most this test tried, so its real
+    capacity is higher; sweep further to find where it breaks.
+  capacity_none: >-
+    For your {{ product_label }} traffic ({{ num(isl) }} tokens in, {{ num(osl) }} out), no load
+    level met your latency targets, not even one user at a time.
   gpu_mismatch: >-
     Before anything else: the measurements don't fit {{ gpu_label }}, so the GPU entry is probably
     wrong and every comparison with physics below is unreliable until it is fixed.
@@ -35,12 +52,19 @@ scorecard:
     none: Not measured
   capacity:
     label: Capacity under your SLO
+    ok: "{{ num(op) }} users ({{ num(op_tok_s, 0) }} tok/s) within your targets"
+    warn: "At least {{ num(max_tested) }} users; the limit is above the tested range"
+    bad: No load level met your targets
     none: Not measured in this run (needs the concurrency sweep)
   headroom:
     label: Headroom
+    ok: "Run at {{ num(run_at) }} users or fewer to keep {{ pct(headroom) }} for bursts"
     none: Not measured in this run (needs the concurrency sweep)
   memory:
     label: Memory safety
+    preempting: "Evicting requests from {{ num(concurrency) }} users"
+    cap_too_high: "max_num_seqs {{ num(current) }} is above the {{ num(sustain) }} memory sustains"
+    no_preemption: "No preemption; KV cache peaked at {{ pct(kv_max) }}"
     ok: "Startup fit {{ times(startup_fit) }}; preemption not tested yet"
     warn: "Only {{ times(startup_fit) }} full-length requests fit"
     bad: Not even one full-length request fits
@@ -73,6 +97,7 @@ sections:
   verdict: Verdict
   scorecard: Scorecard
   problems: What needs attention
+  capacity: How much load it takes
   context: What the hardware allows
   passed: Checks that passed
   skipped: Not checked

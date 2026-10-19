@@ -24,6 +24,16 @@ from kneebench.content.render import (
 )
 
 INFO_RULES_IN_CONTEXT = ("T01", "T02", "T03", "T05", "B05")
+# Findings that describe the load curve and its walls get their own section.
+CAPACITY_RULES = ("W03", "C02", "W02", "W01", "C01", "C04", "W05", "W09", "W08")
+CAVEAT_RULES = ("H06",)
+LIMITER_TEXT = {
+    "slo_tpot": "per-token latency crosses your target",
+    "slo_ttft": "time to first token crosses your target",
+    "saturation": "the GPU stops adding throughput",
+    "memory": "the KV cache is full",
+    "max_num_seqs": "the server's max_num_seqs cap is reached",
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,7 @@ class Report:
     verdict: list[str]
     scorecard: list[Tile]
     problems: list[RenderedFinding]
+    capacity: list[RenderedFinding]
     context: list[RenderedFinding]
     passed: list[RenderedFinding]
     skipped: list[RenderedFinding]
@@ -117,10 +128,23 @@ def compose(ctx: RunContext, findings: list[Finding], now: str | None = None) ->
         (f for f in findings if f.status is Status.INFO and f.rule_id in INFO_RULES_IN_CONTEXT),
         key=lambda f: (-_weight(f, product), f.rule_id),
     )
+    capacity_f = [
+        f
+        for rid in CAPACITY_RULES
+        for f in findings
+        if f.rule_id == rid and f.status in (Status.INFO, Status.OK)
+    ]
+    problem_ids = {f.rule_id for f in problems_f}
     # Render in reading order so each term is defined where it first appears.
     problems = [render_finding(f, common, env) for f in problems_f]
+    capacity_r = [render_finding(f, common, env) for f in capacity_f]
     context_r = [render_finding(f, common, env) for f in context_f]
-    passed = [render_finding(f, common, env) for f in findings if f.status is Status.OK]
+    shown = problem_ids | {f.rule_id for f in capacity_f}
+    passed = [
+        render_finding(f, common, env)
+        for f in findings
+        if f.status is Status.OK and f.rule_id not in shown
+    ]
     skipped = [render_finding(f, common, env) for f in findings if f.status is Status.SKIP]
 
     steps: list[NextStep] = []
@@ -134,6 +158,9 @@ def compose(ctx: RunContext, findings: list[Finding], now: str | None = None) ->
         caveats.append(render_text(text["caveats"]["remote_client"], http_rtt_ms=rtt))
     if not ctx.metrics_available:
         caveats.append(render_text(text["caveats"]["no_metrics"]))
+    for f in findings:
+        if f.rule_id in CAVEAT_RULES and f.status is Status.INFO:
+            caveats.append(render_finding(f, common, env).status_line)
 
     return Report(
         run_id=ctx.run_id,
@@ -155,6 +182,7 @@ def compose(ctx: RunContext, findings: list[Finding], now: str | None = None) ->
         verdict=verdict,
         scorecard=scorecard,
         problems=problems,
+        capacity=capacity_r,
         context=context_r,
         passed=passed,
         skipped=skipped,
@@ -175,6 +203,9 @@ def _verdict(
     mismatch = (t06 and t06.status is Status.BAD) or (t07 and t07.status is Status.BAD)
     if mismatch:
         sentences.append(render(text["gpu_mismatch"]))
+    capacity = _capacity_sentence(ctx, findings, text, render)
+    if capacity:
+        sentences.append(capacity)
     # A health verdict against the wrong GPU would contradict the sentence above.
     if b01 is not None and b01.status is not Status.SKIP and not mismatch:
         key = {
@@ -193,6 +224,48 @@ def _verdict(
     return sentences
 
 
+def _capacity_sentence(
+    ctx: RunContext, findings: list[Finding], text: dict[str, str], render: Any
+) -> str | None:
+    w03, c03 = _by(findings, "W03"), _by(findings, "C03")
+    if w03 is None or c03 is None:
+        return None
+    shape = ctx.theory.shape(ctx.primary_shape) or ctx.theory.shape("baseline")
+    assert shape is not None
+    slo = ctx.workload.slo
+    data = dict(w03.data)
+    limiter = str(data["limiter"])
+    kv_at_break = _kv_near(ctx, float(data["c_star"]))
+    extra = {
+        "isl": shape.isl,
+        "osl": shape.osl,
+        "limiter_text": LIMITER_TEXT[limiter],
+        "slo_tpot_ms": slo.tpot_ms,
+        "slo_ttft_ms": slo.ttft_ms,
+        "pct_label": slo.percentile,
+        "kv_at_break": kv_at_break,
+        "memory_not_full": limiter != "memory" and kv_at_break is not None and kv_at_break < 0.9,
+    }
+    if c03.status is Status.BAD:
+        key = "capacity_none"
+    elif c03.status is Status.WARN:
+        key = "capacity_above_range"
+    else:
+        key = "capacity"
+    return str(render(text[key], **{**data, **extra}))
+
+
+def _kv_near(ctx: RunContext, concurrency: float) -> float | None:
+    """KV cache peak at the tested level closest to a concurrency."""
+    from kneebench.analysis.sweep import curve
+
+    pts = curve(ctx.points_in("concurrency"))
+    if not pts:
+        return None
+    near = min(pts, key=lambda p: abs(p.concurrency - concurrency))
+    return near.kv_usage_max
+
+
 def _scorecard(
     ctx: RunContext, findings: list[Finding], text: dict[str, Any], render: Any
 ) -> list[Tile]:
@@ -209,12 +282,34 @@ def _scorecard(
             Tile("baseline", t["label"], b01.status.value, render(t[b01.status.value], **b01.data))
         )
 
-    for key in ("capacity", "headroom"):
-        tiles.append(Tile(key, text[key]["label"], "none", text[key]["none"]))
+    c03, w03, w08 = _by(findings, "C03"), _by(findings, "W03"), _by(findings, "W08")
+    cap, head = text["capacity"], text["headroom"]
+    if c03 is None or c03.status is Status.SKIP or w03 is None:
+        tiles.append(Tile("capacity", cap["label"], "none", cap["none"]))
+        tiles.append(Tile("headroom", head["label"], "none", head["none"]))
+    else:
+        tiles.append(
+            Tile(
+                "capacity",
+                cap["label"],
+                c03.status.value,
+                render(cap[c03.status.value], **{**w03.data, **c03.data}),
+            )
+        )
+        if w08 is not None and c03.status is not Status.BAD:
+            tiles.append(Tile("headroom", head["label"], "ok", render(head["ok"], **w08.data)))
+        else:
+            tiles.append(Tile("headroom", head["label"], "none", head["none"]))
 
-    t04 = _by(findings, "T04")
     m = text["memory"]
-    if t04 is None or t04.status is Status.SKIP:
+    t04, w04, w06 = _by(findings, "T04"), _by(findings, "W04"), _by(findings, "W06")
+    if w04 is not None and w04.status is Status.BAD:
+        tiles.append(Tile("memory", m["label"], "bad", render(m["preempting"], **w04.data)))
+    elif w06 is not None and w06.status in (Status.WARN, Status.BAD):
+        tiles.append(Tile("memory", m["label"], "warn", render(m["cap_too_high"], **w06.data)))
+    elif w04 is not None and w04.status is Status.OK:
+        tiles.append(Tile("memory", m["label"], "ok", render(m["no_preemption"], **w04.data)))
+    elif t04 is None or t04.status is Status.SKIP:
         tiles.append(Tile("memory", m["label"], "none", m["none"]))
     else:
         tiles.append(

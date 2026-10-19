@@ -84,6 +84,10 @@ def render_markdown(report: Report) -> str:
             if a.flag:
                 out += ["", "   ```", f"   {a.flag}", "   ```"]
         out.append("")
+    if report.capacity:
+        out += [f"## {s['capacity']}", ""]
+        for f in report.capacity:
+            out += _finding(f)
     if report.context:
         out += [f"## {s['context']}", ""]
         for f in report.context:
