@@ -9,8 +9,9 @@ verdict:
     {%- if slo_ttft_ms %}{{ " and" if slo_tpot_ms else " of" }} {{ ms(slo_ttft_ms) }} to the first
     token{% endif %} for {{ pct_label }} out of 100 requests.
     {% if limiter == "saturation" %}Past about {{ num(c_star, 0) }} users it saturates: the GPU stops
-    adding throughput and extra users only wait in line.{% else %}It breaks at about
-    {{ num(c_star, 0) }} because {{ limiter_text }}{% if memory_not_full %}, not because memory is
+    adding throughput and extra users only wait in line.{% else %}It breaks
+    {%- if c_star | round(0) <= op %} just above that{% else %} at about {{ num(c_star, 0) }}{% endif %}
+    because {{ limiter_text }}{% if memory_not_full %}, not because memory is
     full: the KV cache was only {{ pct(kv_at_break) }} used there{% endif %}.{% endif %}
   capacity_above_range: >-
     For your {{ product_label }} traffic ({{ num(isl) }} tokens in, {{ num(osl) }} out), this

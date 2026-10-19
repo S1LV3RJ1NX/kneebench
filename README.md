@@ -44,6 +44,10 @@ Every finding says what was measured, what it means, why it happens (with a link
     <td><a href="docs/images/report-baseline.png"><img src="docs/images/report-baseline.png" alt="One request against the physics floor"></a><br><sub><b>Checked against physics.</b> How close one request gets to what the GPU allows.</sub></td>
   </tr>
   <tr>
+    <td><a href="docs/images/report-shapes.png"><img src="docs/images/report-shapes.png" alt="Every request size at the same load"></a><br><sub><b>A map, not one number.</b> Every request size at the same load, checked against your targets.</sub></td>
+    <td><a href="docs/images/what-if.png"><img src="docs/images/what-if.png" alt="What-if targets"></a><br><sub><b>What if?</b> Move the targets and watch capacity move, from stored data with no rerun.</sub></td>
+  </tr>
+  <tr>
     <td><a href="docs/images/new-run.png"><img src="docs/images/new-run.png" alt="New run form with auto-detection"></a><br><sub><b>Detect, then ask.</b> vLLM version, model, context length and KV cache are read from the endpoint.</sub></td>
     <td><a href="docs/images/runs.png"><img src="docs/images/runs.png" alt="Run list"></a><br><sub><b>Every run kept.</b> Reports regenerate from stored data; export to PDF, HTML, Markdown or JSON.</sub></td>
   </tr>
