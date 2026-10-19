@@ -1,27 +1,45 @@
 {% extends "base.html" %}
 {% block main %}
-<div style="display:flex;justify-content:space-between;align-items:center">
-  <div><h1>Runs</h1><p class="muted">Every benchmark you ran, newest first.</p></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px">
+  <div><div class="eyebrow">Benchmarks</div><h1>Runs</h1>
+    <p class="muted" style="margin:0">Every benchmark you ran, newest first.</p></div>
   <a class="button" href="/runs/new">New run</a>
 </div>
+
 {% if active %}
-<div class="card verdict">A run is in progress: <a href="/runs/{{ active }}/live">follow run {{ active }}</a>.</div>
+<div class="card" style="margin-top:24px">
+  <span class="badge running">running</span>
+  Run {{ active.run_id or "" }} is in progress{% if active.source %} (started from {{ active.source }}){% endif %}.
+  {% if active.run_id %}<a href="/runs/{{ active.run_id }}/live">Follow it</a>{% endif %}
+</div>
 {% endif %}
+
 {% if runs %}
+<div class="card" style="padding:6px 8px;margin-top:24px">
 <table>
-  <thead><tr><th>Run</th><th>Started</th><th>Model</th><th>Endpoint</th><th>Label</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>Run</th><th>Started</th><th>Model</th><th>Label</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for r in runs %}
+  {% set badge = {"done": "ok", "running": "running", "failed": "bad", "cancelled": "warn"}.get(r.status, "") %}
   <tr>
-    <td>{{ r.id }}</td><td class="small">{{ r.started_at }}</td><td>{{ r.served_model or "" }}</td>
-    <td class="small">{{ r.base_url }}</td><td>{{ r.label or "" }}</td><td>{{ r.status }}</td>
-    <td>{% if r.status == "running" %}<a href="/runs/{{ r.id }}/live">live</a>{% else %}<a href="/runs/{{ r.id }}">report</a>{% endif %}</td>
+    <td class="meta">#{{ r.id }}</td>
+    <td class="meta">{{ r.started_at[:16].replace("T", " ") }}</td>
+    <td>{{ r.served_model or "" }}<div class="meta">{{ r.base_url }}</div></td>
+    <td>{{ r.label or "" }}</td>
+    <td><span class="badge {{ badge }}">{{ r.status }}</span></td>
+    <td style="text-align:right">{% if r.status == "running" %}<a href="/runs/{{ r.id }}/live">Follow</a>{% else %}<a href="/runs/{{ r.id }}">Report</a>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
-<div class="card">No runs yet. <a href="/runs/new">Start your first benchmark</a>: point kneebench at an
-  OpenAI-compatible vLLM endpoint and it does the rest.</div>
+<div class="card empty" style="margin-top:24px">
+  <h3>No benchmarks yet</h3>
+  <p class="muted">Point kneebench at an OpenAI-compatible vLLM endpoint. It works out what the
+    hardware allows, measures what you get, and explains the gap.</p>
+  <p><a class="button" href="/runs/new">Start your first benchmark</a>
+     <a class="button secondary" href="/doctor">Check your setup</a></p>
+</div>
 {% endif %}
 {% endblock %}

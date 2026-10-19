@@ -8,15 +8,23 @@ import plotly.graph_objects as go
 
 from kneebench.report.composer import Report
 
-ACCENT = "#2563eb"
-MUTED = "#94a3b8"
-BAD = "#dc2626"
+ACCENT = "#d97757"  # clay
+INK = "#23211c"
+MUTED = "#9a958a"
+OK = "#2e7d32"
+BAD = "#c0392b"
+SECOND = "#6f6b61"
+_GRID = "#ece7db"
 _LAYOUT: dict[str, Any] = {
     "template": "simple_white",
-    "margin": {"l": 56, "r": 16, "t": 36, "b": 48},
+    "paper_bgcolor": "rgba(0,0,0,0)",
+    "plot_bgcolor": "rgba(0,0,0,0)",
+    "margin": {"l": 60, "r": 20, "t": 40, "b": 52},
     "height": 320,
-    "font": {"family": "Inter, system-ui, sans-serif", "size": 12},
-    "legend": {"orientation": "h", "y": -0.25},
+    "font": {"family": "Geist, Inter, system-ui, sans-serif", "size": 12, "color": "#6f6b61"},
+    "legend": {"orientation": "h", "y": -0.28},
+    "xaxis": {"gridcolor": _GRID, "linecolor": "#e4dfd3", "zeroline": False},
+    "yaxis": {"gridcolor": _GRID, "linecolor": "#e4dfd3", "zeroline": False},
 }
 
 
@@ -46,7 +54,12 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
 
 
 def _fig(fig: go.Figure, title: str, **layout: Any) -> dict[str, Any]:
-    fig.update_layout(title={"text": title, "x": 0, "font": {"size": 14}}, **_LAYOUT, **layout)
+    merged = {**_LAYOUT}
+    for key, value in layout.items():
+        merged[key] = (
+            {**merged[key], **value} if isinstance(value, dict) and key in merged else value
+        )
+    fig.update_layout(title={"text": title, "x": 0, "font": {"size": 14, "color": INK}}, **merged)
     result: dict[str, Any] = fig.to_plotly_json()
     return result
 
@@ -61,7 +74,10 @@ def _curve(
         mode="lines+markers+text",
         text=[str(p["concurrency"]) for p in pts],
         textposition="top left",
-        marker={"color": [BAD if op and p["concurrency"] > op else ACCENT for p in pts], "size": 9},
+        marker={
+            "color": [MUTED if op and p["concurrency"] > op else ACCENT for p in pts],
+            "size": 9,
+        },
         line={"color": MUTED},
         name="users in flight",
         hovertemplate="%{text} users<br>%{x:,.0f} tok/s<br>%{y:.1f} ms<extra></extra>",
@@ -99,7 +115,7 @@ def _throughput(pts: list[dict[str, Any]], op: int | None) -> dict[str, Any]:
             x=[best["concurrency"]],
             y=[best["tok_s"]],
             mode="markers+text",
-            marker={"color": "#16a34a", "size": 13, "symbol": "star"},
+            marker={"color": OK, "size": 13, "symbol": "star"},
             text=["best point within targets"],
             textposition="middle right",
         )
@@ -130,13 +146,13 @@ def _latency(
         y=[p["ttft_tail"] for p in pts],
         name=f"P{pct} time to first token (ms)",
         mode="lines+markers",
-        line={"color": "#0f766e"},
+        line={"color": SECOND},
         yaxis="y2",
     )
     if tpot:
         fig.add_hline(y=tpot, line_dash="dash", line_color=ACCENT, opacity=0.6)
     if ttft:
-        fig.add_hline(y=ttft, line_dash="dash", line_color="#0f766e", opacity=0.6, yref="y2")
+        fig.add_hline(y=ttft, line_dash="dash", line_color=SECOND, opacity=0.6, yref="y2")
     return _fig(
         fig,
         "Latency tails as users are added",

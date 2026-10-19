@@ -1,13 +1,12 @@
-{% if error %}<p class="error">{{ error }}</p>{% else %}
-<p><b>{{ plan.points | length }} points, about {{ "%.0f"|format(plan.eta_s / 60) }} minutes</b>
-  <span class="muted small">(including about 8 s of AIPerf startup per point; the sweep usually stops early)</span></p>
+{% if error %}<div class="notice bad">{{ error }}</div>{% else %}
+<p style="margin-top:18px"><b>{{ plan.points | length }} points, about {{ "%.0f"|format(plan.eta_s / 60) }} minutes</b>
+  <span class="muted small">including about 8 s of AIPerf startup per point; the sweep usually stops early</span></p>
 <table>
-  <thead><tr><th>#</th><th>Phase</th><th>Prompt tokens</th><th>Output tokens</th><th>Users in flight</th><th>Requests</th><th>Estimate</th></tr></thead>
+  <thead><tr><th>#</th><th>Phase</th><th>Prompt</th><th>Output</th><th>In flight</th><th>Requests</th><th>Estimate</th></tr></thead>
   <tbody>{% for p in plan.points %}
-    <tr><td>{{ loop.index }}</td><td>{{ p.phase }}</td><td>{{ p.spec.isl }}</td><td>{{ p.spec.osl }}</td>
+    <tr><td class="meta">{{ loop.index }}</td><td>{{ p.phase }}</td><td>{{ p.spec.isl }}</td><td>{{ p.spec.osl }}</td>
       <td>{{ p.spec.concurrency }}</td><td>{{ p.spec.request_count }}</td><td>{{ "%.0f"|format(p.eta_s) }} s</td></tr>
   {% endfor %}</tbody>
 </table>
 {% if plan.dropped_for_budget %}<p class="muted small">Dropped to fit the budget: {{ plan.dropped_for_budget | join(", ") }} users.</p>{% endif %}
-{% for s in adapted %}<p class="muted small">{{ s }}</p>{% endfor %}
 {% endif %}

@@ -1,0 +1,18 @@
+{% set badge = {"ok": "ok", "warn": "warn", "fail": "bad", "skip": ""} %}
+<div class="card" style="padding:6px 18px">
+  <ul class="plain">
+  {% for c in checks %}
+    <li><span class="badge {{ badge[c.status.value] }}">{{ c.status.value }}</span> <b>{{ c.name }}</b>
+      <span class="muted">{{ c.detail }}</span>
+      {% if c.fix and c.status.value != "ok" %}<div class="help">Fix: {{ c.fix }}</div>{% endif %}
+      {% if c.name == "PDF export" and c.status.value == "warn" %}
+        <div style="margin-top:8px"><button class="secondary" hx-post="/doctor/install-pdf" hx-target="#pdf-install"
+          hx-indicator="#pdf-spin">Install the PDF browser</button>
+          <span id="pdf-spin" class="htmx-indicator muted small">Downloading about 100 MB…</span></div>
+        <div id="pdf-install"></div>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</div>
+{% if failed %}<div class="notice bad">Some required checks failed.</div>{% else %}<div class="notice ok">All required checks passed.</div>{% endif %}

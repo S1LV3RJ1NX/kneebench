@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import re
 from functools import cache
 from importlib.resources import files
 from typing import Any
@@ -12,6 +14,8 @@ import jinja2
 from kneebench.physics.gpus import catalog
 from kneebench.report.charts import charts
 from kneebench.report.composer import Report
+
+_FONT_URL = re.compile(r'url\("fonts/(?P<name>[\w.-]+\.woff2)"\)')
 
 
 @cache
@@ -30,7 +34,15 @@ def plotly_js() -> str:
 
 @cache
 def inline_css() -> str:
-    return files("kneebench.web").joinpath("static", "kb.css").read_text()
+    """The stylesheet with its fonts embedded, so exported files render the same offline."""
+    static = files("kneebench.web").joinpath("static")
+    css = static.joinpath("kb.css").read_text()
+
+    def embed(match: re.Match[str]) -> str:
+        data = base64.b64encode(static.joinpath("fonts", match["name"]).read_bytes()).decode()
+        return f'url("data:font/woff2;base64,{data}")'
+
+    return _FONT_URL.sub(embed, css)
 
 
 def report_context(report: Report, inline: bool) -> dict[str, Any]:

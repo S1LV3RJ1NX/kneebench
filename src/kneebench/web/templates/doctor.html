@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Doctor · kneebench{% endblock %}
+{% block main %}
+<div class="eyebrow">Setup</div>
+<h1>Doctor</h1>
+<p class="muted">Checks this install and, optionally, an endpoint. Each problem comes with a fix.</p>
+<form class="card" hx-post="/doctor" hx-target="#checks" hx-indicator="#doc-spin">
+  <div class="row"><label for="url">Endpoint URL</label>
+    <div><input id="url" name="url" placeholder="optional, e.g. http://my-vllm-host:8000" value="{{ url or '' }}"></div></div>
+  <div class="row"><label for="api_key">API key</label>
+    <div><input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="optional"></div></div>
+  <div class="row"><label for="tokenizer">Tokenizer</label>
+    <div><input id="tokenizer" name="tokenizer" placeholder="optional; inferred from the endpoint"></div></div>
+  <div class="row"><span></span><div><button type="submit">Run checks</button>
+    <span id="doc-spin" class="htmx-indicator muted small">Checking…</span></div></div>
+</form>
+<div id="checks"></div>
+{% endblock %}

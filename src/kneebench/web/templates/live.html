@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Run {{ run_id }} · kneebench{% endblock %}
 {% block main %}
-<h1>Run {{ run_id }}</h1>
-<p class="muted">Measuring. You can leave this page; the run continues and the report appears when it finishes.</p>
+<div class="eyebrow">Run #{{ run_id }}</div>
+<h1>Measuring</h1>
+<p class="muted">You can leave this page; the run continues and the report appears when it finishes.</p>
 <div hx-get="/runs/{{ run_id }}/progress" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 {% endblock %}

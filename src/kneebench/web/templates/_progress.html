@@ -1,19 +1,27 @@
 {% if finished %}
-<div class="card verdict">Finished ({{ status }}). <a href="/runs/{{ run_id }}">Open the report</a>.</div>
-<script>window.location = "/runs/{{ run_id }}";</script>
+<div class="card"><span class="badge {{ 'ok' if status == 'done' else 'warn' }}">{{ status }}</span>
+  The run has finished. <a href="/runs/{{ run_id }}">Open the report</a>.</div>
+{% if status in ("done", "cancelled") %}<script>window.location = "/runs/{{ run_id }}";</script>{% endif %}
 {% else %}
 <div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
+    <div><b>{{ done }} of {{ total }} points</b>{% if remaining %} <span class="muted small">· about {{ remaining }} left</span>{% endif %}</div>
+    {% if can_stop %}<button class="danger" hx-post="/runs/{{ run_id }}/stop" hx-confirm="Stop this run? Points measured so far are kept.">Stop</button>{% endif %}
+  </div>
   <div class="progress"><div style="width: {{ pct }}%"></div></div>
-  <p class="small muted">{{ done }} of {{ total }} points{% if current %} · now: {{ current }}{% endif %}{% if stopped %} · sweep stopped early ({{ stopped }}){% endif %}</p>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <p class="small muted" style="margin-bottom:0">{% if current %}Now: {{ current }}{% endif %}{% if stopped %} · the sweep stopped early ({{ stopped | replace("_", " ") }}){% endif %}{% if cancelling %} · stopping…{% endif %}</p>
+  {% if not managed %}<p class="small muted">This run was started from the command line; it can be stopped there.</p>{% endif %}
 </div>
 {% endif %}
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
 {% if rows %}
+<div class="card" style="padding:6px 8px">
 <table>
-  <thead><tr><th>#</th><th>Phase</th><th>Users</th><th>Status</th><th>Output tok/s</th><th>TPOT P99</th><th>TTFT P99</th><th>KV peak</th><th>Preemptions</th></tr></thead>
+  <thead><tr><th>#</th><th>Phase</th><th>In flight</th><th>Status</th><th>Output tok/s</th><th>TPOT P99</th><th>TTFT P99</th><th>KV peak</th><th>Preempt.</th></tr></thead>
   <tbody>{% for r in rows %}
-  <tr><td>{{ r.seq }}</td><td>{{ r.phase }}</td><td>{{ r.concurrency }}</td><td>{{ r.status }}</td>
+  <tr><td class="meta">{{ r.seq }}</td><td>{{ r.phase }}</td><td>{{ r.concurrency }}</td><td>{{ r.status }}</td>
     <td>{{ r.tok_s }}</td><td>{{ r.tpot }}</td><td>{{ r.ttft }}</td><td>{{ r.kv }}</td><td>{{ r.preempt }}</td></tr>
   {% endfor %}</tbody>
 </table>
+</div>
 {% endif %}

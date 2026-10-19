@@ -1,8 +1,9 @@
 {% set s = report.sections %}
-<h1>{{ report.title }}</h1>
-<p class="muted small">Run {{ report.run_id }} · {{ report.summary.product }} workload ·
-  vLLM {{ report.summary.vllm_version }} · started {{ report.summary.run_started }} ·
-  status {{ report.summary.run_status }}</p>
+<div class="eyebrow">kneebench report · run #{{ report.run_id }}</div>
+<h1>{{ report.summary.model }}</h1>
+<p class="meta">{{ report.summary.gpu }} · vLLM {{ report.summary.vllm_version }} ·
+  {{ report.summary.product }} workload · {{ report.summary.run_started[:16].replace("T", " ") }} ·
+  {{ report.summary.run_status }}</p>
 
 <h2>{{ s.verdict }}</h2>
 <div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
@@ -21,14 +22,14 @@
 
 {% if report.next_steps %}
 <h2>{{ s.next }}</h2>
-<ol>
+<ol class="steps">
   {% for step in report.next_steps %}
-  <li class="card" style="list-style-position: inside">
-    <b>{{ step.action.title | safe }}</b> <span class="rule small muted">{{ step.rule_id }}</span>
-    <div class="small"><b>Why:</b> {{ step.reason | safe }}</div>
-    {% if step.action.expected %}<div class="small"><b>Expected:</b> {{ step.action.expected | safe }}</div>{% endif %}
-    {% if step.action.risk %}<div class="small"><b>Risk:</b> {{ step.action.risk | safe }}</div>{% endif %}
-    {% if step.action.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">copy</button><code>{{ step.action.flag | safe }}</code></pre>{% endif %}
+  <li class="card action" style="padding-left:52px">
+    <b>{{ step.action.title | safe }}</b><span class="rule">{{ step.rule_id }}</span>
+    {% if step.action.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">Copy</button><code>{{ step.action.flag | safe }}</code></pre>{% endif %}
+    <div class="small"><b>Why</b> {{ step.reason | safe }}</div>
+    {% if step.action.expected %}<div class="small"><b>Expected</b> {{ step.action.expected | safe }}</div>{% endif %}
+    {% if step.action.risk %}<div class="small"><b>Risk</b> {{ step.action.risk | safe }}</div>{% endif %}
   </li>
   {% endfor %}
 </ol>
@@ -46,37 +47,39 @@
 
 {% if report.passed %}
 <h2>{{ s.passed }}</h2>
-<ul class="passed">
-  {% for f in report.passed %}<li><span class="badge ok">good</span> <b>{{ f.title }}</b> <span class="rule small muted">{{ f.rule_id }}</span>: {{ f.status_line | safe }}</li>{% endfor %}
-</ul>
+<div class="card" style="padding:4px 22px"><ul class="plain">
+  {% for f in report.passed %}<li><span class="badge ok">good</span> <b>{{ f.title }}</b><span class="rule">{{ f.rule_id }}</span>
+    <div class="reading muted">{{ f.status_line | safe }}</div></li>{% endfor %}
+</ul></div>
 {% endif %}
 
 {% if report.skipped %}
 <h2>{{ s.skipped }}</h2>
-<ul class="passed">
-  {% for f in report.skipped %}<li><b>{{ f.title }}</b> <span class="rule small muted">{{ f.rule_id }}</span>: {{ f.status_line | safe }}</li>{% endfor %}
-</ul>
+<div class="card" style="padding:4px 22px"><ul class="plain">
+  {% for f in report.skipped %}<li><span class="badge">not checked</span> <b>{{ f.title }}</b><span class="rule">{{ f.rule_id }}</span>
+    <div class="reading muted">{{ f.status_line | safe }}</div></li>{% endfor %}
+</ul></div>
 {% endif %}
 
 <h2>{{ s.caveats }}</h2>
-<ul>{% for c in report.caveats %}<li>{{ c | safe }}</li>{% endfor %}</ul>
+<div class="card" style="padding:4px 22px"><ul class="plain caveats">{% for c in report.caveats %}<li>{{ c | safe }}</li>{% endfor %}</ul></div>
 
 {% if report.glossary %}
 <h2>{{ s.glossary }}</h2>
-<dl>{% for term, definition in report.glossary %}<dt><b>{{ term }}</b></dt><dd>{{ definition }}</dd>{% endfor %}</dl>
+<div class="card" style="padding:4px 22px"><ul class="plain">{% for term, definition in report.glossary %}<li><b>{{ term }}</b> <span class="reading muted">{{ definition }}</span></li>{% endfor %}</ul></div>
 {% endif %}
 
 <h2>{{ s.appendix }}</h2>
 <p class="muted small">Every number behind this report, as plain tables. The JSON and Markdown
   versions carry the same data for further analysis.</p>
 {% for t in report.appendix %}
-<h3 style="margin-top:18px">{{ t.title }}</h3>
+<div class="card" style="padding:16px 18px"><div class="eyebrow">{{ t.title }}</div>
 <table>
   <thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
   <tbody>{% for row in t.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-</table>
+</table></div>
 {% endfor %}
-<p class="muted small">kneebench {{ report.summary.kneebench_version }} · AIPerf
+<p class="meta">kneebench {{ report.summary.kneebench_version }} · AIPerf
   {{ report.summary.aiperf_version }} · rules {{ report.summary.rules_version }} · generated
   {{ report.generated_at }}</p>
 

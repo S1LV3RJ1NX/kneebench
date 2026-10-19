@@ -3,14 +3,16 @@
 {% block main %}
 <div class="toolbar no-print">
   <a class="button" href="/runs/{{ report.run_id }}/report.pdf">Download PDF</a>
-  <button class="secondary" onclick="window.print()">Print or save as PDF</button>
+  <button class="secondary" onclick="window.print()">Print</button>
+  <a class="button secondary" href="/runs/{{ report.run_id }}/report.html">HTML</a>
   <a class="button secondary" href="/runs/{{ report.run_id }}/report.md">Markdown</a>
   <a class="button secondary" href="/runs/{{ report.run_id }}/report.json">JSON</a>
-  <form method="post" action="/runs/{{ report.run_id }}/gpu" style="display:flex;gap:6px;margin-left:auto">
+  <span class="spacer"></span>
+  <form method="post" action="/runs/{{ report.run_id }}/gpu" style="display:flex;gap:6px">
     <select name="gpu" aria-label="Correct the GPU">
-      {% for g in gpus %}<option value="{{ g.id }}" {% if g.name == report.summary.gpu or report.summary.gpu.endswith(g.name) %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+      {% for g in gpus %}<option value="{{ g.id }}" {% if report.summary.gpu.endswith(g.name) %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
     </select>
-    <button class="secondary" type="submit" title="Recompute from stored data, no rerun">Correct GPU</button>
+    <button class="secondary" type="submit" title="Recompute every number from stored data; no rerun">Correct GPU</button>
   </form>
 </div>
 {% include "report_body.html" %}
