@@ -96,17 +96,19 @@ def shoot(page: Page, name: str, *, selector: str | None = None) -> Path:
     return path
 
 
-def tour(frames: list[Path], out: Path, width: int = 1100, height: int = 750) -> None:
+def tour(frames: list[Path], out: Path, width: int = 1100, height: int = 720) -> None:
+    """Each frame is scaled to fit whole (never cropped) on a paper-coloured canvas."""
+    paper = (250, 249, 245)
     images = []
     for frame in frames:
         img = Image.open(frame).convert("RGB")
-        scale = width / img.width
-        img = img.resize((width, int(img.height * scale)), Image.LANCZOS)
-        canvas = Image.new("RGB", (width, height), (250, 249, 245))
-        canvas.paste(img.crop((0, 0, width, min(height, img.height))), (0, 0))
-        images.append(canvas.quantize(colors=128, method=Image.Quantize.MEDIANCUT))
+        scale = min((width - 40) / img.width, (height - 40) / img.height)
+        img = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+        canvas = Image.new("RGB", (width, height), paper)
+        canvas.paste(img, ((width - img.width) // 2, (height - img.height) // 2))
+        images.append(canvas.quantize(colors=160, method=Image.Quantize.MEDIANCUT))
     images[0].save(
-        out, save_all=True, append_images=images[1:], duration=3200, loop=0, optimize=True
+        out, save_all=True, append_images=images[1:], duration=3500, loop=0, optimize=True
     )
     print("wrote", out.relative_to(ROOT))
 
@@ -137,11 +139,14 @@ def main() -> None:
             page.wait_for_function("window.kneebenchReady === true", timeout=30000)
             frames.append(shoot(page, "report"))
             page.locator("#capacity").scroll_into_view_if_needed()
-            frames.append(shoot(page, "report-curve", selector="#rule-C02"))
+            shoot(page, "report-curve", selector="#rule-C02")
+            frames.append(shoot(page, "chart-curve", selector='[data-chart="C02-0"]'))
             shoot(page, "report-walls", selector="#rule-W03")
+            frames.append(shoot(page, "chart-walls", selector='[data-chart="W03-0"]'))
             page.evaluate("window.kneebenchExpandAll()")
             page.wait_for_timeout(800)
-            frames.append(shoot(page, "report-latency", selector="#rule-W02"))
+            shoot(page, "report-latency", selector="#rule-W02")
+            frames.append(shoot(page, "chart-latency", selector='[data-chart="W02-0"]'))
             shoot(page, "report-baseline", selector="#rule-B01")
 
             page.goto(f"{base}/runs/new")
