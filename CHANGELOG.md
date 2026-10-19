@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (M2: concurrency sweep, walls, web UI and PDF)
+- Concurrency sweep (1, 2, 4 ... 256, capped by memory and `max_num_seqs`) with 5% length
+  variation, a time budget, and early stop once the walls are found or on errors and
+  gateway failures. ETAs include AIPerf startup and a physics model of per-token cost.
+- Steady-state throughput that excludes ramp-up and drain.
+- Rules C01-C05 (curve, operating point, peak vs capacity, tails), W01-W09 (saturation, SLO
+  wall, capacity as the lowest wall, preemption, `max_num_seqs` advice, errors, headroom)
+  and H01, H02, H06, H09 (steady state, weak client, prefix caching, gateways).
+- First-token targets judged on server-side time, without the client's network round trip.
+- Web UI (`kneebench` or `kneebench ui`): detection-first new-run form, live progress with
+  stop, doctor page, run list with delete, and the report with a contents sidebar,
+  collapsible findings and interactive Plotly charts.
+- Exports: PDF (headless Chromium, with an appendix of raw numbers and the Markdown and
+  JSON reports attached), self-contained HTML, Markdown and JSON. Browser printing works
+  without Chromium.
+- One run at a time across the CLI and the UI (shared lock); failed, cancelled and
+  interrupted runs are recorded with the reason. `kneebench delete` removes a run.
+- Design: warm paper palette with bundled Geist, Geist Mono and Source Serif 4 fonts.
+
 ### Added (M1: detect, theory and baseline)
 - Auto-detection from the endpoint: vLLM version (`/version`), served model, context length
   and Hugging Face id (`/v1/models`), KV cache size and settings (`vllm:cache_config_info`),
