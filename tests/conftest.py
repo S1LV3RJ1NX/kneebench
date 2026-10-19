@@ -70,3 +70,9 @@ def fake_server() -> Iterator[type[FakeServer]]:
     for s in started:
         s.httpd.shutdown()
         s.httpd.server_close()
+
+
+@pytest.fixture(autouse=True)
+def _no_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests start from an empty database; tests/unit/test_demo.py opts back in."""
+    monkeypatch.setenv("KNEEBENCH_NO_DEMO", "1")

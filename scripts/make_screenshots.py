@@ -132,6 +132,7 @@ def main() -> None:
         keep[args.compare_run] = "chat sweep, repeated"
     home = sanitized_home(args.db, keep)
     os.chdir(home)  # no kneebench.local.toml here, so the form starts empty
+    os.environ["KNEEBENCH_NO_DEMO"] = "1"  # show only the runs chosen above
     base = serve(home)
     vllm = fake_vllm()
     frames: list[Path] = []

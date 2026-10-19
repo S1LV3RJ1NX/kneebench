@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (demo run)
+- The UI opens on a real, sanitized demo run with every phase on first start. It is a normal
+  run: delete it any time, `kneebench demo` restores it, `KNEEBENCH_NO_DEMO=1` skips it.
+  `scripts/make_demo.py` refreshes it from any finished run.
+
 ### Added (M5: what-ifs and compare)
 - What-if targets: re-judge a stored run against other latency targets from the report page
   or `kneebench report <id> --slo-ttft-ms/--slo-tpot-ms/--slo-percentile`. Nothing is rerun

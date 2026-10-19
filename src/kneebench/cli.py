@@ -406,6 +406,23 @@ def compare_cmd(
 
 
 @app.command()
+def demo() -> None:
+    """Restore the demo run that ships with kneebench (replacing any existing copy)."""
+    from kneebench.demo import restore
+    from kneebench.store.db import DB_FILENAME, connect
+
+    home = data_dir()
+    try:
+        run_id = restore(connect(home / DB_FILENAME), home)
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+    console.print(
+        f"Demo restored as run {run_id}. Open it with `kneebench` or `kneebench report {run_id}`."
+    )
+
+
+@app.command()
 def delete(
     run_id: Annotated[int, typer.Argument(help="Run id (see `kneebench runs`)")],
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Don't ask for confirmation")] = False,

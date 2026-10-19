@@ -25,7 +25,7 @@
     <td class="meta">#{{ r.id }}</td>
     <td class="meta">{{ r.started_at[:16].replace("T", " ") }}</td>
     <td>{{ r.served_model or "" }}<div class="meta">{{ r.base_url }}</div></td>
-    <td>{{ r.label or "" }}</td>
+    <td>{% if r.id == demo_id %}<span class="badge">demo</span> <span class="muted small">sample run shipped with kneebench</span>{% else %}{{ r.label or "" }}{% endif %}</td>
     <td><span class="badge {{ badge }}">{% if r.status == "running" %}<span class="spinner"></span>{% endif %}{{ r.status }}</span></td>
     <td style="text-align:right;white-space:nowrap">{% if r.status == "running" %}<a href="/runs/{{ r.id }}/live">Follow</a>{% else %}<a href="/runs/{{ r.id }}">Report</a>
       <form method="post" action="/runs/{{ r.id }}/delete" style="display:inline"

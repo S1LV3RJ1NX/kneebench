@@ -12,6 +12,14 @@
         onsubmit="return confirm('Delete run #{{ report.run_id }} and its measurements? This cannot be undone.')">
     <button class="danger" type="submit">Delete</button></form>
 </div>
+{% if is_demo and not inline_assets %}
+{% set far = report.findings_json | selectattr("rule_id", "equalto", "H03") | rejectattr("status", "equalto", "ok") | list %}
+<div class="notice ok no-print"><b>This is the demo run</b> that ships with kneebench: a real benchmark of
+  {{ report.summary.model }} on {{ report.summary.gpu }}{% if far %}, measured from far away over the internet,
+  which is why the network findings stand out{% endif %}. Every number and chart below works the same way for
+  your own runs.
+  <a href="/runs/new">Benchmark your server</a>. Delete this run any time; <code>kneebench demo</code> brings it back.</div>
+{% endif %}
 {% if not inline_assets %}{% set slo = report.summary.slo %}
 <details class="card whatif no-print"{% if report.what_if %} open{% endif %}>
   <summary><b>What if…</b> <span class="muted small">judge this run against other targets{% if has_estimates %}, or estimate another request size{% endif %}. Uses the stored measurements; nothing is re-run.</span></summary>

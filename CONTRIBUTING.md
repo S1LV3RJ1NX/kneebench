@@ -45,3 +45,18 @@ Bump `aiperf==` in `pyproject.toml` and `AIPERF_PIN` in
 `src/kneebench/loadgen/aiperf/version.py` together, run the full test suite (the
 schema test validates generated configs against the new version), re-measure startup
 overhead with `scripts/measure_aiperf_startup.py`, and add a CHANGELOG entry.
+
+## Refreshing the demo run
+
+The UI ships with one real run so first-time users see a full report. Refresh it whenever a
+new rule or phase needs data the current demo doesn't have:
+
+1. Run a full benchmark: `KNEEBENCH_HOME=$PWD/.kneebench uv run kneebench run --gpu <id> --yes`.
+2. Export it: `uv run python scripts/make_demo.py --run <id>`. This replaces the endpoint,
+   served model name and local paths with placeholders, refuses to write if any survive,
+   checks that the export imports and analyzes, and writes `src/kneebench/content/demo-run.json.gz`.
+3. Optionally regenerate the README images: `uv run python scripts/make_screenshots.py ...`.
+4. Commit both. Users get the new demo on their next start unless they deleted the old one.
+
+Rule and wording changes alone don't need a refresh: reports are rebuilt from the stored
+measurements every time.

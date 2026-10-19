@@ -45,7 +45,9 @@ def inline_css() -> str:
     return _FONT_URL.sub(embed, css)
 
 
-def report_context(report: Report, inline: bool, query: str = "") -> dict[str, Any]:
+def report_context(
+    report: Report, inline: bool, query: str = "", demo: bool = False
+) -> dict[str, Any]:
     if report.style != "html":
         raise ValueError("compose the report with style='html' for HTML output")
     figures = charts(report)
@@ -62,9 +64,14 @@ def report_context(report: Report, inline: bool, query: str = "") -> dict[str, A
         # The what-if query, carried into export links so a download matches the page.
         "export_query": f"?{query}" if query else "",
         "has_estimates": any(f["rule_id"] == "S01" for f in report.findings_json),
+        "is_demo": demo,
     }
 
 
-def render_html(report: Report, inline: bool = False, query: str = "") -> str:
+def render_html(report: Report, inline: bool = False, query: str = "", demo: bool = False) -> str:
     """inline=True embeds CSS and Plotly so the file works offline and prints to PDF."""
-    return templates().get_template("report.html").render(**report_context(report, inline, query))
+    return (
+        templates()
+        .get_template("report.html")
+        .render(**report_context(report, inline, query, demo))
+    )

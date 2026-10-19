@@ -61,6 +61,8 @@ uv sync                           # installs kneebench and its bundled AIPerf
 uv run kneebench                  # opens the web UI at http://127.0.0.1:8765
 ```
 
+The first start opens on a **demo run**: a real benchmark of Llama 3.1 8B on one H100, every phase, so you can explore a full report before benchmarking your own server. Delete it any time; `kneebench demo` brings it back (set `KNEEBENCH_NO_DEMO=1` to skip it).
+
 Need uv? `curl -LsSf https://astral.sh/uv/install.sh | sh`. Gated models (such as Llama) need `HF_TOKEN` so kneebench can download the tokenizer.
 
 Prefer the terminal? Everything in the UI is also a command:

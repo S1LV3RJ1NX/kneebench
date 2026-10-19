@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib.resources import files
@@ -21,6 +22,8 @@ from kneebench.analysis.context import context_from_bundle
 from kneebench.analysis.whatif import estimate
 from kneebench.config import load_local_config
 from kneebench.content.render import ms, num, pct
+from kneebench.demo import demo_run_id
+from kneebench.demo import seed as demo_seed
 from kneebench.detect.server import detect_server
 from kneebench.doctor import exit_code, run_doctor
 from kneebench.domain import ProductType, Slo, user_shapes
@@ -45,7 +48,7 @@ from kneebench.store.db import DB_FILENAME, connect
 from kneebench.web.manager import BusyError, RunManager
 
 
-def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
+def create_app(home: Path, manager: RunManager | None = None, demo: bool = True) -> FastAPI:
     app = FastAPI(title="kneebench", docs_url=None, redoc_url=None)
     runs = manager or RunManager(home)
 
@@ -56,6 +59,10 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             yield conn
         finally:
             conn.close()
+
+    if demo and os.environ.get("KNEEBENCH_NO_DEMO") != "1":
+        with db() as conn:
+            demo_seed(conn, home)
 
     def page(name: str, **ctx: Any) -> HTMLResponse:
         nav_active = holder(home)
@@ -94,7 +101,7 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
         with db() as conn:
             reconcile(conn)
             rows = [dict(r) for r in repo.list_runs(conn)]
-        return page("home.html", runs=rows, active=holder(home))
+        return page("home.html", runs=rows, active=holder(home), demo_id=demo_run_id(home))
 
     def comparison(a: int, b: int) -> Any:
         if a == b:
@@ -316,7 +323,11 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
     def report_page(run_id: int, request: Request) -> HTMLResponse:
         return HTMLResponse(
-            render_html(_report(run_id, "html", request), query=what_if_query(request))
+            render_html(
+                _report(run_id, "html", request),
+                query=what_if_query(request),
+                demo=run_id == demo_run_id(home),
+            )
         )
 
     @app.get("/runs/{run_id}/estimate", response_class=HTMLResponse)
