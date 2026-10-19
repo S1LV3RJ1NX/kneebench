@@ -249,6 +249,9 @@ def test_htmx_start_redirects_and_stop_cancels(
     busy = client.post("/runs", data=_form(server.url), headers={"HX-Request": "true"})
     assert "already running" in busy.text
     assert "Stop" in client.get(f"/runs/{run_id}/progress").text
+    home_html = client.get("/").text
+    assert 'class="spinner"' in home_html
+    assert f"Running #{run_id}" in home_html
 
     assert "Stopping" in client.post(f"/runs/{run_id}/stop").text
     deadline = time.monotonic() + 30
@@ -266,3 +269,11 @@ def test_doctor_page(home: Path) -> None:
     html = client.post("/doctor", data={"url": "", "api_key": "", "tokenizer": ""}).text
     assert "AIPerf" in html
     assert "Python" in html
+
+
+def test_running_run_without_a_live_process_shows_interrupted(home: Path, stored_run: int) -> None:
+    with connect(home / DB_FILENAME) as conn:
+        conn.execute("UPDATE runs SET status = 'running' WHERE id = ?", (stored_run,))
+    html = TestClient(create_app(home)).get("/").text
+    assert "interrupted" in html
+    assert 'class="spinner"' not in html

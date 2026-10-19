@@ -8,7 +8,7 @@
 
 {% if active %}
 <div class="card" style="margin-top:24px">
-  <span class="badge running">running</span>
+  <span class="badge running"><span class="spinner"></span>running</span>
   Run {{ active.run_id or "" }} is in progress{% if active.source %} (started from {{ active.source }}){% endif %}.
   {% if active.run_id %}<a href="/runs/{{ active.run_id }}/live">Follow it</a>{% endif %}
 </div>
@@ -20,13 +20,13 @@
   <thead><tr><th>Run</th><th>Started</th><th>Model</th><th>Label</th><th>Status</th><th></th></tr></thead>
   <tbody>
   {% for r in runs %}
-  {% set badge = {"done": "ok", "running": "running", "failed": "bad", "cancelled": "warn"}.get(r.status, "") %}
+  {% set badge = {"done": "ok", "running": "running", "failed": "bad", "cancelled": "warn", "interrupted": "warn"}.get(r.status, "") %}
   <tr>
     <td class="meta">#{{ r.id }}</td>
     <td class="meta">{{ r.started_at[:16].replace("T", " ") }}</td>
     <td>{{ r.served_model or "" }}<div class="meta">{{ r.base_url }}</div></td>
     <td>{{ r.label or "" }}</td>
-    <td><span class="badge {{ badge }}">{{ r.status }}</span></td>
+    <td><span class="badge {{ badge }}">{% if r.status == "running" %}<span class="spinner"></span>{% endif %}{{ r.status }}</span></td>
     <td style="text-align:right">{% if r.status == "running" %}<a href="/runs/{{ r.id }}/live">Follow</a>{% else %}<a href="/runs/{{ r.id }}">Report</a>{% endif %}</td>
   </tr>
   {% endfor %}

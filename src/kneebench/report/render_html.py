@@ -56,6 +56,7 @@ def report_context(report: Report, inline: bool) -> dict[str, Any]:
         "figures_json": json.dumps(figures).replace("</", "<\\/"),
         "gpus": catalog(),
         "inline_assets": inline,
+        "nav_active": None,
         "inline_css": inline_css() if inline else "",
         "plotly_js": plotly_js() if inline else "",
     }

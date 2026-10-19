@@ -47,7 +47,12 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             conn.close()
 
     def page(name: str, **ctx: Any) -> HTMLResponse:
-        return HTMLResponse(templates().get_template(name).render(inline_assets=False, **ctx))
+        nav_active = holder(home)
+        if nav_active is None and runs.busy and runs.active:
+            nav_active = {"run_id": runs.active.run_id, "source": "web UI"}
+        return HTMLResponse(
+            templates().get_template(name).render(inline_assets=False, nav_active=nav_active, **ctx)
+        )
 
     def notice(message: str, kind: str = "bad") -> HTMLResponse:
         return page("_notice.html", message=message, kind=kind)
@@ -60,10 +65,24 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             headers={"Cache-Control": "max-age=86400"},
         )
 
+    def live_run_ids() -> set[int]:
+        ids = set()
+        lock = holder(home)
+        if lock and lock.get("run_id"):
+            ids.add(int(lock["run_id"]))
+        if runs.busy and runs.active and runs.active.run_id:
+            ids.add(runs.active.run_id)
+        return ids
+
     @app.get("/", response_class=HTMLResponse)
     def home_page() -> HTMLResponse:
+        live_ids = live_run_ids()
         with db() as conn:
             rows = [dict(r) for r in repo.list_runs(conn)]
+        for r in rows:
+            # "running" with no live process holding the lock means the process died.
+            if r["status"] == "running" and r["id"] not in live_ids:
+                r["status"] = "interrupted"
         return page("home.html", runs=rows, active=holder(home))
 
     @app.get("/runs/new", response_class=HTMLResponse)

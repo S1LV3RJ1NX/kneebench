@@ -8,7 +8,7 @@
       {% if c.name == "PDF export" and c.status.value == "warn" %}
         <div style="margin-top:8px"><button class="secondary" hx-post="/doctor/install-pdf" hx-target="#pdf-install"
           hx-indicator="#pdf-spin">Install the PDF browser</button>
-          <span id="pdf-spin" class="htmx-indicator muted small">Downloading about 100 MB…</span></div>
+          <span id="pdf-spin" class="htmx-indicator muted small"><span class="spinner"></span> Downloading about 100 MB…</span></div>
         <div id="pdf-install"></div>
       {% endif %}
     </li>

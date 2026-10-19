@@ -9,7 +9,7 @@
     {% if can_stop %}<button class="danger" hx-post="/runs/{{ run_id }}/stop" hx-confirm="Stop this run? Points measured so far are kept.">Stop</button>{% endif %}
   </div>
   <div class="progress"><div style="width: {{ pct }}%"></div></div>
-  <p class="small muted" style="margin-bottom:0">{% if current %}Now: {{ current }}{% endif %}{% if stopped %} · the sweep stopped early ({{ stopped | replace("_", " ") }}){% endif %}{% if cancelling %} · stopping…{% endif %}</p>
+  <p class="small muted" style="margin-bottom:0">{% if current %}<span class="spinner"></span> Now: {{ current }}{% endif %}{% if stopped %} · the sweep stopped early ({{ stopped | replace("_", " ") }}){% endif %}{% if cancelling %} · stopping…{% endif %}</p>
   {% if not managed %}<p class="small muted">This run was started from the command line; it can be stopped there.</p>{% endif %}
 </div>
 {% endif %}

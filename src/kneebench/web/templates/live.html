@@ -2,7 +2,7 @@
 {% block title %}Run {{ run_id }} · kneebench{% endblock %}
 {% block main %}
 <div class="eyebrow">Run #{{ run_id }}</div>
-<h1>Measuring</h1>
+<h1 style="display:flex;align-items:center;gap:12px"><span class="spinner lg"></span>Measuring</h1>
 <p class="muted">You can leave this page; the run continues and the report appears when it finishes.</p>
 <div hx-get="/runs/{{ run_id }}/progress" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 {% endblock %}

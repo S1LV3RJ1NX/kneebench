@@ -193,3 +193,18 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9px; color: #666;
     font-family: var(--sans); }
 }
+
+/* Activity: a small clay ring, used wherever a run or a request is in progress. */
+.spinner { display: inline-block; width: 12px; height: 12px; flex: none; vertical-align: -1px;
+  border: 2px solid var(--clay-soft); border-top-color: var(--clay); border-radius: 50%;
+  animation: kb-spin .8s linear infinite; }
+.spinner.lg { width: 18px; height: 18px; border-width: 2.5px; vertical-align: -3px; }
+@keyframes kb-spin { to { transform: rotate(360deg); } }
+.badge.running { display: inline-flex; align-items: center; gap: 6px; }
+.badge.running .spinner { width: 9px; height: 9px; border-width: 1.5px; }
+header.top .live { margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--clay-press); text-decoration: none; background: var(--clay-soft);
+  padding: 4px 12px; border-radius: 99px; }
+.htmx-indicator.spinner { opacity: 0; }
+.htmx-request .htmx-indicator.spinner, .htmx-request.htmx-indicator.spinner { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
