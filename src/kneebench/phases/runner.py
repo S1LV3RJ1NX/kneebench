@@ -10,14 +10,21 @@ from pathlib import Path
 from sqlite3 import Connection
 
 from kneebench import __version__
+from kneebench.analysis.context import point_from_dict
+from kneebench.analysis.sweep import SATURATION_GAIN, SweepPoint, meets, steps, summarize
 from kneebench.detect.server import ModelMetadata, ServedModel, ServerSnapshot
-from kneebench.domain import ServerSetup, Workload
+from kneebench.domain import ServerSetup, Slo, Workload
 from kneebench.loadgen.aiperf.overhead import point_overhead_s
 from kneebench.loadgen.aiperf.parse import parse_point
 from kneebench.loadgen.base import Endpoint, LoadGenerator, PointResult
 from kneebench.phases.plan import PlannedPoint, RunPlan
 from kneebench.phases.theory import Theory
 from kneebench.store import repo
+
+# Stop a sweep early: past these, higher levels only repeat the failure.
+MAX_ERROR_RATE = 0.10
+GATEWAY_MIN_ERRORS = 3
+GATEWAY_ERROR_SHARE = 0.05
 
 
 @dataclass(frozen=True)
@@ -38,6 +45,8 @@ class PointEvent:
     total: int
     planned: PlannedPoint
     result: PointResult | None = None
+    skipped: str | None = None
+    summary: SweepPoint | None = None
 
 
 def client_info() -> dict[str, str]:
@@ -45,8 +54,21 @@ def client_info() -> dict[str, str]:
         "os": platform.system(),
         "machine": platform.machine(),
         "python": sys.version.split()[0],
-        "host_hint": "local",
     }
+
+
+def sweep_stop_reason(curve: list[SweepPoint], slo: Slo) -> str | None:
+    """Why the remaining concurrency levels can be skipped, or None to keep going."""
+    last = curve[-1]
+    if last.gateway_errors >= max(GATEWAY_MIN_ERRORS, GATEWAY_ERROR_SHARE * last.requests):
+        return "gateway_errors"
+    if last.error_rate > MAX_ERROR_RATE:
+        return "errors"
+    recent = steps(curve)[-2:]
+    saturated = len(recent) == 2 and all(s.gain < SATURATION_GAIN for s in recent)
+    if saturated and not meets(last, slo):
+        return "walls_found"
+    return None
 
 
 def execute_run(
@@ -78,21 +100,39 @@ def execute_run(
     )
 
     status = "done"
+    curve: list[SweepPoint] = []
+    stopped: str | None = None
+    total = len(plan.points)
     try:
         for i, planned in enumerate(plan.points):
+            if planned.phase == "concurrency" and stopped:
+                if on_event:
+                    on_event(PointEvent(i, total, planned, skipped=stopped))
+                continue
             if on_event:
-                on_event(PointEvent(i, len(plan.points), planned))
+                on_event(PointEvent(i, total, planned))
             point_id = repo.create_point(conn, run_id, i, planned.phase, planned.spec)
             artifact_dir = data_dir / "runs" / str(run_id) / f"{i:03d}-{planned.phase}"
             result = loadgen.run_point(inputs.endpoint, planned.spec, artifact_dir)
             parsed = parse_point(result.artifact_dir) if result.ok else None
             overhead = point_overhead_s(result.wall_time_s, result.artifact_dir)
             repo.finish_point(conn, point_id, result, parsed, overhead)
+
+            summary = None
+            if planned.phase == "concurrency" and result.ok:
+                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)))
+                curve.append(summary)
+                stopped = sweep_stop_reason(curve, inputs.workload.slo)
+                if stopped:
+                    repo.set_stop_reason(conn, point_id, stopped)
             if on_event:
-                on_event(PointEvent(i, len(plan.points), planned, result))
+                on_event(PointEvent(i, total, planned, result, summary=summary))
             if not result.ok:
-                status = "failed"
-                break
+                if planned.phase != "concurrency":
+                    status = "failed"
+                    break
+                stopped = stopped or "point_failed"
+                repo.set_stop_reason(conn, point_id, stopped)
     except KeyboardInterrupt:
         status = "cancelled"
         raise
