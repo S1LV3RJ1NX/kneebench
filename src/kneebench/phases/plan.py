@@ -20,6 +20,9 @@ DEFAULT_MAX_CONCURRENCY = 256
 SWEEP_ROUNDS = 4
 SWEEP_MIN_REQUESTS = 16
 SWEEP_MAX_WARMUP = 32
+# Length variation per request (note 26 section 5): identical lengths make closed-loop
+# requests finish and restart in lockstep, which turns into unrealistic prefill bursts.
+SWEEP_LENGTH_VARIATION = 0.05
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -75,6 +78,8 @@ def sweep_spec(shape: ShapeTheory, concurrency: int, slo: Slo) -> PointSpec:
         osl=shape.osl,
         mode=LoadMode.CONCURRENCY,
         concurrency=concurrency,
+        isl_stddev=round(shape.isl * SWEEP_LENGTH_VARIATION, 1),
+        osl_stddev=round(shape.osl * SWEEP_LENGTH_VARIATION),
         request_count=max(SWEEP_ROUNDS * concurrency, SWEEP_MIN_REQUESTS),
         warmup_count=min(concurrency, SWEEP_MAX_WARMUP),
         duration_s=POINT_DURATION_CAP_S,
