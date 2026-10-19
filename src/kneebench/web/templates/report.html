@@ -14,6 +14,9 @@
     </select>
     <button class="secondary" type="submit" title="Recompute every number from stored data; no rerun">Correct GPU</button>
   </form>
+  <form method="post" action="/runs/{{ report.run_id }}/delete"
+        onsubmit="return confirm('Delete run #{{ report.run_id }} and its measurements? This cannot be undone.')">
+    <button class="danger" type="submit">Delete</button></form>
 </div>
 {% include "report_body.html" %}
 {% endblock %}

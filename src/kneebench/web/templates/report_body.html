@@ -5,6 +5,8 @@
   {{ report.summary.product }} workload · {{ report.summary.run_started[:16].replace("T", " ") }} ·
   {{ report.summary.run_status }}</p>
 
+{% if report.summary.run_error %}<div class="notice bad">This run {{ report.summary.run_status }}: {{ report.summary.run_error }}
+  The report below uses the points measured before it stopped.</div>{% endif %}
 <h2>{{ s.verdict }}</h2>
 <div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
 

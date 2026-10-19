@@ -96,6 +96,7 @@ class RunContext:
     network: dict[str, Any] | None
     client: dict[str, Any]
     points: tuple[PointView, ...] = field(default=())
+    error: str | None = None
 
     def points_in(self, phase: str) -> list[PointView]:
         return [p for p in self.points if p.phase == phase and p.status == "done"]
@@ -187,4 +188,5 @@ def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
         network=_loads(run["network_json"]),
         client=_loads(run["client_json"]) or {},
         points=points,
+        error=run.get("error"),
     )

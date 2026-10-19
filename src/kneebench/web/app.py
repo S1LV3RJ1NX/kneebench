@@ -28,7 +28,14 @@ from kneebench.report.render_html import plotly_js, render_html, templates
 from kneebench.report.render_json import render_json
 from kneebench.report.render_md import render_markdown
 from kneebench.runlock import holder
-from kneebench.service import ALL_PHASES, PrepareError, RunRequest, correct_gpu, prepare
+from kneebench.service import (
+    ALL_PHASES,
+    PrepareError,
+    RunRequest,
+    correct_gpu,
+    delete_run_data,
+    prepare,
+)
 from kneebench.store import repo
 from kneebench.store.db import DB_FILENAME, connect
 from kneebench.web.manager import BusyError, RunManager
@@ -74,15 +81,15 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             ids.add(runs.active.run_id)
         return ids
 
+    def reconcile(conn: Connection) -> None:
+        # A run still "running" with no live process behind it was killed or crashed.
+        repo.mark_interrupted(conn, live_run_ids())
+
     @app.get("/", response_class=HTMLResponse)
     def home_page() -> HTMLResponse:
-        live_ids = live_run_ids()
         with db() as conn:
+            reconcile(conn)
             rows = [dict(r) for r in repo.list_runs(conn)]
-        for r in rows:
-            # "running" with no live process holding the lock means the process died.
-            if r["status"] == "running" and r["id"] not in live_ids:
-                r["status"] = "interrupted"
         return page("home.html", runs=rows, active=holder(home))
 
     @app.get("/runs/new", response_class=HTMLResponse)
@@ -198,19 +205,19 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
     @app.get("/runs/{run_id}/progress", response_class=HTMLResponse)
     def progress(run_id: int) -> HTMLResponse:
         with db() as conn:
-            run = repo.get_run(conn, run_id)
-            if run is None:
+            if repo.get_run(conn, run_id) is None:
                 raise HTTPException(404)
+            reconcile(conn)
+            prog = repo.progress(conn, run_id)
             rows = [
                 _progress_row(repo.point_dict(conn, r["id"]))
                 for r in conn.execute(
                     "SELECT id FROM points WHERE run_id = ? ORDER BY seq", (run_id,)
                 )
             ]
-        state = runs.state_for(run_id)
-        finished = run["status"] != "running" and (state is None or state.finished)
-        total = state.total if state else len(rows)
-        done = state.done if state else len(rows)
+        state = runs.state_for(run_id)  # only this window's runs can be stopped from here
+        finished = prog["status"] != "running"
+        total, done = prog["total"], prog["done"]
         remaining = None
         if state and not state.finished:
             mins = state.remaining_s / 60
@@ -220,18 +227,28 @@ def create_app(home: Path, manager: RunManager | None = None) -> FastAPI:
             run_id=run_id,
             rows=rows,
             finished=finished,
-            status=run["status"],
+            status=prog["status"],
             total=total,
             done=done,
             pct=round(100 * done / total) if total else 0,
             remaining=remaining,
-            current=state.current if state else None,
+            current=prog["current"],
             stopped=state.stopped if state else None,
-            error=state.error if state else None,
+            error=prog["error"] or (state.error if state else None),
             managed=state is not None,
             can_stop=state is not None and not state.cancel.is_set(),
             cancelling=state is not None and state.cancel.is_set(),
         )
+
+    @app.post("/runs/{run_id}/delete")
+    def delete_run(run_id: int) -> Response:
+        if run_id in live_run_ids():
+            raise HTTPException(409, "Stop the run before deleting it.")
+        with db() as conn:
+            if repo.get_run(conn, run_id) is None:
+                raise HTTPException(404)
+            delete_run_data(conn, home, run_id)
+        return RedirectResponse("/", status_code=303)
 
     def _report(run_id: int, style: str) -> Any:
         with db() as conn:

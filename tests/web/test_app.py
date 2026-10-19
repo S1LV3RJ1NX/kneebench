@@ -277,3 +277,11 @@ def test_running_run_without_a_live_process_shows_interrupted(home: Path, stored
     html = TestClient(create_app(home)).get("/").text
     assert "interrupted" in html
     assert 'class="spinner"' not in html
+
+
+def test_delete_from_the_ui(home: Path, stored_run: int) -> None:
+    client = TestClient(create_app(home))
+    resp = client.post(f"/runs/{stored_run}/delete", follow_redirects=False)
+    assert resp.status_code == 303
+    assert client.get(f"/runs/{stored_run}").status_code == 404
+    assert client.post(f"/runs/{stored_run}/delete").status_code == 404

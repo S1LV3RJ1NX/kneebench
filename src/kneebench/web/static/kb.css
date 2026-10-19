@@ -208,3 +208,8 @@ header.top .live { margin-left: auto; display: inline-flex; align-items: center;
 .htmx-indicator.spinner { opacity: 0; }
 .htmx-request .htmx-indicator.spinner, .htmx-request.htmx-indicator.spinner { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+.link-danger { background: none; border: none; padding: 0 0 0 12px; color: var(--subtle);
+  font-size: 13px; text-decoration: underline; text-decoration-color: var(--border);
+  text-underline-offset: 3px; }
+.link-danger:hover { background: none; color: var(--bad); text-decoration-color: var(--bad); }

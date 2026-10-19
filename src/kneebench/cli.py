@@ -283,6 +283,13 @@ def run(
     _write_report(conn, run_id, None, "md", show_verdict=True)
 
 
+def _live_run_ids() -> set[int]:
+    from kneebench.runlock import holder
+
+    lock = holder(data_dir())
+    return {int(lock["run_id"])} if lock and lock.get("run_id") else set()
+
+
 @app.command()
 def runs() -> None:
     """List recent runs."""
@@ -290,6 +297,7 @@ def runs() -> None:
     from kneebench.store.db import DB_FILENAME, connect
 
     conn = connect(data_dir() / DB_FILENAME)
+    repo.mark_interrupted(conn, _live_run_ids())
     table = Table("Run", "Started", "Status", "Model", "Endpoint", "Label")
     for r in repo.list_runs(conn):
         table.add_row(
@@ -330,6 +338,29 @@ def _correct_gpu(conn: object, run_id: int, gpu: str | None, gpu_count: int | No
     assert isinstance(conn, Connection)
     spec, count = correct_gpu(conn, run_id, gpu, gpu_count)
     console.print(f"Run {run_id} now uses {count}× {spec.name}.")
+
+
+@app.command()
+def delete(
+    run_id: Annotated[int, typer.Argument(help="Run id (see `kneebench runs`)")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Don't ask for confirmation")] = False,
+) -> None:
+    """Delete a run, its measurements and its artifacts."""
+    from kneebench.service import delete_run_data
+    from kneebench.store import repo
+    from kneebench.store.db import DB_FILENAME, connect
+
+    if run_id in _live_run_ids():
+        console.print(f"[red]Run {run_id} is still running; stop it first.[/]")
+        raise typer.Exit(1)
+    conn = connect(data_dir() / DB_FILENAME)
+    if repo.get_run(conn, run_id) is None:
+        console.print(f"[red]No run {run_id}.[/]")
+        raise typer.Exit(1)
+    if not yes and not typer.confirm(f"Delete run {run_id} and its measurements?", default=False):
+        raise typer.Exit(1)
+    delete_run_data(conn, data_dir(), run_id)
+    console.print(f"Deleted run {run_id}.")
 
 
 @app.command()

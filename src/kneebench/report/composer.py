@@ -178,6 +178,7 @@ def compose(
             "product": common["product_label"],
             "run_started": ctx.started_at,
             "run_status": ctx.status,
+            "run_error": ctx.error,
             "kneebench_version": __version__,
             "aiperf_version": ctx.aiperf_version,
             "rules_version": RULES_VERSION,

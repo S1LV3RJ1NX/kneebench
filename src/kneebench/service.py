@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
+from pathlib import Path
 from sqlite3 import Connection
 
 from kneebench import content
@@ -139,3 +141,10 @@ def correct_gpu(
     theory = theory_from_snapshot(bundle["snapshot"], bundle["workload"], Hardware(spec, count))
     repo.correct_setup(conn, run_id, setup, theory.to_json())
     return spec, count
+
+
+def delete_run_data(conn: Connection, home: Path, run_id: int) -> None:
+    """Remove a run from the database and its AIPerf artifacts from disk."""
+    repo.delete_run(conn, run_id)
+    shutil.rmtree(home / "runs" / str(run_id), ignore_errors=True)
+    (home / "reports" / f"run-{run_id}.md").unlink(missing_ok=True)
