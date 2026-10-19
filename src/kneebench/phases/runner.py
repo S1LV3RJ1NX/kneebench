@@ -34,6 +34,7 @@ from kneebench.phases.plan import (
     SWEEP_ROUNDS,
     PlannedPoint,
     RunPlan,
+    sweep_rounds,
 )
 from kneebench.phases.theory import Theory
 from kneebench.store import repo
@@ -86,6 +87,18 @@ def sweep_stop_reason(curve: list[SweepPoint], slo: Slo) -> str | None:
     if saturated and not meets(last, slo):
         return "walls_found"
     return None
+
+
+def _size_by_measured_e2e(planned: PlannedPoint, e2e_ms: float | None) -> PlannedPoint:
+    """Add rounds when the last level's answers were shorter than the plan assumed.
+
+    Answers only get slower as users are added, so the previous level's time is a safe floor.
+    """
+    c = planned.spec.concurrency or 1
+    needed = sweep_rounds(e2e_ms) * c
+    if e2e_ms is None or needed <= (planned.spec.request_count or 0):
+        return planned
+    return replace(planned, spec=replace(planned.spec, request_count=needed))
 
 
 def _resolve_operating_point(
@@ -159,6 +172,7 @@ def execute_run(
     curve: list[SweepPoint] = []
     rtt = inputs.snapshot.network.http_rtt_ms if inputs.snapshot.network else None
     offset = rtt or 0.0
+    last_e2e_ms: float | None = None
     stopped: str | None = None
     rate_stopped: str | None = None
     total = len(plan.points)
@@ -171,6 +185,8 @@ def execute_run(
                 if on_event:
                     on_event(PointEvent(i, total, planned, skipped=stopped))
                 continue
+            if planned.phase == "concurrency":
+                planned = _size_by_measured_e2e(planned, last_e2e_ms)
             if planned.at_operating_point:
                 planned, op_skip = _resolve_operating_point(planned, curve, inputs.workload.slo)
                 if op_skip:
@@ -205,7 +221,9 @@ def execute_run(
                     base_shape.ttft_floor_ms if base_shape else None,
                 )
             if planned.phase == "concurrency" and result.ok:
-                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)), offset)
+                view = point_from_dict(repo.point_dict(conn, point_id))
+                last_e2e_ms = view.m("request_latency", "p50") or last_e2e_ms
+                summary = summarize(view, offset)
                 curve.append(summary)
                 stopped = sweep_stop_reason(curve, inputs.workload.slo)
                 if stopped:

@@ -25,6 +25,10 @@ DEFAULT_MAX_CONCURRENCY = 256
 # Rounds of requests per concurrency level: enough for a steady-state window (note 25).
 SWEEP_ROUNDS = 4
 SWEEP_MIN_REQUESTS = 16
+# A level's window at full load must last 20 s (analysis/steady.py); aim for half again more,
+# so short answers get more rounds instead of a throughput number with no steady state.
+STEADY_TARGET_S = 30.0
+SWEEP_MAX_ROUNDS = 40
 SWEEP_MAX_WARMUP = 32
 # Length variation per request (note 26 section 5): identical lengths make closed-loop
 # requests finish and restart in lockstep, which turns into unrealistic prefill bursts.
@@ -105,7 +109,21 @@ def concurrency_levels(
     return [2**i for i in range(int(math.log2(max(top, 1))) + 1)]
 
 
-def sweep_spec(shape: ShapeTheory, concurrency: int, slo: Slo) -> PointSpec:
+def sweep_rounds(e2e_ms: float | None) -> int:
+    """Back-to-back rounds per user so the window at full load outlasts STEADY_TARGET_S.
+
+    In a closed loop the window runs from full load to the last request issued, about one
+    round short of the whole point.
+    """
+    if not e2e_ms or e2e_ms <= 0:
+        return SWEEP_ROUNDS
+    need = math.ceil(STEADY_TARGET_S * 1000 / e2e_ms) + 1
+    return max(SWEEP_ROUNDS, min(need, SWEEP_MAX_ROUNDS))
+
+
+def sweep_spec(
+    shape: ShapeTheory, concurrency: int, slo: Slo, e2e_ms: float | None = None
+) -> PointSpec:
     return PointSpec(
         isl=shape.isl,
         osl=shape.osl,
@@ -113,7 +131,7 @@ def sweep_spec(shape: ShapeTheory, concurrency: int, slo: Slo) -> PointSpec:
         concurrency=concurrency,
         isl_stddev=round(shape.isl * SWEEP_LENGTH_VARIATION, 1),
         osl_stddev=round(shape.osl * SWEEP_LENGTH_VARIATION),
-        request_count=max(SWEEP_ROUNDS * concurrency, SWEEP_MIN_REQUESTS),
+        request_count=max(sweep_rounds(e2e_ms) * concurrency, SWEEP_MIN_REQUESTS),
         warmup_count=min(concurrency, SWEEP_MAX_WARMUP),
         duration_s=POINT_DURATION_CAP_S,
         slice_duration_s=SLICE_S,
@@ -174,7 +192,7 @@ def shape_spec(isl: int, osl: int, concurrency: int, slo: Slo) -> PointSpec:
 def estimate_e2e_ms(
     theory: Theory, shape: ShapeTheory, concurrency: int, slowdown: float = UNMEASURED_SLOWDOWN
 ) -> float:
-    """Every decode step reads the weights once plus each user's cache (note 26 deriv. 4)."""
+    """Every decode step reads the weights once plus each user's cache (note 26 section 2)."""
     weights = theory.model_weight_bytes
     avg_context = shape.isl + shape.osl / 2
     kv_read = concurrency * avg_context * theory.kv_bytes_per_token
@@ -231,7 +249,15 @@ def plan_run(
         primary = primary_shape_name(product, tuple(s.name for s in theory.shapes))
         shape = theory.shape(primary) or base_shape
         levels = concurrency_levels(theory, shape, max_concurrency, max_num_seqs)
-        sweep = [(c, sweep_spec(shape, c, slo or Slo(None, None))) for c in levels]
+        sweep = [
+            (
+                c,
+                sweep_spec(
+                    shape, c, slo or Slo(None, None), estimate_e2e_ms(theory, shape, c, slowdown)
+                ),
+            )
+            for c in levels
+        ]
         for _, spec in sweep:
             add("concurrency", spec, shape)
         if "rate" in phases:

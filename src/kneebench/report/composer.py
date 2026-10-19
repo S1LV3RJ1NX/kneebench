@@ -129,24 +129,27 @@ def _next_steps(problems: list[RenderedFinding]) -> list[NextStep]:
     One step per flag (or per title, without a flag): two findings can ask for the same
     setting, and the higher-ranked one wins rather than giving two different values.
     """
-    seen: set[tuple[str, str]] = set()
-    ordered: dict[str, list[tuple[str, str, RenderedAction]]] = {"server": [], "test": []}
+    seen: dict[tuple[str, str], list[str]] = {}
+    ordered: dict[str, list[tuple[list[str], str, RenderedAction]]] = {"server": [], "test": []}
     for r in problems:
         for action in r.actions:
-            key = _setting(action)
-            if (action.kind, key) in seen:
+            key = (action.kind, _setting(action))
+            if key in seen:
+                seen[key].append(r.rule_id)  # the kept step lists every finding behind it
                 continue
-            seen.add((action.kind, key))
-            ordered.setdefault(action.kind, []).append((r.rule_id, r.status_line, action))
+            seen[key] = [r.rule_id]
+            ordered.setdefault(action.kind, []).append((seen[key], r.status_line, action))
     steps: list[NextStep] = []
     for group in ordered.values():
-        for rank, (rule_id, reason, action) in enumerate(group, start=1):
-            steps.append(NextStep(rank, rule_id, reason, action))
+        for rank, (rule_ids, reason, action) in enumerate(group, start=1):
+            steps.append(NextStep(rank, ", ".join(dict.fromkeys(rule_ids)), reason, action))
     return steps
 
 
 def _setting(action: RenderedAction) -> str:
-    """What an action changes: its first --flag, else the whole command, else its title."""
+    """What an action changes: its group, its first --flag, the whole command, or its title."""
+    if action.group:
+        return action.group
     if not action.flag:
         return action.title
     return next((w for w in action.flag.split() if w.startswith("--")), action.flag)

@@ -16,7 +16,8 @@ why: >-
 learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
 actions:
   - when: [warn]
-    title: Run kneebench on a bigger machine closer to the server
+    title: Run kneebench next to the server, on a machine that keeps up
+    group: client
     expected: Achieved concurrency matches the target.
     risk: None.
     verify: This check turns green.

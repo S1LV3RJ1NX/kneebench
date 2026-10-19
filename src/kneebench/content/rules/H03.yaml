@@ -37,7 +37,8 @@ why: >-
 learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
 actions:
   - when: [warn, bad]
-    title: Run kneebench close to the server
+    title: Run kneebench next to the server, on a machine that keeps up
+    group: client
     expected: >-
       Time to first token drops by about the round trip ({{ ms(http_rtt_ms) }}), and server-side
       time to first token becomes measurable.

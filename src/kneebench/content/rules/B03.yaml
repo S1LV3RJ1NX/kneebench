@@ -25,7 +25,8 @@ why: >-
 learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
 actions:
   - when: [warn]
-    title: Measure from next to the server
+    title: Run kneebench next to the server, on a machine that keeps up
+    group: client
     expected: If time to first token drops, the delay was network or gateway, not vLLM.
     risk: None.
     verify: Rerun kneebench from a machine in the same cluster or region.

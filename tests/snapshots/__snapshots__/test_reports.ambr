@@ -31,7 +31,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -61,7 +61,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -243,7 +243,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -273,7 +273,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -467,7 +467,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ## Try these next
   
@@ -485,7 +485,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -679,7 +679,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -710,7 +710,7 @@
   These don't touch your server. They make the next run's numbers more trustworthy.
   
   1. **Correct the GPU type** (T07). Why: The server's cache (65.0 GiB) plus weights (15.0 GiB) need at least 90.0 GiB per GPU, more than NVIDIA H100 SXM 80GB has (79.6 GiB). The GPU entry is probably wrong. Expected: Floors and memory findings match the real hardware. Risk: None.
-  2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  2. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -891,7 +891,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench close to the server. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Server metrics not visible (H08)
   
@@ -911,7 +911,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   2. **Expose /metrics through your gateway (read-only)** (H08). Why: The server's /metrics wasn't reachable, so memory and queue findings (cache use, preemption, waiting requests) can't be shown. Expected: Cache use, preemptions and queue length appear in the report. Risk: Metrics reveal load and configuration; restrict access as you would any internal page.
   
   ## What the hardware allows

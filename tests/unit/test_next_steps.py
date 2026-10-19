@@ -24,23 +24,23 @@ def _finding(rule_id: str, *actions: RenderedAction) -> RenderedFinding:
     )
 
 
-def _action(title: str, flag: str | None, kind: str) -> RenderedAction:
-    return RenderedAction(title, flag, None, None, "rerun", kind)
+def _action(title: str, flag: str | None, kind: str, group: str | None = None) -> RenderedAction:
+    return RenderedAction(title, flag, None, None, "rerun", kind, group)
 
 
 def test_server_changes_come_first_and_duplicates_merge() -> None:
     problems = [
-        _finding("H03", _action("Run closer", None, "test")),
+        _finding("H03", _action("Run closer", None, "test", "client")),
         _finding("W06", _action("Lower the cap", "--max-num-seqs 118", "server")),
         _finding("S04", _action("Cap long answers", "--max-num-seqs 66", "server")),
-        _finding("R03", _action("Run closer", None, "test")),
+        _finding("R03", _action("Bigger client", None, "test", "client")),
         _finding("S05", _action("Rerun with your size", "kneebench run --shapes 2000/500", "test")),
         _finding("C03", _action("Sweep higher", "kneebench run --max-concurrency 512", "test")),
     ]
     steps = _next_steps(problems)
     assert [(s.action.kind, s.rank, s.rule_id) for s in steps] == [
-        ("server", 1, "W06"),  # S04's different --max-num-seqs is dropped
-        ("test", 1, "H03"),  # R03 repeats the same advice
+        ("server", 1, "W06, S04"),  # one --max-num-seqs value, from the higher-ranked W06
+        ("test", 1, "H03, R03"),  # the same advice, from both findings
         ("test", 2, "S05"),
         ("test", 3, "C03"),
     ]

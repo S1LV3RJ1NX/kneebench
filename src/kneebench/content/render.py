@@ -156,6 +156,7 @@ class RenderedAction:
     risk: str | None
     verify: str | None
     kind: str = "test"  # "server": change the server or deployment; "test": rerun differently
+    group: str | None = None  # actions in one group are the same advice from different findings
 
 
 @dataclass(frozen=True)
@@ -249,6 +250,7 @@ def render_finding(
             risk=_render(env, a.get("risk"), variables),
             verify=_render(env, a.get("verify"), variables),
             kind=str(a.get("kind", "test")),
+            group=a.get("group"),
         )
         for a in spec.get("actions", [])
         if status in a.get("when", [])

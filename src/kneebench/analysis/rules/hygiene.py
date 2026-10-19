@@ -30,6 +30,12 @@ OSL_WARNING = "Output Sequence Length Mismatch"
 TOKEN_WARNING = "Token Count Discrepancy"
 
 
+# Token counts that differ by the same few tokens everywhere are the chat template, not a
+# tokenizer mismatch (kneebench estimate); a real mismatch is off by a share of the length.
+TEMPLATE_OFFSET_SPREAD = 8
+TOKEN_RATIO_WARN = 0.05
+
+
 @rule("H03", tags={"reliability", "network", "ttft"}, source="25#6")
 def client_distance(ctx: RunContext) -> Finding | None:
     base = ctx.baseline
@@ -96,9 +102,26 @@ def output_length(ctx: RunContext) -> Finding | None:
 @rule("H05", tags={"reliability", "tokenizer"}, source="26#5")
 def token_count_discrepancy(ctx: RunContext) -> Finding | None:
     flagged = list(dict.fromkeys(p.phase for p in ctx.points if p.has_warning(TOKEN_WARNING)))
+    pairs = [
+        (client, server)
+        for p in ctx.points
+        if (client := p.m("input_sequence_length", "avg"))
+        and (server := p.m("usage_prompt_tokens", "avg"))
+    ]
+    if len(pairs) >= 2:
+        offsets = [server - client for client, server in pairs]
+        # The server wraps every prompt in the chat template: a fixed number of extra tokens,
+        # large next to a short prompt. A wrong tokenizer is off by a share of the length.
+        if max(offsets) - min(offsets) <= TEMPLATE_OFFSET_SPREAD:
+            return ok("H05", overhead=round(sum(offsets) / len(offsets)), checked=len(pairs))
+        ratios = [server / client for client, server in pairs if client > 0]
+        off = max(abs(r - 1) for r in ratios)
+        if off > TOKEN_RATIO_WARN:
+            return warn("H05", phases=flagged or ["all points"], off=off, tokenizer=ctx.hf_model_id)
+        return ok("H05", overhead=None, checked=len(pairs))
     if not flagged:
         return None
-    return warn("H05", phases=flagged, tokenizer=ctx.hf_model_id)
+    return warn("H05", phases=flagged, off=None, tokenizer=ctx.hf_model_id)
 
 
 @rule("H07", tags={"reliability", "version"}, source="24#3")
