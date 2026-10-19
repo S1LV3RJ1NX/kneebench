@@ -10,14 +10,14 @@ from kneebench.analysis.rules.concurrency import sweep
 from kneebench.analysis.sweep import first_crossing, operating_point, saturation
 from kneebench.phases.theory import ShapeTheory
 
-# Note 27 derivation 1 tip: run below c* with headroom for bursts.
+# Note 27 section 5: run below c* with headroom for bursts.
 BURST_HEADROOM = 0.8
 # Note 27 section 1: errors and timeouts count as failures.
 ERROR_WARN = 0.01
 ERROR_BAD = 0.05
-# A cap this far above what the cache sustains invites preemption (note 27 derivation 4).
+# A cap this far above what the cache sustains invites preemption (note 27 section 4).
 SEQS_SLACK = 1.2
-# Note 26 derivation 1 / 27 derivation 3: prefill at ~50% of peak for re-prefill cost.
+# Note 26 section 1 / 27 section 4: prefill at ~50% of peak for re-prefill cost.
 PREFILL_EFFICIENCY = 0.5
 
 
@@ -123,7 +123,7 @@ def capacity(ctx: RunContext) -> dict[str, object] | None:
     }
 
 
-@rule("W03", tags={"capacity", "latency"}, source="27 derivation 1")
+@rule("W03", tags={"capacity", "latency"}, source="27#3")
 def capacity_wall(ctx: RunContext) -> Finding | None:
     cap = capacity(ctx)
     if cap is None:
@@ -166,7 +166,7 @@ def preemption(ctx: RunContext) -> Finding | None:
     )
 
 
-@rule("W05", tags={"memory", "preemption", "shape"}, source="26 derivation 3")
+@rule("W05", tags={"memory", "preemption", "shape"}, source="26#4")
 def late_preemption(ctx: RunContext) -> Finding | None:
     shape = _shape(ctx)
     pool = ctx.theory.pool_tokens
@@ -196,7 +196,7 @@ def late_preemption(ctx: RunContext) -> Finding | None:
     )
 
 
-@rule("W06", tags={"memory", "capacity", "setup"}, source="27 derivation 4")
+@rule("W06", tags={"memory", "capacity", "setup"}, source="27#4")
 def max_num_seqs(ctx: RunContext) -> Finding | None:
     shape = _shape(ctx)
     pool = ctx.theory.pool_tokens
@@ -252,7 +252,7 @@ def errors(ctx: RunContext) -> Finding | None:
     return verdict("W07", points=failing, worst=worst, first=over[0].concurrency)
 
 
-@rule("W08", tags={"capacity"}, source="27 derivation 1")
+@rule("W08", tags={"capacity"}, source="27#5")
 def headroom(ctx: RunContext) -> Finding | None:
     cap = capacity(ctx)
     if cap is None:
@@ -265,7 +265,7 @@ def headroom(ctx: RunContext) -> Finding | None:
     )
 
 
-@rule("W09", tags={"memory", "preemption"}, source="27 derivation 3")
+@rule("W09", tags={"memory", "preemption"}, source="27#4")
 def preemption_cost(ctx: RunContext) -> Finding | None:
     shape = _shape(ctx)
     hit = [p for p in sweep(ctx) if (p.preemptions or 0) > 0]

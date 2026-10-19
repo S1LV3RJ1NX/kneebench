@@ -132,7 +132,7 @@ def spread(ctx: RunContext) -> Finding | None:
     return ok("B04", **data)
 
 
-@rule("B05", tags={"physics", "ttft", "prefill"}, source="24 derivation 4")
+@rule("B05", tags={"physics", "ttft", "prefill"}, source="24#4")
 def prefill_mfu(ctx: RunContext) -> Finding | None:
     base = ctx.baseline
     shape = ctx.theory.shape("baseline")

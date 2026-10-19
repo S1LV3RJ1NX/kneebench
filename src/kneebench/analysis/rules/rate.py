@@ -71,7 +71,7 @@ def rate_capacity(ctx: RunContext) -> Finding | None:
     return info("R01", **data) if best is not None else warn("R01", **data)
 
 
-@rule("R02", tags={"capacity", "ttft", "reliability"}, source="25 derivation 4")
+@rule("R02", tags={"capacity", "ttft", "reliability"}, source="25#4")
 def run_length(ctx: RunContext) -> Finding | None:
     pts, mu = _points(ctx)
     if not pts:

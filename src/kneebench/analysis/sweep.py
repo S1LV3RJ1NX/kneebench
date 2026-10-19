@@ -13,7 +13,7 @@ from kneebench.domain import Slo
 
 # Note 27 section 2: once doubling concurrency adds less than ~5%, you've saturated.
 SATURATION_GAIN = 0.05
-# Note 25 derivation 3: marginal efficiency per doubling; at or above this it is "flat".
+# Marginal efficiency per doubling (kneebench estimate); at or above this it is "flat".
 FLAT_EFFICIENCY = 0.8
 GATEWAY_CODES = {408, 429, 502, 503, 504}
 
@@ -97,7 +97,7 @@ class Step:
     c_from: int
     c_to: int
     gain: float  # throughput ratio minus 1
-    efficiency: float  # gain relative to ideal for this step (note 25 derivation 3)
+    efficiency: float  # gain relative to ideal for this step (kneebench estimate)
 
 
 def steps(points: Sequence[SweepPoint]) -> list[Step]:

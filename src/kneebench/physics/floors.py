@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from kneebench.physics.gpus import GIB, GpuSpec
 from kneebench.physics.model import ModelSpec
 
-# Note 26 derivation 1: prefill is assumed to run at ~50% of peak for the exchange rate.
+# Note 26 section 1: prefill is assumed to run at ~50% of peak for the exchange rate.
 PREFILL_EFFICIENCY_FOR_EXCHANGE = 0.5
 # Activations, CUDA graphs and allocator slack that sit inside vLLM's memory budget.
 MIN_RUNTIME_OVERHEAD_BYTES = 1 * GIB
@@ -70,7 +70,7 @@ def exchange_rate(model: ModelSpec, hw: Hardware) -> float:
 
 
 def requests_that_fit(pool_tokens: int, isl: int, osl: int) -> float:
-    """Sized by final length, not starting length (note 26 derivation 3)."""
+    """Sized by final length, not starting length (note 26 section 4)."""
     return pool_tokens / (isl + osl)
 
 

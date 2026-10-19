@@ -18,7 +18,7 @@ from kneebench.domain import Slo
 NS = 1e9
 TREND_BIN_S = 10.0
 TREND_MIN_REQUESTS = 3
-# Note 25 derivation 4: past capacity, the newest request waits for everyone ahead of it.
+# Note 25 section 4: past capacity, the newest request waits for everyone ahead of it.
 GROWTH_PAST_CAPACITY = 2.0
 GROWTH_MIN_INCREASE_MS = 500.0
 # Two rates within this share of each other count as the same load level.
