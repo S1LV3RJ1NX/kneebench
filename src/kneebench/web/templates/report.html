@@ -17,8 +17,8 @@
   <summary><b>What if…</b> <span class="muted small">judge this run against other targets{% if has_estimates %}, or estimate another request size{% endif %}. Uses the stored measurements; nothing is re-run.</span></summary>
   <form method="get" class="whatif-form">
     <input type="hidden" name="whatif" value="1">
-    <label>First token <input name="slo_ttft_ms" type="number" min="1" step="any" value="{{ slo.ttft_ms if slo.ttft_ms is not none else '' }}" placeholder="no target"> ms</label>
-    <label>Per token <input name="slo_tpot_ms" type="number" min="0.1" step="any" value="{{ slo.tpot_ms if slo.tpot_ms is not none else '' }}" placeholder="no target"> ms</label>
+    <label>First token <input name="slo_ttft_ms" type="number" min="1" step="any" value="{{ '%g'|format(slo.ttft_ms) if slo.ttft_ms is not none else '' }}" placeholder="no target"> ms</label>
+    <label>Per token <input name="slo_tpot_ms" type="number" min="0.1" step="any" value="{{ '%g'|format(slo.tpot_ms) if slo.tpot_ms is not none else '' }}" placeholder="no target"> ms</label>
     <label>Met by <select name="slo_percentile">
       <option value="99"{% if slo.percentile == 99 %} selected{% endif %}>P99</option>
       <option value="90"{% if slo.percentile == 90 %} selected{% endif %}>P90</option></select></label>

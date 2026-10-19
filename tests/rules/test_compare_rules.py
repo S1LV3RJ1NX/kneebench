@@ -35,6 +35,7 @@ def test_x01_one_change_is_a_clean_comparison() -> None:
     f = _rule("X01", _before(), _after())
     assert f.status is Status.OK
     assert f.data["change"]["label"] == "max_num_seqs"
+    assert _rule("X02", _before(), _after()).data["comparable"]
     assert f.data["change"]["a"] == "default"
     assert f.data["change"]["b"] == 128
 
@@ -45,7 +46,10 @@ def test_x01_same_setup_and_different_tests() -> None:
     other = replace(other, workload=replace(other.workload, slo=Slo(300, 30)))
     f = _rule("X01", _before(), other)
     assert f.status is Status.WARN
-    assert [w["label"] for w in f.data["workload"]] == ["Latency targets"]
+    assert [w["label"] for w in f.data["workload"]] == ["latency targets"]
+    unfair = _rule("X02", _before(), other)
+    assert unfair.status is Status.INFO
+    assert not unfair.data["comparable"]
     several = replace(_after(), vllm_version="0.30.0")
     f = _rule("X01", _before(), several)
     assert f.status is Status.WARN

@@ -8,10 +8,11 @@ status_line:
     {% if better %}Better: {{ better | join(", ") | lower }}. {% endif %}Worse:
     {{ worse | join(", ") | lower }}.
   info: >-
-    Nothing moved by more than {{ pct(noise_pct) }}: the change made no measurable difference.
+    {% if not comparable %}The results are shown side by side without a verdict.{% else %}Nothing moved by more than {{ num(noise_pct) }}%: the
+    change made no measurable difference.{% endif %}
 measured: >-
-  The same numbers from both reports, side by side; changes under {{ pct(noise_pct) }} count as
-  noise.{% if grid_note %} The number of users is measured on a doubling grid (1, 2, 4, 8 and
+  The same numbers from both reports, side by side; changes under {{ num(noise_pct) }}% count
+  as noise.{% if grid_note %} The number of users is measured on a doubling grid (1, 2, 4, 8 and
   so on), so it moves in steps of two.{% endif %}
 meaning:
   ok: >-
@@ -20,8 +21,9 @@ meaning:
     Weigh the trade-off against what your users feel: per-user speed and first-token time for
     chat, total throughput for batch jobs.
   info: >-
-    If you expected a gain, check that the setting actually reached the server (the detected
-    setup is in each report).
+    {% if not comparable %}Rerun one of them with the same traffic type, request size and
+    latency targets to get a verdict.{% else %}If you expected a gain, check that the setting
+    actually reached the server (the detected setup is in each report).{% endif %}
 why: >-
   Capacity, throughput and per-user speed trade against each other: a change that admits more
   users often makes each one slower. Comparing them all keeps a gain in one from hiding a loss
@@ -30,7 +32,7 @@ learn_more: {note: "24", anchor: "6-write-it-down", label: "Write it down"}
 table:
   rows: rows
   columns:
-    - {key: label, label: Measure}
+    - {key: title, label: Measure}
     - {key: a, label: Before, fmt: num}
     - {key: b, label: After, fmt: num}
     - {key: ratio, label: Change, fmt: times}

@@ -12,15 +12,15 @@ from kneebench.analysis.engine import Finding, Rule, evaluate, info, ok, warn
 # Changes smaller than this are treated as run-to-run noise.
 NOISE = 0.05
 
-# (key, label, better): +1 when higher is better, -1 when lower is better.
-METRICS: tuple[tuple[str, str, int], ...] = (
-    ("capacity_users", "Users within your targets", 1),
-    ("op_tok_s", "Tokens per second within your targets", 1),
-    ("peak_tok_s", "Peak tokens per second", 1),
-    ("rate_rps", "Requests per second with random arrivals", 1),
-    ("tpot_ms", "Time per output token, one user", -1),
-    ("ttft_ms", "Time to first token, one user (server side)", -1),
-    ("mbu_pct", "Memory bandwidth used, one user (%)", 1),
+# (key, label, unit, better): +1 when higher is better, -1 when lower is better.
+METRICS: tuple[tuple[str, str, str, int], ...] = (
+    ("capacity_users", "Users within your targets", "", 1),
+    ("op_tok_s", "Tokens per second within your targets", "", 1),
+    ("peak_tok_s", "Peak tokens per second", "", 1),
+    ("rate_rps", "Requests per second with random arrivals", "", 1),
+    ("tpot_ms", "Time per output token, one user", "ms", -1),
+    ("ttft_ms", "Time to first token, one user, server side", "ms", -1),
+    ("mbu_pct", "Memory bandwidth used, one user", "%", 1),
 )
 
 
@@ -36,19 +36,20 @@ class RunFacts:
     max_tested: int | None
 
 
+# Labels read inside sentences ("the GPU and the vLLM version changed"); tables capitalize them.
 SETUP_LABELS = {
-    "model": "Model",
+    "model": "model",
     "gpu": "GPU",
     "vllm_version": "vLLM version",
-    "max_model_len": "Context window",
+    "max_model_len": "context window",
     "max_num_seqs": "max_num_seqs",
     "enforce_eager": "enforce_eager",
-    "kv_pool_tokens": "KV cache (tokens)",
+    "kv_pool_tokens": "KV cache tokens",
 }
 WORKLOAD_LABELS = {
-    "product": "Traffic type",
-    "shape": "Main request size",
-    "targets": "Latency targets",
+    "product": "traffic type",
+    "shape": "main request size",
+    "targets": "latency targets",
 }
 
 
@@ -109,7 +110,7 @@ def changes(a: dict[str, Any], b: dict[str, Any], labels: dict[str, str]) -> lis
 
 def metric_rows(cc: CompareContext) -> list[dict[str, Any]]:
     rows = []
-    for key, label, better in METRICS:
+    for key, label, unit, better in METRICS:
         va, vb = cc.a.metrics.get(key), cc.b.metrics.get(key)
         if va is None and vb is None:
             continue
@@ -121,7 +122,15 @@ def metric_rows(cc: CompareContext) -> list[dict[str, Any]]:
         else:
             verdict = "better" if (ratio > 1) == (better > 0) else "worse"
         rows.append(
-            {"key": key, "label": label, "a": va, "b": vb, "ratio": ratio, "verdict": verdict}
+            {
+                "key": key,
+                "label": label,
+                "title": f"{label} ({unit})" if unit else label,
+                "a": va,
+                "b": vb,
+                "ratio": ratio,
+                "verdict": verdict,
+            }
         )
     return rows
 
@@ -155,6 +164,7 @@ def what_changed(cc: CompareContext) -> Finding:
 @compare_rule("X02", tags={"capacity"}, source="24#6")
 def what_it_did(cc: CompareContext) -> Finding | None:
     rows = metric_rows(cc)
+    comparable = not changes(cc.a.workload, cc.b.workload, WORKLOAD_LABELS)
     known = [r for r in rows if r["verdict"] != "unknown"]
     if not known:
         return None
@@ -166,10 +176,13 @@ def what_it_did(cc: CompareContext) -> Finding | None:
         "better": [r["label"] for r in better],
         "worse": [r["label"] for r in worse],
         "headline": headline,
-        "noise_pct": NOISE,
+        "noise_pct": NOISE * 100,
+        "comparable": comparable,
         # Capacity is measured on a doubling grid; one step is a factor of two.
         "grid_note": headline["key"] == "capacity_users" and headline["verdict"] != "same",
     }
+    if not comparable:
+        return info("X02", case="not_comparable", **data)
     if worse:
         return warn("X02", case="worse", **data)
     if better:

@@ -76,7 +76,7 @@ def build_comparison(conn: Connection, a_id: int, b_id: int, style: str = "md") 
         setup=_setup_rows(cc),
         metrics=[
             (
-                r["label"],
+                r["title"],
                 _text(r["a"]),
                 _text(r["b"]),
                 times(r["ratio"]) if r["ratio"] else "-",
@@ -93,7 +93,8 @@ def _setup_rows(cc: CompareContext) -> list[tuple[str, str, str, bool]]:
     for source, labels in ((("setup", SETUP_LABELS)), ("workload", WORKLOAD_LABELS)):
         a, b = getattr(cc.a, source), getattr(cc.b, source)
         for key, label in labels.items():
-            rows.append((label, _text(a.get(key)), _text(b.get(key)), a.get(key) != b.get(key)))
+            title = label[0].upper() + label[1:]
+            rows.append((title, _text(a.get(key)), _text(b.get(key)), a.get(key) != b.get(key)))
     return rows
 
 
