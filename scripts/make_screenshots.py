@@ -27,12 +27,12 @@ sys.path.insert(0, str(ROOT))
 import uvicorn  # noqa: E402
 from PIL import Image  # noqa: E402
 from playwright.sync_api import Page, sync_playwright  # noqa: E402
+from tests.builders import ENDPOINT_FIXTURE  # noqa: E402
+from tests.conftest import FakeServer, json_route, text_route  # noqa: E402
 
 from kneebench.store import repo  # noqa: E402
 from kneebench.store.db import DB_FILENAME, connect  # noqa: E402
 from kneebench.web.app import create_app  # noqa: E402
-from tests.builders import ENDPOINT_FIXTURE  # noqa: E402
-from tests.conftest import FakeServer, json_route, text_route  # noqa: E402
 
 OUT = ROOT / "docs" / "images"
 PLACEHOLDER_URL = "http://vllm.example:8000"
