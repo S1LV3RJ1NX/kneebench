@@ -150,10 +150,102 @@ def create_run(
     return int(cur.lastrowid or 0)
 
 
-def finish_run(conn: Connection, run_id: int, status: str) -> None:
+def finish_run(conn: Connection, run_id: int, status: str, error: str | None = None) -> None:
     conn.execute(
-        "UPDATE runs SET status = ?, finished_at = ? WHERE id = ?", (status, now(), run_id)
+        "UPDATE runs SET status = ?, finished_at = ?, error = ? WHERE id = ?",
+        (status, now(), error, run_id),
     )
+
+
+def set_planned_points(conn: Connection, run_id: int, planned: int) -> None:
+    conn.execute("UPDATE runs SET planned_points = ? WHERE id = ?", (planned, run_id))
+
+
+def mark_interrupted(conn: Connection, live_run_ids: set[int]) -> list[int]:
+    """Runs still marked running whose process is gone (killed, crashed, machine slept)."""
+    stale = [
+        int(r["id"])
+        for r in conn.execute("SELECT id FROM runs WHERE status = 'running'")
+        if int(r["id"]) not in live_run_ids
+    ]
+    for run_id in stale:
+        conn.execute(
+            "UPDATE points SET status = 'interrupted' WHERE run_id = ? AND status = 'running'",
+            (run_id,),
+        )
+        finish_run(
+            conn,
+            run_id,
+            "interrupted",
+            "The process running this benchmark stopped before it finished.",
+        )
+    return stale
+
+
+def progress(conn: Connection, run_id: int) -> dict[str, Any]:
+    """How far a run is, from the database alone (works for CLI and UI runs alike)."""
+    run = get_run(conn, run_id)
+    if run is None:
+        raise KeyError(f"no run with id {run_id}")
+    rows = list(
+        conn.execute(
+            "SELECT seq, phase, concurrency, status FROM points WHERE run_id = ? ORDER BY seq",
+            (run_id,),
+        )
+    )
+    current = next((r for r in rows if r["status"] == "running"), None)
+    last_seq = rows[-1]["seq"] if rows else -1
+    finished_points = sum(1 for r in rows if r["status"] != "running")
+    # Points skipped by an early stop leave gaps in seq; count them as done too.
+    done = max(finished_points, last_seq + (0 if current else 1))
+    return {
+        "status": run["status"],
+        "error": run["error"],
+        "total": run["planned_points"] or len(rows),
+        "done": done,
+        "current": f"{current['phase']}, {current['concurrency']} in flight" if current else None,
+    }
+
+
+def delete_run(conn: Connection, run_id: int) -> None:
+    """Delete a run and everything that only it uses. Artifacts on disk are the caller's job."""
+    run = get_run(conn, run_id)
+    if run is None:
+        raise KeyError(f"no run with id {run_id}")
+    conn.execute("BEGIN")
+    try:
+        conn.execute("DELETE FROM points WHERE run_id = ?", (run_id,))  # cascades to children
+        conn.execute("DELETE FROM findings WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+        setup = conn.execute(
+            "SELECT snapshot_id FROM setups WHERE id = ?", (run["setup_id"],)
+        ).fetchone()
+        for table, key, value in (
+            ("workloads", "workload_id", run["workload_id"]),
+            ("setups", "setup_id", run["setup_id"]),
+        ):
+            if not conn.execute(f"SELECT 1 FROM runs WHERE {key} = ?", (value,)).fetchone():
+                conn.execute(f"DELETE FROM {table} WHERE id = ?", (value,))
+        if (
+            setup
+            and not conn.execute(
+                "SELECT 1 FROM setups WHERE snapshot_id = ?", (setup["snapshot_id"],)
+            ).fetchone()
+        ):
+            conn.execute("DELETE FROM snapshots WHERE id = ?", (setup["snapshot_id"],))
+        if (
+            not conn.execute(
+                "SELECT 1 FROM runs WHERE endpoint_id = ?", (run["endpoint_id"],)
+            ).fetchone()
+            and not conn.execute(
+                "SELECT 1 FROM snapshots WHERE endpoint_id = ?", (run["endpoint_id"],)
+            ).fetchone()
+        ):
+            conn.execute("DELETE FROM endpoints WHERE id = ?", (run["endpoint_id"],))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def create_point(conn: Connection, run_id: int, seq: int, phase: str, spec: PointSpec) -> int:

@@ -101,10 +101,12 @@ def execute_run(
         theory=inputs.theory.to_json(),
         label=inputs.label,
     )
+    repo.set_planned_points(conn, run_id, len(plan.points))
     if on_created:
         on_created(run_id)
 
     status = "done"
+    error: str | None = None
     curve: list[SweepPoint] = []
     stopped: str | None = None
     total = len(plan.points)
@@ -143,12 +145,20 @@ def execute_run(
             if not result.ok:
                 if planned.phase != "concurrency":
                     status = "failed"
+                    detail = (result.stderr_tail or result.stdout_tail).strip().splitlines()[-3:]
+                    error = (
+                        f"The {planned.phase} point failed (AIPerf exit code "
+                        f"{result.exit_code}). " + " ".join(detail)
+                    ).strip()
                     break
                 stopped = stopped or "point_failed"
                 repo.set_stop_reason(conn, point_id, stopped)
     except KeyboardInterrupt:
         status = "cancelled"
         raise
+    except Exception as exc:
+        status, error = "failed", f"{type(exc).__name__}: {exc}"
+        raise
     finally:
-        repo.finish_run(conn, run_id, status)
+        repo.finish_run(conn, run_id, status, error)
     return run_id
