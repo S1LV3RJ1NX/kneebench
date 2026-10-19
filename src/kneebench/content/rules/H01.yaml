@@ -1,0 +1,23 @@
+id: H01
+title: Did each load level reach a steady state?
+status_line:
+  ok: All {{ checked }} load levels ran long enough at full load to measure throughput.
+  warn: >-
+    {{ points | length }} load level{{ "s" if points | length != 1 else "" }} spent too little time
+    at full load ({% for p in points %}{{ num(p.concurrency) }} users{% if not loop.last %},
+    {% endif %}{% endfor %}); their throughput is less certain.
+measured: >-
+  Throughput counts only the window where the requested number of requests was really in
+  flight, leaving out ramp-up at the start and drain at the end.
+meaning: >-
+  For the flagged levels that window was short, so their tokens per second may be off.
+why: >-
+  At high load a short run mostly measures the ramp-up and the drain, not the steady state the
+  server would hold in production.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+actions:
+  - when: [warn]
+    title: Rerun with more requests per level
+    expected: Each level holds full load for most of its run.
+    risk: The sweep takes longer.
+    verify: This check turns green.

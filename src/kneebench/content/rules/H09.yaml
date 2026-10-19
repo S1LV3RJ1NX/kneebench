@@ -1,0 +1,29 @@
+id: H09
+title: Is something between kneebench and the server limiting load?
+status_line:
+  ok: No sign of a gateway or proxy limiting the load ({{ checked }} levels checked).
+  warn: >-
+    {% if codes %}The path to the server returned {{ codes }}. {% endif %}{% if held %}At
+    {% for h in held %}{{ num(h.concurrency) }}{% if not loop.last %}, {% endif %}{% endfor %}
+    users the server itself saw fewer requests than were sent. {% endif %}{% if timeout_s %}Failed
+    requests all stopped after about {{ ms(timeout_s * 1000) }}, which looks like a timeout.
+    {% endif %}This points at a gateway or proxy, not the model server.
+measured: >-
+  Error codes from the HTTP path, the server's own count of running requests
+  (vllm:num_requests_running) against the load sent, and how long failed requests lasted.
+meaning: >-
+  Results above this level describe the gateway's limits, not vLLM's. The model server may have
+  more capacity than this report shows.
+why: >-
+  Gateways and load balancers often cap concurrent connections, rate-limit with HTTP 429, or cut
+  long streams after a fixed time. Those limits look like a slow server unless they are measured
+  separately.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+actions:
+  - when: [warn]
+    title: Check the gateway's limits, or benchmark the server directly
+    expected: >-
+      Raising the gateway's connection, rate or stream-time limits (or bypassing it) removes the
+      errors and the gap.
+    risk: Bypassing a gateway may skip auth; only do it in a test environment.
+    verify: Rerun; this check turns green.

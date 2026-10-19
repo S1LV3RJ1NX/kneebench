@@ -1,0 +1,14 @@
+id: W09
+title: What each eviction costs
+status_line:
+  info: >-
+    Each eviction costs about {{ ms(per_eviction_ms) }} of GPU time to recompute;
+    {{ num(evictions, 0) }} evictions cost about {{ ms(total_s * 1000) }} in total.
+measured: >-
+  An evicted request recomputes its prompt plus what it had written so far, about
+  {{ num(tokens, 0) }} tokens on average, at the prefill rate of this GPU.
+meaning: That time is stolen from every other user in the batch.
+why: >-
+  vLLM's default response to a full cache is to discard an evicted request's cache and redo
+  prefill later, so the work it had done is paid for twice.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}

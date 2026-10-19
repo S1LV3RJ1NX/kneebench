@@ -1,0 +1,20 @@
+id: W01
+title: "Wall 1: saturation"
+status_line:
+  info: >-
+    {% if reached %}Throughput saturates at about {{ num(concurrency) }} users
+    ({{ num(tok_s, 0) }} tokens per second): doubling beyond that adds less than 5%.{% else %}Throughput
+    was still growing at {{ num(max_tested) }} users, the highest level tested.{% endif %}
+measured: >-
+  {% if reached %}Each doubling of users added less and less throughput; past
+  {{ num(concurrency) }} users it added under 5%.{% if metrics_available and waiting_after %} The
+  server's waiting queue rose to {{ num(waiting_after, 0) }} requests.{% endif %}{% else %}Every
+  doubling up to {{ num(max_tested) }} users still added at least 5% throughput.{% endif %}
+meaning: >-
+  {% if reached %}This is the most this GPU can do for this kind of request. Past it, extra users
+  aren't served faster, they wait.{% else %}The GPU has more throughput to give; the limit is
+  elsewhere (latency targets or memory) or above the tested range.{% endif %}
+why: >-
+  Batching gets cheaper per user until the per-user work dominates each step or memory runs
+  out. After that, the server can't add work per step, so new requests queue instead.
+learn_more: {note: "27", anchor: "2-wall-1-saturation", label: "Wall 1: saturation"}

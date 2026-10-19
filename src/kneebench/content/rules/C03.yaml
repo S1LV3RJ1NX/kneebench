@@ -1,0 +1,49 @@
+id: C03
+title: The best load that still meets your targets
+status_line:
+  ok: >-
+    The best operating point is {{ num(op.concurrency) }} users in flight:
+    {{ num(op.tok_s, 0) }} output tokens per second with every target met at P{{ pct_label }}.
+  warn: >-
+    Even {{ num(op.concurrency) }} users in flight, the highest level tested, met every target:
+    real capacity is higher than this test measured.
+  bad: >-
+    No load level met your targets, not even one user at a time.
+  skip: "No latency targets were set, so there is no operating point to pick."
+measured: >-
+  {% if op is defined and op %}At {{ num(op.concurrency) }} users: {{ term("TPOT") }}
+  P{{ pct_label }} {{ ms(op.tpot_tail) }}{% if slo_tpot_ms %} (target {{ ms(slo_tpot_ms) }}){% endif %},
+  {{ term("TTFT") }} P{{ pct_label }} {{ ms(op.ttft_tail) }}{% if slo_ttft_ms %} (target
+  {{ ms(slo_ttft_ms) }}){% endif %}.{% else %}At one user: TPOT P{{ pct_label }}
+  {{ ms(first.tpot_tail) }}{% if slo_tpot_ms %} (target {{ ms(slo_tpot_ms) }}){% endif %}, TTFT
+  P{{ pct_label }} {{ ms(first.ttft_tail) }}{% if slo_ttft_ms %} (target
+  {{ ms(slo_ttft_ms) }}){% endif %}.{% endif %}
+meaning:
+  ok: >-
+    This is how much load to run at: the rightmost point on the curve still under every
+    {{ term("SLO") }} line.
+  warn: >-
+    The curve never reached your latency limit, so the true operating point is somewhere above
+    {{ num(max_tested) }} users.
+  bad: >-
+    Either the targets are tighter than this hardware can deliver for {{ shape_name }} requests, or
+    something in the setup is slowing every request down (see the baseline findings).
+why: >-
+  Your latency target draws a horizontal line on the curve; the best operating point is the
+  rightmost dot still under it. Peak throughput sits further right, where latency is already
+  past the target.
+learn_more: {note: "25", anchor: "3-the-one-plot-that-matters", label: "The one plot that matters"}
+actions:
+  - when: [warn]
+    title: Sweep higher to find the real limit
+    flag: kneebench run --max-concurrency {{ max_tested * 4 }}
+    expected: The sweep reaches the point where a target is crossed.
+    risk: Higher load may trigger preemption or errors; that is what it is meant to find.
+    verify: This check turns green with an operating point below the top level.
+  - when: [bad]
+    title: Check the targets and the baseline
+    expected: >-
+      Either looser targets give an operating point, or fixing the baseline makes every request
+      faster.
+    risk: None.
+    verify: Rerun; an operating point appears.

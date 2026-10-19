@@ -1,0 +1,18 @@
+id: C04
+title: Peak throughput is not capacity
+status_line:
+  info: >-
+    Peak throughput ({{ num(peak.tok_s, 0) }} tokens per second at {{ num(peak.concurrency) }}
+    users) is {{ pct(gap) }} above what you can run within your targets
+    ({{ num(op.tok_s, 0) }} at {{ num(op.concurrency) }} users).
+measured: >-
+  At {{ num(peak.concurrency) }} users the server produced the most tokens per second, but
+  per-token latency there was {{ ms(peak.tpot_tail) }} at P{{ pct_label }}.
+meaning: >-
+  Quoting the peak as capacity would promise users a speed they won't get. Plan with the
+  operating point instead.
+why: >-
+  The highest throughput sits at the wall, where requests already queue and latency is
+  worst. Capacity is the most load that still meets the targets ({{ term("goodput") }}), which
+  is always to the left of the peak.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}

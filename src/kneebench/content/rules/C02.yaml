@@ -1,0 +1,29 @@
+id: C02
+title: The latency-throughput curve
+status_line:
+  info: >-
+    For {{ shape_name }} requests, throughput {% if knee %}stops growing almost for free after
+    {{ num(knee) }} users{% else %}keeps growing almost for free across the tested range{% endif %}.
+measured: >-
+  kneebench kept a fixed number of requests in flight (1, 2, 4 and so on, doubling) and measured
+  steady-state output tokens per second and per-token latency at each level.
+meaning: >-
+  Reading left to right: in the flat region throughput grows a lot while each user barely slows
+  down. At the knee every extra user still adds throughput but slows everyone else noticeably. At
+  the wall throughput stops growing and latency keeps climbing as requests wait.
+why: >-
+  Decoding shares one weight read across the whole batch, so small batches are nearly free. As
+  the batch grows, each user's own cache reads and math start to dominate the step, and finally
+  the server runs out of room and makes new requests wait.
+learn_more: {note: "25", anchor: "3-the-one-plot-that-matters", label: "The one plot that matters"}
+table:
+  rows: points
+  columns:
+    - {key: concurrency, label: Users in flight, fmt: num}
+    - {key: tok_s, label: Output tok/s, fmt: num0}
+    - {key: tpot_p50, label: TPOT P50, fmt: ms}
+    - {key: tpot_tail, label: TPOT tail, fmt: ms}
+    - {key: ttft_tail, label: TTFT tail, fmt: ms}
+    - {key: kv_max, label: KV cache peak, fmt: pct}
+    - {key: preemptions, label: Preemptions, fmt: num0}
+    - {key: errors, label: Errors, fmt: pct}

@@ -1,0 +1,25 @@
+id: W03
+title: Real capacity is the lowest wall
+status_line:
+  info: >-
+    {% if op %}Capacity for {{ shape_name }} traffic: {{ num(op) }} users comfortably, breaking
+    at about {{ num(c_star, 0) }}{% else %}Capacity for {{ shape_name }} traffic is limited at about
+    {{ num(c_star, 0) }} users{% endif %}, set by
+    {{ {"slo_tpot": "per-token latency", "slo_ttft": "time to first token",
+        "saturation": "throughput saturation", "memory": "KV cache memory",
+        "max_num_seqs": "the server's sequence limit"}[limiter] }}.
+measured: >-
+  The walls, in users in flight:
+  {% for k, v in walls | dictsort(by="value") %}{{ {"slo_tpot": "per-token latency target",
+  "slo_ttft": "first-token target", "saturation": "saturation", "memory": "memory (cache ÷
+  request length)", "max_num_seqs": "max_num_seqs"}[k] }} {{ num(v, 0) }}{% if not loop.last %};
+  {% endif %}{% endfor %}.
+meaning: >-
+  {% if untested_above %}The lowest wall is above the highest level tested
+  ({{ num(max_tested) }}), so it is an estimate.{% else %}Whichever wall comes first is the limit;
+  the others don't matter until it moves.{% endif %} Each traffic shape has its own walls.
+why: >-
+  Every wall gives a maximum number of users for this shape: the latency targets, saturation,
+  memory (cache size divided by each request's final length) and the server's own cap. The
+  smallest one is the capacity.
+learn_more: {note: "27", anchor: "5-the-operating-envelope", label: "The operating envelope"}

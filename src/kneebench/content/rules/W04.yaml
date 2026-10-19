@@ -1,0 +1,27 @@
+id: W04
+title: "Wall 3: requests evicted when memory runs out"
+status_line:
+  ok: >-
+    No {{ term("preemption") }} up to {{ num(max_tested) }} users (KV cache peaked at
+    {{ pct(kv_max) }}).
+  bad: >-
+    From {{ num(concurrency) }} users, the server ran out of cache and evicted running requests
+    ({{ num(preemptions, 0) }} times at that level{% if errors == 0 %}, with no errors{% endif %}).
+  skip: "Not visible: /metrics wasn't reachable, so evictions can't be seen."
+measured: >-
+  At {{ num(concurrency) }} users the KV cache peaked at {{ pct(kv_max) }} and the preemption
+  counter rose by {{ num(preemptions, 0) }}{% if tpot_tail_before %}. P{{ pct_label }} per-token
+  latency went from {{ ms(tpot_tail_before) }} to {{ ms(tpot_tail) }}{% endif %}.
+meaning: >-
+  The server let in more requests than memory can hold to the end, then threw some out to make
+  room. Nobody gets an error, but evicted users see long freezes, and recomputing them slows
+  everyone else.
+analogy: >-
+  Like a restaurant seating every party at once and then asking some to leave mid-meal and come
+  back later.
+why: >-
+  A request's cache starts small and grows with every token it writes. vLLM admits up to
+  max_num_seqs requests; when the cache hits 100% it evicts one, discards its cache, and later
+  recomputes the prompt plus everything it had generated. The only trace is a counter in
+  /metrics.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}

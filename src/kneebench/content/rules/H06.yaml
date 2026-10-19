@@ -1,0 +1,15 @@
+id: H06
+title: Prefix caching and random prompts
+status_line:
+  info: >-
+    The server has {{ term("prefix caching") }} on{% if hit_rate is not none %}; this test's prompts
+    hit it {{ pct(hit_rate) }} of the time{% endif %}. Real traffic that repeats system prompts
+    will likely start answers faster than measured here.
+measured: >-
+  Prefix cache hits divided by lookups, from /metrics, across all points.
+meaning: >-
+  kneebench gives every request a unique beginning on purpose, so results show the cost of real
+  work. Your production time to first token may be lower if prompts share a long beginning.
+why: >-
+  Random prompts never share a prefix, so prefix caching never helps them; real chat often does.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}

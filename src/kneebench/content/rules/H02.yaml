@@ -1,0 +1,22 @@
+id: H02
+title: Did the client keep up?
+status_line:
+  ok: The load generator held the requested concurrency at every level ({{ checked }} checked).
+  warn: >-
+    The load generator couldn't hold the requested load:
+    {% for p in points %}{{ num(p.concurrency) }} requested, {{ num(p.achieved, 1) }} achieved
+    {%- if not loop.last %}; {% endif %}{% endfor %}.
+measured: AIPerf's measured average concurrency compared with the target at each level.
+meaning: >-
+  At those levels kneebench was benchmarking the client, not the server: the server never saw
+  the load it was supposed to.
+why: >-
+  If the sender can't issue requests fast enough (CPU, network or connection limits), the test
+  runs below the load it reports.
+learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+actions:
+  - when: [warn]
+    title: Run kneebench on a bigger machine closer to the server
+    expected: Achieved concurrency matches the target.
+    risk: None.
+    verify: This check turns green.

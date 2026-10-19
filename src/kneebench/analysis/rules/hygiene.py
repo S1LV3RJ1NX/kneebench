@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+import statistics
+
 from kneebench.analysis.context import UNRELIABLE_NETWORK_SHARE, RunContext
-from kneebench.analysis.engine import Finding, bad, ok, rule, skip, warn
+from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
+from kneebench.analysis.rules.concurrency import sweep
+from kneebench.analysis.sweep import GATEWAY_CODES
 from kneebench.servers.vllm import version_status
+
+# Note 25 section 6: the client must actually hold the requested load.
+CLIENT_CONCURRENCY_MIN = 0.9
+# Requests in flight at the client but not at the server point at something in between.
+SERVER_CONCURRENCY_MIN = 0.8
+# Failed requests that all die after the same time look like a gateway timeout.
+TIMEOUT_CLUSTER_MIN_S = 10.0
+TIMEOUT_CLUSTER_SPREAD = 0.05
 
 # Share of user-seen TTFT spent on the network before TTFT findings get a caveat.
 NETWORK_SHARE_WARN = 0.30
@@ -99,3 +111,86 @@ def metrics_visibility(ctx: RunContext) -> Finding | None:
     if ctx.metrics_available:
         return None
     return warn("H08")
+
+
+@rule("H01", tags={"reliability", "throughput"}, source="25#6")
+def steady_state(ctx: RunContext) -> Finding | None:
+    pts = sweep(ctx)
+    if not pts:
+        return None
+    short = [
+        {"concurrency": p.concurrency, "share": p.steady_share}
+        for p in pts
+        if not p.steady_reliable
+    ]
+    if short:
+        return warn("H01", points=short, checked=len(pts))
+    return ok("H01", checked=len(pts))
+
+
+@rule("H02", tags={"reliability", "network"}, source="25#6")
+def weak_client(ctx: RunContext) -> Finding | None:
+    pts = [p for p in ctx.points_in("concurrency") if p.concurrency]
+    if not pts:
+        return None
+    short = []
+    for p in pts:
+        achieved = p.m("effective_concurrency", "avg")
+        target = p.concurrency or 0
+        if achieved is not None and achieved < CLIENT_CONCURRENCY_MIN * target:
+            short.append({"concurrency": target, "achieved": achieved})
+    if short:
+        return warn("H02", points=short)
+    return ok("H02", checked=len(pts))
+
+
+@rule("H06", tags={"reliability", "ttft", "prefill"}, source="25#6")
+def prefix_caching(ctx: RunContext) -> Finding | None:
+    if not ctx.theory.prefix_caching:
+        return None
+    hits = queries = 0.0
+    for p in ctx.points:
+        hits += p.server_stat("prefix_cache_hits", "total") or 0
+        queries += p.server_stat("prefix_cache_queries", "total") or 0
+    return info("H06", hit_rate=hits / queries if queries else None)
+
+
+@rule("H09", tags={"reliability", "network", "capacity"}, source="25#6")
+def gateway(ctx: RunContext) -> Finding | None:
+    pts = sweep(ctx)
+    if not pts:
+        return None
+    codes: dict[int, int] = {}
+    for p in pts:
+        for code, n in p.error_codes.items():
+            if code in GATEWAY_CODES:
+                codes[code] = codes.get(code, 0) + n
+    held = [
+        {"concurrency": p.concurrency, "server_running": p.running_max}
+        for p in pts
+        if p.running_max is not None
+        and (p.waiting_max or 0) == 0
+        and p.running_max
+        < SERVER_CONCURRENCY_MIN * min(p.concurrency, ctx.theory.default_max_num_seqs)
+    ]
+    timeout_s = _timeout_cluster(ctx)
+    if codes or held or timeout_s:
+        return warn(
+            "H09",
+            codes=", ".join(f"{k} x{v}" for k, v in sorted(codes.items())),
+            held=held,
+            timeout_s=timeout_s,
+            stopped=any(p.stop_reason == "gateway_errors" for p in ctx.points),
+        )
+    return ok("H09", checked=len(pts))
+
+
+def _timeout_cluster(ctx: RunContext) -> float | None:
+    failed = [r.e2e_ms for p in ctx.points for r in p.requests if not r.ok and r.e2e_ms]
+    if len(failed) < 3:
+        return None
+    median = statistics.median(failed)
+    spread = (max(failed) - min(failed)) / median if median else 1.0
+    if median / 1000 >= TIMEOUT_CLUSTER_MIN_S and spread <= TIMEOUT_CLUSTER_SPREAD:
+        return median / 1000
+    return None

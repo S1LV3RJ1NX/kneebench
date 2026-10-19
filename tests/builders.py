@@ -8,7 +8,13 @@ from pathlib import Path
 from sqlite3 import Connection
 from typing import Any
 
-from kneebench.analysis.context import PointView, RunContext, SetupView, WorkloadView
+from kneebench.analysis.context import (
+    PointView,
+    RequestView,
+    RunContext,
+    SetupView,
+    WorkloadView,
+)
 from kneebench.analysis.engine import REGISTRY, Finding, Status, _load_rules
 from kneebench.content.render import TermTracker, make_env, render_finding
 from kneebench.detect.metrics import CacheConfig, cache_config, parse_samples
@@ -95,6 +101,129 @@ def point(
         metrics=metrics,
         server={},
         warnings=tuple({"source": "aiperf", "code": w, "message": ""} for w in warnings),
+    )
+
+
+def closed_loop_requests(
+    concurrency: int,
+    rounds: int,
+    e2e_s: float,
+    osl: int,
+    ttft_ms: float = 50.0,
+    tpot_ms: float = 10.0,
+    errors: int = 0,
+    error_code: int | None = None,
+    isl: int = 1024,
+) -> tuple[RequestView, ...]:
+    """Requests as a closed loop issues them: c slots, each running `rounds` back to back."""
+    out: list[RequestView] = []
+    span = int(e2e_s * 1e9)
+    for slot in range(concurrency):
+        for k in range(rounds):
+            start = k * span + slot * 1000  # tiny offsets keep events ordered
+            failed = len(out) < errors
+            out.append(
+                RequestView(
+                    start_ns=start,
+                    end_ns=start + span,
+                    ttft_ms=ttft_ms,
+                    tpot_ms=tpot_ms,
+                    e2e_ms=e2e_s * 1000,
+                    isl=isl,
+                    osl=osl,
+                    error="error" if failed else None,
+                    error_code=error_code if failed else None,
+                )
+            )
+    return tuple(out)
+
+
+def sweep_point(
+    concurrency: int,
+    tok_s: float,
+    tpot_p50: float,
+    tpot_p99: float | None = None,
+    ttft_p99: float = 200.0,
+    isl: int = 1024,
+    osl: int = 1024,
+    kv_max: float | None = 0.3,
+    preemptions: float | None = 0.0,
+    waiting_max: float | None = 0.0,
+    running_max: float | None = None,
+    errors: int = 0,
+    error_code: int | None = None,
+    effective: float | None = None,
+    rounds: int = 5,
+    seq: int = 0,
+    stop_reason: str | None = None,
+) -> PointView:
+    """A concurrency point whose steady-state throughput works out to about `tok_s`."""
+    e2e_s = concurrency * osl / tok_s
+    requests = closed_loop_requests(
+        concurrency,
+        rounds,
+        e2e_s,
+        osl,
+        tpot_ms=tpot_p50,
+        errors=errors,
+        error_code=error_code,
+        isl=isl,
+    )
+    server: dict[str, dict[str, float]] = {}
+    if kv_max is not None:
+        server["vllm:kv_cache_usage_perc"] = {"max": kv_max}
+    if preemptions is not None:
+        server["vllm:num_preemptions"] = {"total": preemptions}
+    if waiting_max is not None:
+        server["vllm:num_requests_waiting"] = {"max": waiting_max}
+    server["vllm:num_requests_running"] = {
+        "max": running_max if running_max is not None else float(concurrency)
+    }
+    metrics = {
+        "inter_token_latency": {
+            "p50": tpot_p50,
+            "p90": (tpot_p99 or tpot_p50 * 1.2) * 0.95,
+            "p99": tpot_p99 or tpot_p50 * 1.2,
+            "avg": tpot_p50,
+        },
+        "time_to_first_token": {"p50": ttft_p99 / 2, "p90": ttft_p99 * 0.9, "p99": ttft_p99},
+        "output_sequence_length": {"avg": float(osl)},
+        "osl_mismatch_count": {"avg": 0.0},
+        "request_count": {"avg": float(len(requests))},
+        "effective_concurrency": {
+            "avg": effective if effective is not None else float(concurrency)
+        },
+    }
+    return PointView(
+        id=100 + seq,
+        seq=seq,
+        phase="concurrency",
+        isl=isl,
+        osl=osl,
+        mode="concurrency",
+        concurrency=concurrency,
+        status="done",
+        metrics=metrics,
+        server=server,
+        requests=requests,
+        stop_reason=stop_reason,
+    )
+
+
+def healthy_sweep(**overrides: Any) -> tuple[PointView, ...]:
+    """1..64 users: near-linear growth, knee at 16, saturation at 32, TPOT P99 crosses 50 ms."""
+    rows = [  # c, tok/s, TPOT P50, TPOT P99
+        (1, 170, 5.8, 6.2),
+        (2, 335, 5.9, 6.4),
+        (4, 650, 6.1, 6.8),
+        (8, 1250, 6.4, 7.5),
+        (16, 2300, 7.0, 9.0),
+        (32, 3000, 10.5, 30.0),
+        (64, 3080, 20.0, 80.0),
+    ]
+    return tuple(
+        sweep_point(c, tok, p50, p99, seq=i + 1, **overrides)
+        for i, (c, tok, p50, p99) in enumerate(rows)
     )
 
 

@@ -1,0 +1,37 @@
+id: W06
+title: Cap concurrent sequences at what memory sustains
+status_line:
+  ok: >-
+    max_num_seqs ({{ num(current) }}{% if is_default %}, the default{% endif %}) is within what the
+    cache sustains for {{ shape_name }} requests.
+  warn: >-
+    max_num_seqs is {{ num(current) }}{% if is_default %} (the default for your vLLM and GPU){% endif %},
+    but the cache only sustains about {{ num(sustain) }} {{ shape_name }} requests at full length.
+  bad: >-
+    max_num_seqs is {{ num(current) }}{% if is_default %} (the default){% endif %} while the cache
+    sustains about {{ num(sustain) }} {{ shape_name }} requests, and the server is already evicting
+    requests.
+measured: >-
+  {{ num(pool_tokens) }} tokens of cache divided by {{ num(final_len) }} tokens per finished
+  request gives {{ num(sustain) }}.{% if slo_c %} Your latency target is crossed at about
+  {{ num(slo_c, 0) }} users.{% endif %}
+meaning: >-
+  With the cap above what memory holds, overload turns into silent evictions instead of a
+  visible queue. A lower cap makes extra requests wait their turn, which you can see and plan
+  for.
+why: >-
+  vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the
+  average final request length keeps every admitted request's cache in memory; lowering it
+  further to where the latency target breaks keeps admitted users fast.
+learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+actions:
+  - when: [warn, bad]
+    title: Lower the sequence cap
+    flag: --max-num-seqs {{ recommend }}
+    expected: >-
+      The preemption counter stays at 0 and extra requests wait in the queue
+      (vllm:num_requests_waiting) instead of being evicted.
+    risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+    verify: >-
+      Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop
+      spiking.

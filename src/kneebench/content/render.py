@@ -199,6 +199,9 @@ def render_finding(
 ) -> RenderedFinding:
     spec = rule_content(finding.rule_id)
     status = finding.status.value
+    clash = set(finding.data) & (set(FORMATTERS) | {"term"})
+    if clash:
+        raise ValueError(f"{finding.rule_id} data keys shadow template helpers: {sorted(clash)}")
     variables = {**common, **finding.data}
     if status == "skip" and isinstance(spec.get("skip_reasons"), dict):
         line_tpl = spec["skip_reasons"].get(

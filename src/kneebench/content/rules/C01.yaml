@@ -1,0 +1,18 @@
+id: C01
+title: What batching users together buys you
+status_line:
+  info: >-
+    Serving {{ num(concurrency) }} users at once gives {{ times(multiple) }} the throughput of
+    one user{% if tpot_increase is not none %}, for {{ pct(tpot_increase) }} slower tokens each{% endif %}.
+measured: >-
+  One user at a time: {{ num(tok_s_one, 0) }} output tokens per second
+  ({{ ms(tpot_one) }} per token). {{ num(concurrency) }} users at once: {{ num(tok_s, 0) }} tokens per
+  second in total ({{ ms(tpot) }} per token each).
+meaning: >-
+  Extra users mostly ride along on work the GPU does anyway, so the same hardware serves many
+  more people with only a small slowdown for each.
+why: >-
+  With one user, each decode step is almost all reading the model's weights from memory. A second
+  user reuses that same read; it only adds its own cache and a little math. The free lunch ends
+  when those per-user extras add up, or when the {{ term("KV cache") }} fills.
+learn_more: {note: "25", anchor: "1-the-free-lunch", label: "The free lunch"}

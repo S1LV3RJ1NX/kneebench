@@ -81,7 +81,13 @@ def evaluate(ctx: RunContext) -> list[Finding]:
 
 
 def _load_rules() -> None:
-    from kneebench.analysis.rules import baseline, hygiene, theory  # noqa: F401
+    from kneebench.analysis.rules import (  # noqa: F401
+        baseline,
+        concurrency,
+        hygiene,
+        theory,
+        walls,
+    )
 
 
 def ok(rule_id: str, **data: Any) -> Finding:

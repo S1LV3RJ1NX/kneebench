@@ -1,0 +1,20 @@
+id: W02
+title: "Wall 2: missing your latency target"
+status_line:
+  ok: >-
+    No latency target was crossed up to {{ num(max_tested) }} users.
+  info: >-
+    P{{ pct_label }} {{ metric | upper }} crosses your {{ ms(target) }} target at about
+    {{ num(at, 0) }} users{% if last_pass %} (fine at {{ num(last_pass) }}, {{ ms(value) }} at
+    {{ num(first_fail) }}){% else %} (already at {{ num(first_fail) }}){% endif %}.
+measured: >-
+  {% for c in crossings %}{{ c.metric | upper }} crosses its target at about {{ num(c.at, 0) }}
+  users{% if not loop.last %}; {% endif %}{% endfor %}. The crossing is interpolated between the
+  last passing and first failing level.
+meaning: >-
+  This is where users start getting a worse experience than you promised. It usually comes
+  before throughput saturates, which makes it your real limit.
+why: >-
+  Latency grows slowly at first, bends up past the knee, and crosses the target well before the
+  GPU stops adding throughput. Capacity is the first crossing, not the plateau.
+learn_more: {note: "27", anchor: "3-wall-2-slo-failure", label: "Wall 2: SLO failure"}

@@ -1,0 +1,26 @@
+id: W07
+title: Errors and timeouts under load
+status_line:
+  ok: No requests failed up to {{ num(max_tested) }} users.
+  warn: >-
+    Some requests failed from {{ num(first) }} users (worst {{ pct(worst) }}).
+  bad: >-
+    Many requests failed from {{ num(first) }} users (worst {{ pct(worst) }}).
+measured: >-
+  {% for p in points %}{{ num(p.concurrency) }} users: {{ pct(p.rate) }} failed ({{ p.codes }})
+  {%- if not loop.last %}; {% endif %}{% endfor %}.
+meaning: >-
+  Failed requests are users who got nothing. kneebench counts them as missing the target, so
+  they push the operating point down.
+why: >-
+  Errors under load usually mean a limit somewhere: request timeouts, a gateway rate limit, the
+  server rejecting work it can't queue, or a crash.
+learn_more: {note: "27", anchor: "1-the-experiment", label: "The experiment"}
+actions:
+  - when: [warn, bad]
+    title: Find which layer rejected the requests
+    expected: >-
+      HTTP 429 or 5xx from a proxy point at the gateway; errors from vLLM itself point at the
+      server.
+    risk: None.
+    verify: Rerun after raising the limit; this check turns green.

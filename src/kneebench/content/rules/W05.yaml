@@ -1,0 +1,19 @@
+id: W05
+title: Long answers fill memory after they are admitted
+status_line:
+  info: >-
+    {{ num(concurrency) }} requests took only {{ pct(start_share) }} of the cache when they
+    started, but at {{ num(isl) }} in and {{ num(osl) }} out only {{ num(fits_end, 0) }} fit at
+    full length.
+measured: >-
+  At admission about {{ num(fits_admission, 0) }} requests fit; at their final length,
+  {{ num(fits_end, 0) }}. The cache fills after each request writes about
+  {{ num(full_after_tokens, 0) }} tokens{% if full_after_s %}, roughly
+  {{ ms(full_after_s * 1000) }} in{% endif %}.
+meaning: >-
+  The server can't tell how long an answer will be, so it admits based on what it sees now. Long
+  answers then grow into each other.
+why: >-
+  Reasoning-style requests start with short prompts and write long outputs. Their caches start
+  small and grow with every token, so the scheduler happily admits many, and later they collide.
+learn_more: {note: "26", anchor: "4-shape-decides-how-many-fit", label: "Shape decides how many fit"}
