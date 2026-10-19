@@ -83,7 +83,8 @@
 <script type="application/json" id="kb-figures">{{ figures_json | safe }}</script>
 <script>
   window.kneebenchReady = false;
-  (function () {
+  // Plotly loads after this block, so draw once the whole page (and Plotly) has loaded.
+  window.addEventListener("load", function () {
     const figures = JSON.parse(document.getElementById("kb-figures").textContent);
     const jobs = [];
     for (const [rule, figs] of Object.entries(figures)) {
@@ -95,8 +96,8 @@
       });
     }
     Promise.all(jobs).then(() => { window.kneebenchReady = true; });
-    window.addEventListener("beforeprint", () => {
-      document.querySelectorAll("details").forEach((d) => d.setAttribute("open", ""));
-    });
-  })();
+  });
+  window.addEventListener("beforeprint", () => {
+    document.querySelectorAll("details").forEach((d) => d.setAttribute("open", ""));
+  });
 </script>

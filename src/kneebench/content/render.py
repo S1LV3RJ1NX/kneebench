@@ -27,12 +27,18 @@ def ms(value: float | None) -> str:
         return UNKNOWN
     if value >= 1000:
         s = value / 1000
-        return f"{s:.2f} s" if s < 10 else f"{s:.1f} s" if s < 100 else f"{s:,.0f} s"
+        text = f"{s:.2f}" if s < 10 else f"{s:.1f}" if s < 100 else f"{s:,.0f}"
+        return f"{_trim(text)} s"
     if value >= 100:
         return f"{value:.0f} ms"
     if value >= 1:
-        return f"{value:.1f} ms"
+        return f"{_trim(f'{value:.1f}')} ms"
     return f"{value:.2f} ms"
+
+
+def _trim(text: str) -> str:
+    """50.0 reads as 50; 1.50 as 1.5."""
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def pct(value: float | None) -> str:

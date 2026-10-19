@@ -209,7 +209,9 @@ def max_num_seqs(ctx: RunContext) -> Finding | None:
     if cap:
         walls = cap["walls"]
         assert isinstance(walls, dict)
-        slo_c = min((v for k, v in walls.items() if k.startswith("slo_")), default=None)
+        # Only the per-token wall: capping sequences keeps admitted users fast, but it makes a
+        # first-token problem worse, since the extra requests wait in the queue instead.
+        slo_c = walls.get("slo_tpot")
     recommend = max(1, min(sustain, math.floor(slo_c) if slo_c else sustain))
     preempted = any((p.preemptions or 0) > 0 for p in sweep(ctx))
     data = {

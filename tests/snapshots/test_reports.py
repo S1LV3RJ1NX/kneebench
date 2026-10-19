@@ -40,3 +40,22 @@ def test_json_report_carries_numbers_and_text() -> None:
     data = render_json(build_report(conn, run_id, now=NOW))
     assert '"rule_id": "B01"' in data
     assert '"mbu"' in data
+
+
+@pytest.mark.parametrize("product", [ProductType.CHAT, ProductType.REASONING])
+def test_sweep_report_renders_every_section(
+    product: ProductType, snapshot: SnapshotAssertion
+) -> None:
+    from kneebench.analysis.engine import evaluate
+    from kneebench.report.composer import compose
+    from kneebench.report.render_html import render_html
+    from tests.builders import ctx, healthy_sweep, point
+
+    context = ctx(points=(point(), *healthy_sweep()), product=product)
+    findings = evaluate(context)
+    md = render_markdown(compose(context, findings, now=NOW))
+    assert "How much load it takes" in md
+    assert "comfortably handles about 32 users" in md
+    html = render_html(compose(context, findings, now=NOW, style="html"))
+    assert 'id="chart-C02-0"' in html
+    assert md == snapshot

@@ -297,7 +297,7 @@ def _scorecard(
                 "capacity",
                 cap["label"],
                 c03.status.value,
-                render(cap[c03.status.value], **{**w03.data, **c03.data}),
+                render(cap[c03.status.value], **{**c03.data, **w03.data}),
             )
         )
         if w08 is not None and c03.status is not Status.BAD:

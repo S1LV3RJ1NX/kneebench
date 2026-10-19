@@ -92,9 +92,16 @@ def _throughput(pts: list[dict[str, Any]], op: int | None) -> dict[str, Any]:
         line={"color": ACCENT},
         name="tokens per second",
     )
-    if op:
-        fig.add_vline(
-            x=op, line_dash="dot", line_color=MUTED, annotation_text="best point within targets"
+    best = next((p for p in pts if p["concurrency"] == op), None)
+    if best:
+        # A marker, not a vline: shapes on log axes need log-space coordinates.
+        fig.add_scatter(
+            x=[best["concurrency"]],
+            y=[best["tok_s"]],
+            mode="markers+text",
+            marker={"color": "#16a34a", "size": 13, "symbol": "star"},
+            text=["best point within targets"],
+            textposition="middle right",
         )
     return _fig(
         fig,
@@ -135,8 +142,13 @@ def _latency(
         "Latency tails as users are added",
         xaxis_type="log",
         xaxis_title="Users in flight (log scale)",
-        yaxis_title="Time per token (ms)",
-        yaxis2={"title": "Time to first token (ms)", "overlaying": "y", "side": "right"},
+        yaxis={"title": "Time per token (ms)", "rangemode": "tozero"},
+        yaxis2={
+            "title": "Time to first token, server side (ms)",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+        },
     )
 
 
