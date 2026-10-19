@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from kneebench import __version__, content
+from kneebench import __version__
 from kneebench.config import api_key_from_env, data_dir, load_local_config
 from kneebench.doctor import Check, Status, exit_code, run_doctor
 
@@ -27,7 +27,6 @@ _STATUS_LABEL = {
     Status.FAIL: "[red]fail[/]",
     Status.SKIP: "[dim]skip[/]",
 }
-PHASES = ("baseline",)
 
 
 @app.callback(invoke_without_command=True)
@@ -146,101 +145,96 @@ def run(
     slo_ttft_ms: Annotated[float | None, typer.Option(help="TTFT target (ms)")] = None,
     slo_tpot_ms: Annotated[float | None, typer.Option(help="TPOT target (ms)")] = None,
     label: Annotated[str | None, typer.Option(help="A note to tell runs apart")] = None,
+    phases: Annotated[
+        str, typer.Option(help="Comma-separated: baseline, concurrency")
+    ] = "baseline,concurrency",
+    max_concurrency: Annotated[int, typer.Option(help="Highest concurrency to sweep")] = 256,
+    budget_min: Annotated[
+        float | None, typer.Option(help="Time budget in minutes; trims the top of the sweep")
+    ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Don't ask for confirmation")] = False,
 ) -> None:
     """Detect the server, run the benchmark phases and write a report."""
-    from kneebench.detect.server import detect_server, fetch_model_metadata
-    from kneebench.domain import STANDARD_SHAPES, ProductType, ServerSetup, Slo, Source, Workload
+    from kneebench.detect.server import detect_server
+    from kneebench.domain import ProductType
     from kneebench.loadgen.aiperf.runner import AiperfLoadGenerator
-    from kneebench.loadgen.base import Endpoint
-    from kneebench.phases.plan import plan_run
-    from kneebench.phases.runner import PointEvent, RunInputs, execute_run
-    from kneebench.phases.theory import compute_theory
-    from kneebench.physics.floors import Hardware
+    from kneebench.phases.runner import PointEvent, execute_run
     from kneebench.physics.gpus import get_gpu
-    from kneebench.physics.model import model_spec_from_hf
+    from kneebench.service import PrepareError, RunRequest, prepare
     from kneebench.store.db import DB_FILENAME, connect
 
     local = load_local_config()
     url = url or local.url
     if not url:
         raise typer.BadParameter("pass --url or set it in kneebench.local.toml")
-    api_key = api_key_from_env()
-    gpu_spec = get_gpu(gpu)
-    product_type = ProductType(product)
-
-    console.print("[bold]Detecting the server…[/]")
-    snap = detect_server(url, api_key)
-    _print_detected(snap)
-    served = snap.model(model or local.model)
-    if served is None:
-        raise typer.BadParameter(f"model {model!r} not served; found {[m.id for m in snap.models]}")
-    hf_id = tokenizer or local.tokenizer or served.hf_id
-    if not hf_id:
-        raise typer.BadParameter("couldn't map the served model to Hugging Face; pass --tokenizer")
-    metadata = fetch_model_metadata(hf_id)
-    model_spec = model_spec_from_hf(metadata.config, metadata.safetensors_params, hf_id=hf_id)
-
-    preset = content.load("slo_presets.yaml")["presets"][product_type.value]
-    slo = Slo(
-        ttft_ms=slo_ttft_ms if slo_ttft_ms is not None else preset["ttft_ms"],
-        tpot_ms=slo_tpot_ms if slo_tpot_ms is not None else preset["tpot_ms"],
-        percentile=preset["percentile"],
-    )
-    workload = Workload(product=product_type, shapes=STANDARD_SHAPES, slo=slo)
-    setup = ServerSetup(
-        gpu=gpu_spec,
+    req = RunRequest(
+        url=url,
+        gpu=get_gpu(gpu),
+        api_key=api_key_from_env(),
         gpu_count=gpu_count,
+        model=model or local.model,
+        tokenizer=tokenizer or local.tokenizer,
         max_num_seqs=max_num_seqs,
         enforce_eager=enforce_eager,
-        sources={
-            "gpu": Source.USER,
-            "gpu_count": Source.USER,
-            "max_num_seqs": Source.USER if max_num_seqs else Source.DEFAULT,
-            "enforce_eager": Source.USER if enforce_eager is not None else Source.DEFAULT,
-        },
+        product=ProductType(product),
+        slo_ttft_ms=slo_ttft_ms,
+        slo_tpot_ms=slo_tpot_ms,
+        phases=tuple(p.strip() for p in phases.split(",") if p.strip()),
+        max_concurrency=max_concurrency,
+        budget_s=budget_min * 60 if budget_min else None,
+        label=label,
     )
-    theory = compute_theory(
-        model_spec,
-        Hardware(gpu_spec, gpu_count),
-        snap.cache,
-        served.max_model_len,
-        workload.shapes,
-        snap.vllm_version,
-    )
-    plan = plan_run(theory, PHASES)
 
+    console.print("[bold]Detecting the server…[/]")
+    snap = detect_server(url, req.api_key)
+    _print_detected(snap)
+    try:
+        inputs, plan = prepare(req, snapshot=snap)
+    except PrepareError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    levels = [p.spec.concurrency for p in plan.points if p.phase == "concurrency"]
     console.print(
-        f"\nPlan: {len(plan.points)} point(s), about {plan.eta_s / 60:.1f} minutes "
+        f"\nPlan: {len(plan.points)} points, about {plan.eta_s / 60:.0f} minutes "
         f"(includes ~8 s AIPerf startup per point)."
+        + (f"\nConcurrency sweep: {', '.join(map(str, levels))}." if levels else "")
+        + (
+            f"\nDropped for the time budget: {plan.dropped_for_budget}."
+            if plan.dropped_for_budget
+            else ""
+        )
+        + "\nThe sweep stops early once the walls are found."
     )
     if not yes and not typer.confirm("Start?", default=True):
         raise typer.Exit(1)
 
     home = data_dir()
     conn = connect(home / DB_FILENAME)
-    endpoint = Endpoint(base_url=snap.base_url, model=served.id, tokenizer=hf_id, api_key=api_key)
-    inputs = RunInputs(
-        endpoint=endpoint,
-        snapshot=snap,
-        served=served,
-        metadata=metadata,
-        setup=setup,
-        workload=workload,
-        theory=theory,
-        label=label,
-    )
 
     def progress(ev: PointEvent) -> None:
-        if ev.result is None:
+        spec = ev.planned.spec
+        if ev.skipped:
             console.print(
-                f"[{ev.index + 1}/{ev.total}] {ev.planned.phase}: "
-                f"{ev.planned.spec.isl} in / {ev.planned.spec.osl} out, "
-                f"concurrency {ev.planned.spec.concurrency}, ~{ev.planned.eta_s:.0f} s…"
+                f"[{ev.index + 1}/{ev.total}] {ev.planned.phase} c={spec.concurrency}: "
+                f"[dim]skipped ({ev.skipped})[/]"
+            )
+        elif ev.result is None:
+            console.print(
+                f"[{ev.index + 1}/{ev.total}] {ev.planned.phase}: {spec.isl} in / "
+                f"{spec.osl} out, concurrency {spec.concurrency}, "
+                f"~{ev.planned.eta_s:.0f} s…"
             )
         else:
             state = "[green]done[/]" if ev.result.ok else f"[red]failed ({ev.result.exit_code})[/]"
-            console.print(f"      {state} in {ev.result.wall_time_s:.0f} s")
+            extra = ""
+            if ev.summary and ev.summary.output_tok_s:
+                s = ev.summary
+                extra = (
+                    f": {s.output_tok_s:,.0f} tok/s, TPOT P99 "
+                    f"{s.tpot.get('p99', 0):.1f} ms, TTFT P99 {s.ttft.get('p99', 0):.0f} ms"
+                    + (f", preemptions {s.preemptions:.0f}" if s.preemptions else "")
+                )
+            console.print(f"      {state} in {ev.result.wall_time_s:.0f} s{extra}")
 
     run_id = execute_run(conn, inputs, plan, AiperfLoadGenerator(), home, on_event=progress)
     _write_report(conn, run_id, None, "md", show_verdict=True)
