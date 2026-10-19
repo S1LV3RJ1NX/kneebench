@@ -4,18 +4,22 @@
 profiles:
   chat:
     label: chat assistant
+    title: Chat assistant
     weights: {ttft: 3, tpot: 3, latency: 3, capacity: 3, network: 2, physics: 2, memory: 2,
               prefill: 1, shape: 1, reliability: 2, setup: 4}
   rag:
     label: RAG and long documents
+    title: RAG and long documents
     weights: {prefill: 3, ttft: 3, shape: 3, kv: 3, memory: 2, latency: 2, capacity: 2,
               tpot: 2, network: 2, physics: 2, reliability: 2, setup: 4}
   reasoning:
     label: reasoning and agents
+    title: Reasoning and agents
     weights: {memory: 3, kv: 3, preemption: 3, tpot: 3, shape: 2, capacity: 2, latency: 2,
               ttft: 1, physics: 2, reliability: 2, setup: 4}
   batch:
     label: batch jobs
+    title: Batch jobs
     weights: {throughput: 3, capacity: 3, saturation: 3, cost: 3, memory: 2, physics: 2,
               tpot: 1, ttft: 1, latency: 1, reliability: 2, setup: 4}
 # setup (a wrong GPU entry, eager mode) outranks everything: it invalidates the rest.

@@ -11,6 +11,7 @@ from typing import Any
 
 import jinja2
 import yaml
+from markupsafe import Markup, escape
 
 from kneebench import content
 from kneebench.analysis.engine import REGISTRY, Finding
@@ -106,11 +107,10 @@ class TermTracker:
         first = key not in self.used
         self.used.setdefault(key, definition)
         if self.style == "html":
-            from markupsafe import escape
-
-            return f'<abbr title="{escape(definition)}">{escape(name)}</abbr>' + (
-                f" ({escape(definition)})" if first else ""
-            )
+            html = f'<abbr title="{escape(definition)}">{escape(name)}</abbr>'
+            if first:
+                html += f' <span class="def">({escape(definition)})</span>'
+            return Markup(html)
         return f"{name} ({definition})" if first else name
 
 
@@ -175,7 +175,8 @@ def _cell(row: dict[str, Any], column: dict[str, Any]) -> str:
 
 
 def make_env(tracker: TermTracker) -> jinja2.Environment:
-    env = jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=False)
+    # HTML output escapes every value: model names and errors come from the server.
+    env = jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=tracker.style == "html")
     env.globals.update(FORMATTERS)
     env.globals["term"] = tracker
     return env

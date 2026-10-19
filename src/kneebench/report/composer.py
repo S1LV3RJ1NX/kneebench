@@ -65,6 +65,7 @@ class Report:
     title: str
     generated_at: str
     summary: dict[str, Any]
+    style: str
     verdict: list[str]
     scorecard: list[Tile]
     problems: list[RenderedFinding]
@@ -106,8 +107,10 @@ def _by(findings: list[Finding], rule_id: str) -> Finding | None:
     return next((f for f in findings if f.rule_id == rule_id), None)
 
 
-def compose(ctx: RunContext, findings: list[Finding], now: str | None = None) -> Report:
-    tracker = TermTracker("md")
+def compose(
+    ctx: RunContext, findings: list[Finding], now: str | None = None, style: str = "md"
+) -> Report:
+    tracker = TermTracker(style)
     env = make_env(tracker)
     common = common_vars(ctx)
     text = content.load("report.yaml")
@@ -166,6 +169,7 @@ def compose(ctx: RunContext, findings: list[Finding], now: str | None = None) ->
         run_id=ctx.run_id,
         title=f"kneebench report: {common['model']} on {common['gpu_label']}",
         generated_at=now or datetime.now(UTC).isoformat(timespec="seconds"),
+        style=style,
         summary={
             "model": common["model"],
             "served_model": ctx.served_model,

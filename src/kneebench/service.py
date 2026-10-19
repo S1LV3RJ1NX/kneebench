@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from sqlite3 import Connection
 
 from kneebench import content
 from kneebench.detect.server import ServerSnapshot, detect_server, fetch_model_metadata
@@ -10,10 +12,11 @@ from kneebench.domain import STANDARD_SHAPES, ProductType, ServerSetup, Slo, Sou
 from kneebench.loadgen.base import Endpoint
 from kneebench.phases.plan import DEFAULT_MAX_CONCURRENCY, RunPlan, plan_run
 from kneebench.phases.runner import RunInputs
-from kneebench.phases.theory import compute_theory
+from kneebench.phases.theory import compute_theory, theory_from_snapshot
 from kneebench.physics.floors import Hardware
-from kneebench.physics.gpus import GpuSpec
+from kneebench.physics.gpus import GpuSpec, get_gpu, gpu_from_json
 from kneebench.physics.model import model_spec_from_hf
+from kneebench.store import repo
 
 ALL_PHASES = ("baseline", "concurrency")
 
@@ -115,3 +118,24 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
         label=req.label,
     )
     return inputs, plan
+
+
+def correct_gpu(
+    conn: Connection, run_id: int, gpu: str | None, gpu_count: int | None
+) -> tuple[GpuSpec, int]:
+    """Replace a run's GPU entry and recompute everything derived from it; no rerun."""
+    bundle = repo.run_bundle(conn, run_id)
+    old = bundle["setup"]
+    spec = get_gpu(gpu) if gpu else gpu_from_json(json.loads(old["gpu_json"]))
+    count = gpu_count or old["gpu_count"]
+    sources = {**json.loads(old["source_json"]), "gpu": Source.USER, "gpu_count": Source.USER}
+    setup = ServerSetup(
+        gpu=spec,
+        gpu_count=count,
+        max_num_seqs=old["max_num_seqs"],
+        enforce_eager=None if old["enforce_eager"] is None else bool(old["enforce_eager"]),
+        sources=sources,
+    )
+    theory = theory_from_snapshot(bundle["snapshot"], bundle["workload"], Hardware(spec, count))
+    repo.correct_setup(conn, run_id, setup, theory.to_json())
+    return spec, count

@@ -12,9 +12,13 @@ from kneebench.store import repo
 
 
 def build_report(
-    conn: Connection, run_id: int, narrator: Narrator | None = None, now: str | None = None
+    conn: Connection,
+    run_id: int,
+    narrator: Narrator | None = None,
+    now: str | None = None,
+    style: str = "md",
 ) -> Report:
     ctx = context_from_bundle(repo.run_bundle(conn, run_id))
     findings = evaluate(ctx)
     repo.save_findings(conn, run_id, [f.to_json() for f in findings], RULES_VERSION)
-    return (narrator or PassthroughNarrator()).rewrite(compose(ctx, findings, now=now))
+    return (narrator or PassthroughNarrator()).rewrite(compose(ctx, findings, now=now, style=style))
