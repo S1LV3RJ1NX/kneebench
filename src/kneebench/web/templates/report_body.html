@@ -51,8 +51,13 @@
 
 {% if report.next_steps %}
 <h2 id="next">{{ s.next }}</h2>
+{% for kind in ["server", "test"] %}
+{% set group = report.next_steps | selectattr("action.kind", "equalto", kind) | list %}
+{% if group %}
+<h3 class="steps-group">{{ s["next_" ~ kind] }}</h3>
+<p class="muted small">{{ s["next_" ~ kind ~ "_intro"] }}</p>
 <ol class="steps">
-  {% for step in report.next_steps %}
+  {% for step in group %}
   <li class="card action">
     <b>{{ step.action.title | safe }}</b><span class="rule">{{ step.rule_id }}</span>
     {% if step.action.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">Copy</button><code>{{ step.action.flag | safe }}</code></pre>{% endif %}
@@ -62,6 +67,8 @@
   </li>
   {% endfor %}
 </ol>
+{% endif %}
+{% endfor %}
 {% endif %}
 
 {% if report.capacity %}

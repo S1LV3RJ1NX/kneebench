@@ -32,6 +32,7 @@ actions:
     verify: The report header lists your shape as the main one.
   - when: [warn]
     title: Raise the context window
+    kind: server
     flag: --max-model-len {{ num0(shapes[0].original_isl + shapes[0].original_osl) }}
     expected: Requests of your size run untrimmed.
     risk: A longer window leaves room for fewer requests in the cache at once.

@@ -123,6 +123,13 @@ sections:
   passed: Checks that passed
   skipped: Not checked
   next: Try these next
+  next_server: Change your server
+  next_server_intro: >-
+    Settings for your vLLM server or deployment, most important first. Change one at a time and
+    rerun, so you can see what each did.
+  next_test: Make the test more reliable
+  next_test_intro: >-
+    These don't touch your server. They make the next run's numbers more trustworthy.
   caveats: What this test can't see
   glossary: Glossary
   appendix: "Appendix: raw numbers"

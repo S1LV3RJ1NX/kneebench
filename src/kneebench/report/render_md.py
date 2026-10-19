@@ -74,17 +74,22 @@ def render_markdown(report: Report) -> str:
             out += _finding(f)
     if report.next_steps:
         out += [f"## {s['next']}", ""]
-        for step in report.next_steps:
-            a = step.action
-            line = f"{step.rank}. **{a.title}** ({step.rule_id}). Why: {step.reason}"
-            if a.expected:
-                line += f" Expected: {a.expected}"
-            if a.risk:
-                line += f" Risk: {a.risk}"
-            out.append(line)
-            if a.flag:
-                out += ["", "   ```", f"   {a.flag}", "   ```"]
-        out.append("")
+        for kind in ("server", "test"):
+            group = [st for st in report.next_steps if st.action.kind == kind]
+            if not group:
+                continue
+            out += [f"### {s['next_' + kind]}", "", s[f"next_{kind}_intro"], ""]
+            for step in group:
+                a = step.action
+                line = f"{step.rank}. **{a.title}** ({step.rule_id}). Why: {step.reason}"
+                if a.expected:
+                    line += f" Expected: {a.expected}"
+                if a.risk:
+                    line += f" Risk: {a.risk}"
+                out.append(line)
+                if a.flag:
+                    out += ["", "   ```", f"   {a.flag}", "   ```"]
+            out.append("")
     if report.capacity:
         out += [f"## {s['capacity']}", ""]
         for f in report.capacity:

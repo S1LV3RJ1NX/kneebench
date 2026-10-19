@@ -288,3 +288,5 @@ tr.changed td:first-child { font-weight: 600; }
 main:has(.compare) { max-width: 1000px; }
 .compare h2 { margin: 36px 0 12px; }
 .compare .card + .card { margin-top: 14px; }
+h3.steps-group { margin: 22px 0 4px; font-size: 16px; }
+h3.steps-group + p { margin: 0 0 10px; }

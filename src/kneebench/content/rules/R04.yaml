@@ -22,6 +22,7 @@ learn_more: {note: "25", anchor: "5-running-both-with-vllm", label: "Running bot
 actions:
   - when: [warn]
     title: Keep more headroom, or queue requests in front of the server
+    kind: server
     expected: Burst peaks stay below capacity, so the tail meets the target.
     risk: Lower average utilization of the GPU.
     verify: Rerun with the rate sweep; bursty and steady results move closer.

@@ -19,6 +19,7 @@ learn_more: {note: "27", anchor: "1-the-experiment", label: "The experiment"}
 actions:
   - when: [warn, bad]
     title: Find which layer rejected the requests
+    kind: server
     expected: >-
       HTTP 429 or 5xx from a proxy point at the gateway; errors from vLLM itself point at the
       server.

@@ -123,6 +123,35 @@ def _weight(finding: Finding, product: str) -> int:
     return max((weights.get(t, default) for t in finding.tags), default=default)
 
 
+def _next_steps(problems: list[RenderedFinding]) -> list[NextStep]:
+    """Server changes first, then test fixes, each in problem order.
+
+    One step per flag (or per title, without a flag): two findings can ask for the same
+    setting, and the higher-ranked one wins rather than giving two different values.
+    """
+    seen: set[tuple[str, str]] = set()
+    ordered: dict[str, list[tuple[str, str, RenderedAction]]] = {"server": [], "test": []}
+    for r in problems:
+        for action in r.actions:
+            key = _setting(action)
+            if (action.kind, key) in seen:
+                continue
+            seen.add((action.kind, key))
+            ordered.setdefault(action.kind, []).append((r.rule_id, r.status_line, action))
+    steps: list[NextStep] = []
+    for group in ordered.values():
+        for rank, (rule_id, reason, action) in enumerate(group, start=1):
+            steps.append(NextStep(rank, rule_id, reason, action))
+    return steps
+
+
+def _setting(action: RenderedAction) -> str:
+    """What an action changes: its first --flag, else the whole command, else its title."""
+    if not action.flag:
+        return action.title
+    return next((w for w in action.flag.split() if w.startswith("--")), action.flag)
+
+
 def _by(findings: list[Finding], rule_id: str) -> Finding | None:
     return next((f for f in findings if f.rule_id == rule_id), None)
 
@@ -191,10 +220,7 @@ def compose(
     ]
     skipped = [render_finding(f, common, env) for f in findings if f.status is Status.SKIP]
 
-    steps: list[NextStep] = []
-    for r in problems:
-        for action in r.actions:
-            steps.append(NextStep(len(steps) + 1, r.rule_id, r.status_line, action))
+    steps = _next_steps(problems)
 
     caveats = [render_text(c) for c in text["caveats"]["always"]]
     rtt = ctx.http_rtt_ms

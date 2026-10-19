@@ -29,6 +29,7 @@ learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: 
 actions:
   - when: [warn, bad]
     title: Lower the context limit, or free memory for the cache
+    kind: server
     flag: --max-model-len {{ suggest_max_model_len }}
     expected: >-
       About {{ times(pool_tokens / suggest_max_model_len) }} full-length requests fit.

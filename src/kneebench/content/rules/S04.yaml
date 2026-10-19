@@ -28,6 +28,7 @@ learn_more: {note: "26", anchor: "4-shape-decides-how-many-fit", label: "Shape d
 actions:
   - when: [warn]
     title: Cap concurrent sequences for long answers
+    kind: server
     flag: --max-num-seqs {% if sustain %}{{ sustain }}{% else %}<cache tokens ÷ (prompt + output)>{% endif %}
     expected: >-
       The preemption counter stays at 0; extra long requests wait in the queue instead of

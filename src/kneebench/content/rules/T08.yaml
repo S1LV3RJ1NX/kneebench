@@ -12,6 +12,7 @@ learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks of
 actions:
   - when: [warn]
     title: Serve in bfloat16
+    kind: server
     flag: --dtype bfloat16
     expected: Time per token roughly halves.
     risk: Negligible quality change for most models.

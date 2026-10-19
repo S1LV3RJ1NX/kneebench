@@ -155,6 +155,7 @@ class RenderedAction:
     expected: str | None
     risk: str | None
     verify: str | None
+    kind: str = "test"  # "server": change the server or deployment; "test": rerun differently
 
 
 @dataclass(frozen=True)
@@ -247,6 +248,7 @@ def render_finding(
             expected=_render(env, a.get("expected"), variables),
             risk=_render(env, a.get("risk"), variables),
             verify=_render(env, a.get("verify"), variables),
+            kind=str(a.get("kind", "test")),
         )
         for a in spec.get("actions", [])
         if status in a.get("when", [])

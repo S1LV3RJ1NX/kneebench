@@ -45,3 +45,4 @@ def test_content_files_have_required_parts() -> None:
         assert spec.get("learn_more", {}).get("note") in {"24", "25", "26", "27"}
         for action in spec.get("actions", []):
             assert action["when"] and action["title"] and action["verify"]
+            assert action.get("kind", "test") in {"server", "test"}, f"{rid}: {action['title']}"

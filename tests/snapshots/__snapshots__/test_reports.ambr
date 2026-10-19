@@ -47,12 +47,21 @@
   
   ## Try these next
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
-  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 260
      ```
+  
+  ### Make the test more reliable
+  
+  These don't touch your server. They make the next run's numbers more trustworthy.
+  
+  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -250,12 +259,21 @@
   
   ## Try these next
   
-  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
-  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 75
      ```
+  
+  ### Make the test more reliable
+  
+  These don't touch your server. They make the next run's numbers more trustworthy.
+  
+  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -453,12 +471,21 @@
   
   ## Try these next
   
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 75
      ```
-  2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  
+  ### Make the test more reliable
+  
+  These don't touch your server. They make the next run's numbers more trustworthy.
+  
+  1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -668,13 +695,22 @@
   
   ## Try these next
   
-  1. **Correct the GPU type** (T07). Why: The server's cache (65.0 GiB) plus weights (15.0 GiB) need at least 90.0 GiB per GPU, more than NVIDIA H100 SXM 80GB has (79.6 GiB). The GPU entry is probably wrong. Expected: Floors and memory findings match the real hardware. Risk: None.
-  2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
-  3. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 260
      ```
+  
+  ### Make the test more reliable
+  
+  These don't touch your server. They make the next run's numbers more trustworthy.
+  
+  1. **Correct the GPU type** (T07). Why: The server's cache (65.0 GiB) plus weights (15.0 GiB) need at least 90.0 GiB per GPU, more than NVIDIA H100 SXM 80GB has (79.6 GiB). The GPU entry is probably wrong. Expected: Floors and memory findings match the real hardware. Risk: None.
+  2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -871,6 +907,10 @@
   
   ## Try these next
   
+  ### Make the test more reliable
+  
+  These don't touch your server. They make the next run's numbers more trustworthy.
+  
   1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   2. **Expose /metrics through your gateway (read-only)** (H08). Why: The server's /metrics wasn't reachable, so memory and queue findings (cache use, preemption, waiting requests) can't be shown. Expected: Cache use, preemptions and queue length appear in the report. Risk: Metrics reveal load and configuration; restrict access as you would any internal page.
   
@@ -1056,6 +1096,10 @@
   **Why it happens.** Prompt length sets first-token time and cache size; output length sets answer time and how long each request holds memory. The same GPU fits many short chats but far fewer long documents. [Learn more: Lesson 26: Sweep prompt and output length, The shape map](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#6-the-shape-map)
   
   ## Try these next
+  
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
   
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
@@ -1483,6 +1527,10 @@
   
   ## Try these next
   
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
@@ -1893,6 +1941,10 @@
   
   ## Try these next
   
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
+  
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
@@ -2206,6 +2258,10 @@
   **Why it happens.** Under load, a few requests land behind long prompts or wait for memory, so the tail grows faster than the median. Judging by medians lets the tail blow through the target unnoticed. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
   ## Try these next
+  
+  ### Change your server
+  
+  Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
   
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   

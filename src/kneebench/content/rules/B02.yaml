@@ -21,6 +21,7 @@ learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks of
 actions:
   - when: [bad]
     title: Turn CUDA graphs back on
+    kind: server
     flag: remove --enforce-eager
     expected: Time per token drops toward 1.3 to 1.7 times the floor ({{ ms(floor_ms * 1.5) }}).
     risk: Slightly more memory and a longer startup.

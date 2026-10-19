@@ -19,6 +19,7 @@ learn_more: {note: "26", anchor: "5-running-the-sweep", label: "Running the swee
 actions:
   - when: [info]
     title: Raise the context limit if your real traffic is longer
+    kind: server
     flag: --max-model-len <tokens>
     expected: The original shapes can be measured as-is.
     risk: A longer limit needs more cache per request; check the memory findings after.

@@ -40,6 +40,7 @@ learn_more: {note: "24", anchor: "4-compare-against-the-floors", label: "Compare
 actions:
   - when: [warn, bad]
     title: Remove eager mode if it is on
+    kind: server
     flag: remove --enforce-eager
     expected: Time per token moves toward {{ ms(floor_ms / 0.7) }} (about 70% of bandwidth).
     risk: CUDA graphs use a little more memory and add a few seconds to startup.

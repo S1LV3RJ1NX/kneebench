@@ -27,6 +27,7 @@ learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: 
 actions:
   - when: [warn, bad]
     title: Lower the sequence cap
+    kind: server
     flag: --max-num-seqs {{ recommend }}
     expected: >-
       The preemption counter stays at 0 and extra requests wait in the queue
