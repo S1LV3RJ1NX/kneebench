@@ -5,7 +5,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-from kneebench.domain import CONTEXT_MARGIN_TOKENS, ProductType, Slo, primary_shape_name
+from kneebench.domain import (
+    LENGTH_VARIATION,
+    ProductType,
+    Slo,
+    context_budget,
+    primary_shape_name,
+)
 from kneebench.loadgen.aiperf.overhead import estimate_point_overhead_s
 from kneebench.loadgen.base import Arrival, LoadMode, PointSpec
 from kneebench.phases.theory import ShapeTheory, Theory
@@ -22,13 +28,15 @@ SWEEP_MIN_REQUESTS = 16
 SWEEP_MAX_WARMUP = 32
 # Length variation per request (note 26 section 5): identical lengths make closed-loop
 # requests finish and restart in lockstep, which turns into unrealistic prefill bursts.
-SWEEP_LENGTH_VARIATION = 0.05
+SWEEP_LENGTH_VARIATION = LENGTH_VARIATION
 # Note 25 section 4: random arrivals below, near and past capacity, then bursty ones.
 POISSON_FACTORS = (0.25, 0.5, 0.75, 0.9, 1.1)
 BURSTY_FACTORS = (0.75, 0.9)
 BURSTINESS = 0.5  # gamma shape below 1 clusters arrivals; 1.0 is Poisson
 # Long enough to see whether first-token time keeps growing (run-length dependence).
 RATE_DURATION_S = 90.0
+# A few request lifetimes at the target rate, so profiling doesn't start from an idle server.
+RATE_WARMUP_S = 20.0
 # Open-loop arrivals need room to queue; past this, the client is the limit.
 RATE_CONCURRENCY_CAP = 2048
 # Note 26 section 5: one axis at a time, in powers of two (here powers of four, to keep the
@@ -125,6 +133,7 @@ def rate_spec(shape: ShapeTheory, arrival: str, slo: Slo, rate: float = 1.0) -> 
         concurrency=RATE_CONCURRENCY_CAP,
         isl_stddev=round(shape.isl * SWEEP_LENGTH_VARIATION, 1),
         osl_stddev=round(shape.osl * SWEEP_LENGTH_VARIATION),
+        warmup_s=RATE_WARMUP_S,
         duration_s=RATE_DURATION_S,
         slice_duration_s=SLICE_S,
         goodput=slo.goodput(),
@@ -133,7 +142,7 @@ def rate_spec(shape: ShapeTheory, arrival: str, slo: Slo, rate: float = 1.0) -> 
 
 def axis_lengths(max_model_len: int | None, fixed: int) -> list[int]:
     """Axis values that fit the context window next to the fixed side."""
-    room = (max_model_len or 32_768) - fixed - CONTEXT_MARGIN_TOKENS
+    room = context_budget(max_model_len or 32_768) - fixed
     values = [v for v in SHAPE_AXIS if v <= room]
     largest = room // 256 * 256
     if values and largest >= values[-1] * 2 and largest not in values:
@@ -230,7 +239,12 @@ def plan_run(
                 for factor in factors:
                     spec = rate_spec(shape, arrival, slo or Slo(None, None))
                     tail_s = estimate_e2e_ms(theory, shape, 64, slowdown) / 1000
-                    eta = RATE_DURATION_S + tail_s + estimate_point_overhead_s([], False)
+                    eta = (
+                        RATE_WARMUP_S
+                        + RATE_DURATION_S
+                        + tail_s
+                        + estimate_point_overhead_s([], False)
+                    )
                     points.append(PlannedPoint("rate", spec, eta, rate_factor=factor))
         if "shape" in phases:
             points.extend(_shape_points(theory, shape, slo or Slo(None, None), slowdown))

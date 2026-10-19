@@ -24,3 +24,14 @@ def test_connection_setup_is_removed_from_ttft() -> None:
 def test_parse_reads_connection_setup() -> None:
     reqs = parse_point(BASELINE_FIXTURE).requests
     assert all(r.connect_ms is not None for r in reqs)
+
+
+def test_network_offset_never_beats_physics() -> None:
+    from kneebench.analysis.context import ttft_offset
+    from tests.builders import point
+
+    base = replace(rate_point(1.0, ttft_ms=290.0), phase="baseline")
+    assert ttft_offset(312.0, base, 10.0) == pytest.approx(280.0)  # /health slower than TTFT
+    assert ttft_offset(100.0, base, 10.0) == pytest.approx(100.0)
+    assert ttft_offset(312.0, None, 10.0) == pytest.approx(312.0)
+    assert ttft_offset(None, point(), 10.0) == 0.0

@@ -15,7 +15,7 @@ BURST_PENALTY_WARN = 2.0
 
 
 def _points(ctx: RunContext) -> tuple[list[RatePoint], float | None]:
-    offset = ctx.http_rtt_ms or 0.0
+    offset = ctx.ttft_offset_ms
     pts = rate_points(ctx.points_in("rate"), offset)
     return pts, capacity_rps(ctx.points_in("concurrency"), offset)
 
@@ -65,7 +65,7 @@ def rate_capacity(ctx: RunContext) -> Finding | None:
         "pct_label": pct,
         "slo_ttft_ms": slo.ttft_ms,
         "slo_tpot_ms": slo.tpot_ms,
-        "ttft_offset_ms": ctx.http_rtt_ms or 0.0,
+        "ttft_offset_ms": ctx.ttft_offset_ms,
         "shape_name": ctx.primary_shape,
     }
     return info("R01", **data) if best is not None else warn("R01", **data)

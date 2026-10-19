@@ -49,6 +49,8 @@ class PointSpec:
     osl_stddev: int = 0
     request_count: int | None = None
     warmup_count: int | None = None
+    # Rate points warm up for this long at their own rate, so profiling starts at load.
+    warmup_s: float | None = None
     duration_s: float | None = None
     slice_duration_s: float | None = 10.0
     goodput: tuple[tuple[str, float], ...] = ()

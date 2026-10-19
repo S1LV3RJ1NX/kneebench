@@ -95,7 +95,7 @@ def output_length(ctx: RunContext) -> Finding | None:
 
 @rule("H05", tags={"reliability", "tokenizer"}, source="26#5")
 def token_count_discrepancy(ctx: RunContext) -> Finding | None:
-    flagged = [p.phase for p in ctx.points if p.has_warning(TOKEN_WARNING)]
+    flagged = list(dict.fromkeys(p.phase for p in ctx.points if p.has_warning(TOKEN_WARNING)))
     if not flagged:
         return None
     return warn("H05", phases=flagged, tokenizer=ctx.hf_model_id)

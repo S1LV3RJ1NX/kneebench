@@ -94,6 +94,16 @@ def _phases(spec: PointSpec) -> list[dict[str, Any]]:
             profiling["smoothness"] = spec.burstiness
         if spec.concurrency:
             profiling["concurrency"] = spec.concurrency
+        if spec.warmup_s:
+            # Same arrivals, excluded from results; seamless so the server doesn't drain
+            # to idle before profiling starts.
+            warm = {
+                k: v for k, v in profiling.items() if k not in ("name", "gracePeriod", "requests")
+            }
+            phases.append(
+                {**warm, "name": "warmup", "excludeFromResults": True, "duration": spec.warmup_s}
+            )
+            profiling["seamless"] = True
         if spec.duration_s:
             profiling["duration"] = spec.duration_s
             profiling["gracePeriod"] = _RATE_GRACE_S
@@ -117,5 +127,6 @@ def _artifacts(spec: PointSpec, artifact_dir: Path) -> dict[str, Any]:
 def _dataset_entries(spec: PointSpec) -> int:
     planned = (spec.request_count or 0) + (spec.warmup_count or 0)
     if spec.mode is LoadMode.RATE and spec.request_rate and spec.duration_s:
-        planned = max(planned, math.ceil(spec.request_rate * spec.duration_s * 1.2))
+        seconds = spec.duration_s + (spec.warmup_s or 0)
+        planned = max(planned, math.ceil(spec.request_rate * seconds * 1.2))
     return min(max(planned, 100), _MAX_ENTRIES)

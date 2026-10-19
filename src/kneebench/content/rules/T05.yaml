@@ -6,7 +6,9 @@ status_line:
     {{ num(s.isl) }}/{{ num(s.osl) }}{% if not loop.last %}; {% endif %}{% endfor %} to fit the
     {{ num(max_model_len) }}-token context.
 measured: >-
-  Prompt plus output plus room for the chat template must fit in {{ num(max_model_len) }} tokens.
+  Prompt plus output plus room for the chat template must fit in {{ num(max_model_len) }} tokens,
+  with 15% to spare: sweeps vary each request's length a little, and the longest ones must
+  still fit.
 meaning: >-
   kneebench shortened the longer side of these shapes. Their results describe the adjusted
   lengths, not the originals.

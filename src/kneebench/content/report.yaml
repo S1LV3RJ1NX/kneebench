@@ -103,6 +103,15 @@ what_if: >-
   ({% if measured_with.ttft_ms %}{{ ms(measured_with.ttft_ms) }}{% else %}none{% endif %} and
   {% if measured_with.tpot_ms %}{{ ms(measured_with.tpot_ms) }}{% else %}none{% endif %} at
   P{{ measured_with.percentile }}). Nothing was re-run.
+# How each phase is named inside sentences.
+phase_labels:
+  baseline: the baseline
+  baseline_end: the closing baseline
+  concurrency: the concurrency sweep
+  rate: the request-rate sweep
+  shape_prompt: the prompt-length sweep
+  shape_output: the output-length sweep
+  shape_map: the shape map
 sections:
   verdict: Verdict
   scorecard: Scorecard

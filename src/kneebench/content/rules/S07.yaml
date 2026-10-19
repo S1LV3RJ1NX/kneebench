@@ -11,7 +11,7 @@ meaning: >-
   Shortening answers saves far more time than shortening prompts. Prompts aren't free, though:
   they still cost first-token time and cache.
 why: >-
-  The prompt is read in parallel ({{ term("prefill") }}), limited by compute. The answer is
-  written one token per step ({{ term("decode") }}), each step reading the whole model from
-  memory.
+  The prompt is read in parallel, called {{ term("prefill") }}, limited by compute. The answer
+  is written one token per step, called {{ term("decode") }}, each step reading the whole
+  model from memory.
 learn_more: {note: "26", anchor: "1-two-lengths-two-machines", label: "Two lengths, two machines"}

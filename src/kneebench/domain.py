@@ -111,6 +111,16 @@ def primary_shape_name(product: ProductType, shape_names: tuple[str, ...]) -> st
 BASELINE_SHAPE = Shape("baseline", 512, 256)
 # Room for chat-template tokens added by the server on top of the prompt.
 CONTEXT_MARGIN_TOKENS = 128
+# Sweeps vary each request's lengths by this share (one standard deviation) so a closed loop
+# doesn't move in lockstep; fitting a shape leaves room for three deviations, or the longest
+# requests overflow the context and the server rejects them.
+LENGTH_VARIATION = 0.05
+VARIATION_HEADROOM = 1 + 3 * LENGTH_VARIATION
+
+
+def context_budget(max_model_len: int) -> int:
+    """Largest prompt + output total that fits the context with room for length variation."""
+    return int((max_model_len - CONTEXT_MARGIN_TOKENS) / VARIATION_HEADROOM)
 
 
 @dataclass(frozen=True)
@@ -122,9 +132,9 @@ class FittedShape:
 
 def fit_shape(shape: Shape, max_model_len: int | None) -> FittedShape:
     """Shrink the longer side so prompt + output + margin fits the context (note 26)."""
-    if max_model_len is None or shape.isl + shape.osl + CONTEXT_MARGIN_TOKENS <= max_model_len:
+    if max_model_len is None or shape.isl + shape.osl <= context_budget(max_model_len):
         return FittedShape(shape, shape, adapted=False)
-    budget = max_model_len - CONTEXT_MARGIN_TOKENS
+    budget = context_budget(max_model_len)
     if budget < 2:
         raise ValueError(f"max_model_len {max_model_len} is too small to benchmark")
     isl, osl = shape.isl, shape.osl

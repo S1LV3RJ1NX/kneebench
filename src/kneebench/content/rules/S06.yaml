@@ -3,12 +3,13 @@ title: Every request size, at the same load
 status_line:
   info: >-
     At {{ num(concurrency) }} users, {% if not has_slo %}each request size behaves
-    differently; compare them below{% elif failing %}{{ failing | join(", ") }}
+    differently; compare them below{% elif failing %}{{ failing | join(" and ") }}
     {{ "misses" if failing | length == 1 else "miss" }} your targets{% else %}every request
     size meets your targets{% endif %}.
   warn: >-
-    At {{ num(concurrency) }} users, {{ primary }} meets your targets but
-    {{ failing | join(", ") }} {{ "doesn't" if failing | length == 1 else "don't" }}.
+    At {{ num(concurrency) }} users, {{ "your request size" if has_user else primary }} meets
+    your targets but {{ failing | join(" and ") }} {{ "doesn't" if failing | length == 1 else
+    "don't" }}.
 measured: >-
   Each standard request size{% if has_user %} and yours{% endif %}, run separately at
   the operating point. They are never averaged: long requests would hide inside the mean.
@@ -16,7 +17,7 @@ meaning:
   info: >-
     A server has a map of numbers, not one. Plan with the row closest to your real traffic.
   warn: >-
-    Settings that work for {{ primary }} traffic fail for other sizes. If you serve mixed
+    Settings that work for {{ "your" if has_user else primary }} traffic fail for other sizes. If you serve mixed
     traffic, plan for the worst common size or split it across pools.
 why: >-
   Prompt length sets first-token time and cache size; output length sets answer time and how
@@ -33,4 +34,5 @@ table:
     - {key: ttft_tail, label: TTFT tail, fmt: ms}
     - {key: tpot_tail, label: TPOT tail, fmt: ms}
     - {key: kv_max, label: Peak cache, fmt: pct}
+    - {key: errors, label: Failed, fmt: pct}
     - {key: meets, label: Meets targets, fmt: yesno}

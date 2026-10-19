@@ -159,6 +159,12 @@ class RunContext:
     def http_rtt_ms(self) -> float | None:
         return (self.network or {}).get("http_rtt_ms")
 
+    @property
+    def ttft_offset_ms(self) -> float:
+        """Network time taken off every first token (see `ttft_offset`)."""
+        base = self.theory.shape("baseline")
+        return ttft_offset(self.http_rtt_ms, self.baseline, base.ttft_floor_ms if base else None)
+
     def server_ttft_ms(self, point: PointView, stat: str = "p50") -> float | None:
         """TTFT with the network round trip removed, or None when the network dominates."""
         ttft = point.m("time_to_first_token", stat)
@@ -169,7 +175,30 @@ class RunContext:
             return ttft
         if rtt / ttft >= UNRELIABLE_NETWORK_SHARE:
             return None
-        return ttft - rtt
+        return ttft - self.ttft_offset_ms
+
+
+def ttft_offset(rtt_ms: float | None, baseline: PointView | None, floor_ms: float | None) -> float:
+    """The network time to take off every first token.
+
+    It is the keep-alive round trip to /health, capped so the fastest baseline request still
+    leaves the server its physics floor: a slow /health path (a gateway, a cold handler) can
+    take longer than a whole streamed first token, and removing all of it would make the
+    server look faster than physics allows.
+    """
+    if not rtt_ms:
+        return 0.0
+    if baseline is None or floor_ms is None:
+        return rtt_ms
+    times = [
+        r.ttft_ms - (r.connect_ms or 0.0)
+        for r in baseline.requests
+        if r.ok and r.ttft_ms is not None
+    ]
+    fastest = min(times) if times else baseline.m("time_to_first_token", "min")
+    if fastest is None:
+        return rtt_ms
+    return max(0.0, min(rtt_ms, fastest - floor_ms))
 
 
 def _loads(value: str | None) -> Any:

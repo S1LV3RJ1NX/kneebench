@@ -1,7 +1,7 @@
 """Regenerate the README screenshots and the animated tour (dev tool).
 
     uv run python scripts/make_screenshots.py --db .kneebench/kneebench.sqlite3 \
-        --sweep-run 3 --baseline-run 4
+        --sweep-run 3 --baseline-run 4 [--shape-run 6] [--compare-run 5]
 
 Works on a sanitized copy of the database (endpoint URLs and served model names are
 replaced), serves the UI against it, and points the new-run form at a local fake vLLM
@@ -120,12 +120,17 @@ def main() -> None:
     parser.add_argument("--db", type=Path, required=True)
     parser.add_argument("--sweep-run", type=int, required=True)
     parser.add_argument("--baseline-run", type=int, required=True)
+    parser.add_argument("--shape-run", type=int, help="a run with the request-size sweep")
+    parser.add_argument("--compare-run", type=int, help="compared with --sweep-run")
     args = parser.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
-    home = sanitized_home(
-        args.db, {args.sweep_run: "chat sweep, before tuning", args.baseline_run: "quick baseline"}
-    )
+    keep = {args.sweep_run: "chat sweep", args.baseline_run: "quick baseline"}
+    if args.shape_run:
+        keep[args.shape_run] = "request sizes"
+    if args.compare_run:
+        keep[args.compare_run] = "chat sweep, repeated"
+    home = sanitized_home(args.db, keep)
     os.chdir(home)  # no kneebench.local.toml here, so the form starts empty
     base = serve(home)
     vllm = fake_vllm()
@@ -148,6 +153,24 @@ def main() -> None:
             shoot(page, "report-latency", selector="#rule-W02")
             frames.append(shoot(page, "chart-latency", selector='[data-chart="W02-0"]'))
             shoot(page, "report-baseline", selector="#rule-B01")
+
+            page.goto(f"{base}/runs/{args.sweep_run}?whatif=1&slo_ttft_ms=1000&slo_tpot_ms=30")
+            page.wait_for_function("window.kneebenchReady === true", timeout=30000)
+            shoot(page, "what-if")
+
+            if args.shape_run:
+                page.goto(f"{base}/runs/{args.shape_run}")
+                page.wait_for_function("window.kneebenchReady === true", timeout=30000)
+                page.evaluate("window.kneebenchExpandAll()")
+                page.wait_for_timeout(800)
+                shoot(page, "report-shapes", selector="#rule-S06")
+                frames.append(shoot(page, "chart-shapes", selector='[data-chart="S06-0"]'))
+                shoot(page, "chart-prompt", selector='[data-chart="S01-0"]')
+
+            if args.compare_run:
+                page.goto(f"{base}/compare?a={args.compare_run}&b={args.sweep_run}")
+                page.wait_for_timeout(1500)
+                frames.append(shoot(page, "compare"))
 
             page.goto(f"{base}/runs/new")
             page.fill("#url", vllm.url)

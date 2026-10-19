@@ -40,7 +40,7 @@ def test_s02_long_prompts_tax_decode() -> None:
     assert f is not None
     assert f.status is Status.INFO
     assert f.data["concurrency"] == 32
-    assert f.data["growth"] == pytest.approx((10.5 + 8) / (10.5 + 0.125), rel=0.01)
+    assert f.data["growth"] == pytest.approx((10.5 + 6.5) / (10.5 + 0.125), rel=0.01)
     assert not f.data["misses_target"]
 
 
@@ -55,8 +55,8 @@ def test_s04_long_outputs_finish_fewer_requests() -> None:
     f = run_rule("S04", _ctx())
     assert f is not None
     assert f.status is Status.INFO
-    assert f.data["drop"] == pytest.approx(6912 / 128, rel=0.1)
-    assert f.data["sustain"] == 532_768 // (1024 + 6912)
+    assert f.data["drop"] == pytest.approx(5888 / 128, rel=0.1)
+    assert f.data["sustain"] == 532_768 // (1024 + 5888)
 
 
 def test_s05_standard_and_user_shapes() -> None:

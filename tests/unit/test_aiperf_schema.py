@@ -46,6 +46,7 @@ SPECS = {
         osl=256,
         mode=LoadMode.RATE,
         request_rate=4.0,
+        warmup_s=20,
         duration_s=90,
         concurrency=2048,
     ),
@@ -56,6 +57,7 @@ SPECS = {
         request_rate=4.0,
         arrival=Arrival.GAMMA,
         burstiness=0.5,
+        warmup_s=20,
         duration_s=90,
     ),
     "varied": PointSpec(

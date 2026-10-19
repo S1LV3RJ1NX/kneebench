@@ -51,7 +51,7 @@ def _shape(ctx: RunContext, point: PointView, name: str) -> ShapePoint:
         isl=point.isl,
         osl=point.osl,
         concurrency=point.concurrency or 1,
-        point=summarize(point, ctx.http_rtt_ms or 0.0),
+        point=summarize(point, ctx.ttft_offset_ms),
         e2e_p50_ms=point.m("request_latency", "p50"),
     )
 
@@ -71,9 +71,7 @@ def comparison_load(pts: list[SweepPoint], slo: Slo) -> SweepPoint | None:
 
 
 def operating_concurrency(ctx: RunContext) -> int | None:
-    op = comparison_load(
-        curve(ctx.points_in("concurrency"), ctx.http_rtt_ms or 0.0), ctx.workload.slo
-    )
+    op = comparison_load(curve(ctx.points_in("concurrency"), ctx.ttft_offset_ms), ctx.workload.slo)
     return op.concurrency if op else None
 
 

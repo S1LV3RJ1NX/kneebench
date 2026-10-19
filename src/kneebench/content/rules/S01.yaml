@@ -21,8 +21,8 @@ meaning:
     Very long prompts cost more than their length suggests. Trim context, or expect much
     slower first tokens for them.
 why: >-
-  The server reads the whole prompt in one pass ({{ term("prefill") }}), limited by compute,
-  so the work grows with prompt length. Attention compares every token with every earlier one,
+  The server reads the whole prompt in one pass, called {{ term("prefill") }}, limited by
+  compute, so the work grows with prompt length. Attention compares every token with every earlier one,
   which grows with length squared and bends the line up for long prompts.
 learn_more: {note: "26", anchor: "2-sweep-the-prompt-output-fixed-at-256", label: "Sweep the prompt"}
 table:

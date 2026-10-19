@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlite3 import Connection
 
 from kneebench import __version__
-from kneebench.analysis.context import point_from_dict
+from kneebench.analysis.context import point_from_dict, ttft_offset
 from kneebench.analysis.shape import comparison_load
 from kneebench.analysis.sweep import (
     SATURATION_GAIN,
@@ -157,6 +157,8 @@ def execute_run(
     status = "done"
     error: str | None = None
     curve: list[SweepPoint] = []
+    rtt = inputs.snapshot.network.http_rtt_ms if inputs.snapshot.network else None
+    offset = rtt or 0.0
     stopped: str | None = None
     rate_stopped: str | None = None
     total = len(plan.points)
@@ -195,9 +197,15 @@ def execute_run(
             repo.finish_point(conn, point_id, result, parsed, overhead)
 
             summary = None
+            if planned.phase == "baseline" and result.ok:
+                base_shape = inputs.theory.shape("baseline")
+                offset = ttft_offset(
+                    rtt,
+                    point_from_dict(repo.point_dict(conn, point_id)),
+                    base_shape.ttft_floor_ms if base_shape else None,
+                )
             if planned.phase == "concurrency" and result.ok:
-                rtt = inputs.snapshot.network.http_rtt_ms if inputs.snapshot.network else None
-                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)), rtt or 0.0)
+                summary = summarize(point_from_dict(repo.point_dict(conn, point_id)), offset)
                 curve.append(summary)
                 stopped = sweep_stop_reason(curve, inputs.workload.slo)
                 if stopped:

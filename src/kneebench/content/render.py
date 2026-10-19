@@ -192,6 +192,8 @@ def make_env(tracker: TermTracker) -> jinja2.Environment:
     env = jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=tracker.style == "html")
     env.globals.update(FORMATTERS)
     env.globals["term"] = tracker
+    labels: dict[str, str] = content.load("report.yaml")["phase_labels"]
+    env.filters["phase_label"] = lambda phase: labels.get(phase, phase)
     return env
 
 

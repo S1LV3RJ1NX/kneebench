@@ -102,8 +102,8 @@ def test_rate_points_are_resolved_from_measured_capacity() -> None:
 def test_shape_phase_sweeps_one_axis_at_a_time() -> None:
     from kneebench.phases.plan import axis_lengths
 
-    assert axis_lengths(8192, 256) == [128, 512, 2048, 7680]  # capped to the context window
-    assert axis_lengths(32_768, 1024) == [128, 512, 2048, 8192, 31_488]
+    assert axis_lengths(8192, 256) == [128, 512, 2048, 6656]  # capped, with room for variation
+    assert axis_lengths(32_768, 1024) == [128, 512, 2048, 8192, 27_136]
     plan = plan_run(theory_for(), ("baseline", "concurrency", "shape"), slo=SLO)
     prompt = [p for p in plan.points if p.phase == "shape_prompt"]
     output = [p for p in plan.points if p.phase == "shape_output"]
@@ -111,9 +111,10 @@ def test_shape_phase_sweeps_one_axis_at_a_time() -> None:
     assert {p.spec.osl for p in prompt} == {256}
     assert {p.spec.isl for p in output} == {1024}
     assert sum(not p.at_operating_point for p in prompt) == len(prompt) // 2  # 1 user and loaded
-    assert {(p.spec.isl, p.spec.osl) for p in shape_map} == {(1024, 7040), (7040, 1024)}
+    assert {(p.spec.isl, p.spec.osl) for p in shape_map} == {(1024, 5988), (5988, 1024)}
     assert all(p.at_operating_point for p in shape_map)
-    assert all(p.spec.isl + p.spec.osl <= 8192 for p in prompt + output + shape_map)
+    # Three deviations of length variation still fit the context window.
+    assert all((p.spec.isl + p.spec.osl) * 1.15 + 128 <= 8192 for p in prompt + output + shape_map)
     with pytest.raises(ValueError, match="concurrency sweep"):
         plan_run(theory_for(), ("baseline", "shape"), slo=SLO)
 

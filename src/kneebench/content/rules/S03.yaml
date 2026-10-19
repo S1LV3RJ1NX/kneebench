@@ -12,8 +12,8 @@ meaning: >-
   Long answers are slow answers: reasoning models and long-form writing pay this per token,
   so cap max_tokens where your product allows and stream the output to users.
 why: >-
-  The answer is written one token per step ({{ term("decode") }}), and each step reads the
-  whole model from memory. Output tokens are the expensive ones; the prompt is read once.
+  The answer is written one token per step, called {{ term("decode") }}, and each step reads
+  the whole model from memory. Output tokens are the expensive ones; the prompt is read once.
 learn_more: {note: "26", anchor: "3-sweep-the-output-prompt-fixed-at-1000", label: "Sweep the output"}
 table:
   rows: rows

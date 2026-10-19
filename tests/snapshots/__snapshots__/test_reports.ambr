@@ -86,8 +86,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -95,7 +95,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -103,8 +103,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -122,9 +122,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -219,7 +219,7 @@
   | [good] | Baseline vs physics | 70% of memory bandwidth |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
@@ -238,23 +238,23 @@
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66.
+  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
   **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 66`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 75`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ## Try these next
   
   1. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
-  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  2. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 66
+     --max-num-seqs 75
      ```
   
   ## What the hardware allows
@@ -291,9 +291,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -311,8 +311,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -320,7 +320,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -328,8 +328,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -422,22 +422,22 @@
   | [good] | Baseline vs physics | 70% of memory bandwidth |
   | [not measured] | Capacity under your SLO | Not measured in this run (needs the concurrency sweep) |
   | [not measured] | Headroom | Not measured in this run (needs the concurrency sweep) |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
   | [problem] | Test reliability | 1 problem changes the numbers |
   
   ## What needs attention
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66.
+  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
   **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 66`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 75`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ### [problem] Distance between kneebench and the server (H03)
   
@@ -453,10 +453,10 @@
   
   ## Try these next
   
-  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 66
+     --max-num-seqs 75
      ```
   2. **Run kneebench close to the server** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
@@ -494,7 +494,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -502,8 +502,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -519,8 +519,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -528,9 +528,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -708,8 +708,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 8.3 ms | 4.8 ms | 1.23 s |
   | chat | 1,024 | 1,024 | 16.6 ms | 4.8 ms | 4.92 s |
-  | reasoning | 1,024 | 7,040 | 16.6 ms | 4.8 ms | 33.8 s |
-  | summarization | 7,040 | 1,024 | 114 ms | 4.8 ms | 5.02 s |
+  | reasoning | 1,024 | 5,988 | 16.6 ms | 4.8 ms | 28.7 s |
+  | summarization | 5,988 | 1,024 | 97.2 ms | 4.8 ms | 5 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -717,7 +717,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -725,8 +725,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -744,9 +744,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -906,8 +906,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -915,9 +915,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -1045,11 +1045,11 @@
   
   **What we measured.** Each standard request size, run separately at the operating point. They are never averaged: long requests would hide inside the mean.
   
-  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Meets targets |
-  |---|---|---|---|---|---|---|---|
-  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | yes |
-  | reasoning | 1,024 | 7,040 | 2,667 | 199 ms | 24 ms | 30% | yes |
-  | summarization | 7,040 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | no |
+  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Failed | Meets targets |
+  |---|---|---|---|---|---|---|---|---|
+  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | 0% | yes |
+  | reasoning | 1,024 | 5,988 | 2,667 | 199 ms | 24 ms | 30% | 0% | yes |
+  | summarization | 5,988 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | 0% | no |
   
   **What it means.** Settings that work for chat traffic fail for other sizes. If you serve mixed traffic, plan for the worst common size or split it across pools.
   
@@ -1143,24 +1143,24 @@
   
   ### [context] Longer prompts delay the first token (S01)
   
-  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 8,192 tokens waits 255 ms.**
+  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 6,656 tokens waits 209 ms.**
   
-  **What we measured.** One user at a time, prompts from 128 to 8,192 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
+  **What we measured.** One user at a time, prompts from 128 to 6,656 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
   
   | Prompt tokens | TTFT P50 | TTFT tail |
   |---|---|---|
   | 128 | 12.8 ms | 19.8 ms |
   | 512 | 24.4 ms | 37 ms |
   | 2,048 | 70.4 ms | 106 ms |
-  | 8,192 | 255 ms | 383 ms |
+  | 6,656 | 209 ms | 314 ms |
   
   **What it means.** Budget first-token time from your real prompt sizes: long documents, chat history and retrieved context all pay this price before the first word.
   
-  **Why it happens.** The server reads the whole prompt in one pass (prefill (the step that reads the whole prompt at once, limited by GPU math)), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  **Why it happens.** The server reads the whole prompt in one pass, called prefill (the step that reads the whole prompt at once, limited by GPU math), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
   
   ### [context] Long prompts slow every answer in the batch (S02)
   
-  **At 32 users, time per output token rises 1.7× from 128-token to 8,192-token prompts (10.6 ms to 18.5 ms).**
+  **At 32 users, time per output token rises 1.6× from 128-token to 6,656-token prompts (10.6 ms to 17 ms).**
   
   **What we measured.** The same prompt-length sweep, repeated at the operating point the concurrency sweep found, with the output fixed.
   
@@ -1169,7 +1169,7 @@
   | 128 | 10.6 ms | 12.8 ms | 30% |
   | 512 | 11 ms | 13.2 ms | 30% |
   | 2,048 | 12.5 ms | 15 ms | 30% |
-  | 8,192 | 18.5 ms | 22.2 ms | 30% |
+  | 6,656 | 17 ms | 20.4 ms | 30% |
   
   **What it means.** Users with short prompts stream slower when they share the server with long-prompt traffic. Plan latency for your longest common prompts, not the average.
   
@@ -1177,24 +1177,24 @@
   
   ### [context] Answer time grows in a straight line with output length (S03)
   
-  **Each extra output token adds about 5.8 ms; a 6,912-token answer takes 40.1 s for one user.**
+  **Each extra output token adds about 5.8 ms; a 5,888-token answer takes 34.2 s for one user.**
   
-  **What we measured.** One user at a time, answers from 128 to 6,912 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
+  **What we measured.** One user at a time, answers from 128 to 5,888 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
   
   | Output tokens | E2E P50 | TTFT P50 | TPOT P50 |
   |---|---|---|---|
   | 128 | 782 ms | 39 ms | 5.8 ms |
   | 512 | 3.01 s | 39 ms | 5.8 ms |
   | 2,048 | 11.9 s | 39 ms | 5.8 ms |
-  | 6,912 | 40.1 s | 39 ms | 5.8 ms |
+  | 5,888 | 34.2 s | 39 ms | 5.8 ms |
   
   **What it means.** Long answers are slow answers: reasoning models and long-form writing pay this per token, so cap max_tokens where your product allows and stream the output to users.
   
-  **Why it happens.** The answer is written one token per step (decode), and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
+  **Why it happens.** The answer is written one token per step, called decode, and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
   
   ### [context] Long answers hold their seat longer (S04)
   
-  **At 32 users, requests finished per second fall from 23.81 to 0.44 as answers grow from 128 to 6,912 tokens, while output tokens per second stay about the same.**
+  **At 32 users, requests finished per second fall from 23.81 to 0.52 as answers grow from 128 to 5,888 tokens, while output tokens per second stay about the same.**
   
   **What we measured.** The output-length sweep repeated at the operating point, prompts fixed.
   
@@ -1203,7 +1203,7 @@
   | 128 | 23.8 | 3,048 | 21% | 0 |
   | 512 | 6.0 | 3,048 | 25% | 0 |
   | 2,048 | 1.5 | 3,048 | 40% | 0 |
-  | 6,912 | 0.4 | 3,048 | 89% | 0 |
+  | 5,888 | 0.5 | 3,048 | 79% | 0 |
   
   **What it means.** Tokens per second can look healthy while far fewer requests finish. Size for requests per second at your real answer length.
   
@@ -1217,7 +1217,7 @@
   
   **What it means.** Shortening answers saves far more time than shortening prompts. Prompts aren't free, though: they still cost first-token time and cache.
   
-  **Why it happens.** The prompt is read in parallel (prefill), limited by compute. The answer is written one token per step (decode), each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
+  **Why it happens.** The prompt is read in parallel, called prefill, limited by compute. The answer is written one token per step, called decode, each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
   
   ### [context] Test with your own request sizes (S05)
   
@@ -1273,8 +1273,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -1282,7 +1282,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -1290,8 +1290,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -1309,9 +1309,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -1378,18 +1378,18 @@
   | 24 | shape_prompt | done | 512 | 256 | 32 | 160 | 25.4 ms | 38 ms | 11 ms | 13.2 ms | 2.84 s | n/a | n/a |
   | 25 | shape_prompt | done | 2,048 | 256 | 1 | 5 | 71.4 ms | 107 ms | 5.8 ms | 7 ms | 1.56 s | n/a | n/a |
   | 26 | shape_prompt | done | 2,048 | 256 | 32 | 160 | 71.4 ms | 107 ms | 12.5 ms | 15 ms | 3.27 s | n/a | n/a |
-  | 27 | shape_prompt | done | 8,192 | 256 | 1 | 5 | 256 ms | 384 ms | 5.8 ms | 7 ms | 1.74 s | n/a | n/a |
-  | 28 | shape_prompt | done | 8,192 | 256 | 32 | 160 | 256 ms | 384 ms | 18.5 ms | 22.2 ms | 4.99 s | n/a | n/a |
+  | 27 | shape_prompt | done | 6,656 | 256 | 1 | 5 | 210 ms | 315 ms | 5.8 ms | 7 ms | 1.69 s | n/a | n/a |
+  | 28 | shape_prompt | done | 6,656 | 256 | 32 | 160 | 210 ms | 315 ms | 17 ms | 20.4 ms | 4.56 s | n/a | n/a |
   | 29 | shape_output | done | 1,024 | 128 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 782 ms | n/a | n/a |
   | 30 | shape_output | done | 1,024 | 128 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 1.38 s | n/a | n/a |
   | 31 | shape_output | done | 1,024 | 512 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 3.01 s | n/a | n/a |
   | 32 | shape_output | done | 1,024 | 512 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 5.42 s | n/a | n/a |
   | 33 | shape_output | done | 1,024 | 2,048 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 11.9 s | n/a | n/a |
   | 34 | shape_output | done | 1,024 | 2,048 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 21.5 s | n/a | n/a |
-  | 35 | shape_output | done | 1,024 | 6,912 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 40.1 s | n/a | n/a |
-  | 36 | shape_output | done | 1,024 | 6,912 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 72.6 s | n/a | n/a |
-  | 37 | shape_map | done | 1,024 | 7,040 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 84.6 s | n/a | n/a |
-  | 38 | shape_map | done | 7,040 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
+  | 35 | shape_output | done | 1,024 | 5,888 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 34.2 s | n/a | n/a |
+  | 36 | shape_output | done | 1,024 | 5,888 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 61.9 s | n/a | n/a |
+  | 37 | shape_map | done | 1,024 | 5,988 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 72 s | n/a | n/a |
+  | 38 | shape_map | done | 5,988 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
   
   ### Client distance
   
@@ -1429,7 +1429,7 @@
   
   ## Verdict
   
-  For your RAG and long documents traffic (7,040 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  For your RAG and long documents traffic (5,988 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   
@@ -1438,16 +1438,16 @@
   | [good] | Baseline vs physics | 71% of memory bandwidth |
   | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
   | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
   | [good] | Test reliability | No problems with the test itself |
   
   ## What needs attention
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75. Your latency target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
@@ -1471,11 +1471,11 @@
   
   **What we measured.** Each standard request size, run separately at the operating point. They are never averaged: long requests would hide inside the mean.
   
-  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Meets targets |
-  |---|---|---|---|---|---|---|---|
-  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | yes |
-  | reasoning | 1,024 | 7,040 | 2,667 | 199 ms | 24 ms | 30% | yes |
-  | summarization | 7,040 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | no |
+  | Shape | Prompt | Output | Output tokens/s | TTFT tail | TPOT tail | Peak cache | Failed | Meets targets |
+  |---|---|---|---|---|---|---|---|---|
+  | chat | 1,024 | 1,024 | 3,000 | 199 ms | 30 ms | 30% | 0% | yes |
+  | reasoning | 1,024 | 5,988 | 2,667 | 199 ms | 24 ms | 30% | 0% | yes |
+  | summarization | 5,988 | 1,024 | 1,067 | 199 ms | 60 ms | 30% | 0% | no |
   
   **What it means.** Settings that work for chat traffic fail for other sizes. If you serve mixed traffic, plan for the worst common size or split it across pools.
   
@@ -1483,7 +1483,7 @@
   
   ## Try these next
   
-  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 42
@@ -1495,7 +1495,7 @@
   
   **Capacity for summarization traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
   
-  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 66; max_num_seqs 1,024.
+  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 76; max_num_seqs 1,024.
   
   **What it means.** Whichever wall comes first is the limit; the others don't matter until it moves. Each traffic shape has its own walls.
   
@@ -1569,24 +1569,24 @@
   
   ### [context] Longer prompts delay the first token (S01)
   
-  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 8,192 tokens waits 255 ms.**
+  **Each 1,000 prompt tokens add about 30 ms to the first token; a prompt of 6,656 tokens waits 209 ms.**
   
-  **What we measured.** One user at a time, prompts from 128 to 8,192 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
+  **What we measured.** One user at a time, prompts from 128 to 6,656 tokens with 256-token answers. The per-token cost is the slope of the line, so the network round trip drops out. Physics allows about 19 µs per prompt token; measured is 30 µs.
   
   | Prompt tokens | TTFT P50 | TTFT tail |
   |---|---|---|
   | 128 | 12.8 ms | 19.8 ms |
   | 512 | 24.4 ms | 37 ms |
   | 2,048 | 70.4 ms | 106 ms |
-  | 8,192 | 255 ms | 383 ms |
+  | 6,656 | 209 ms | 314 ms |
   
   **What it means.** Budget first-token time from your real prompt sizes: long documents, chat history and retrieved context all pay this price before the first word.
   
-  **Why it happens.** The server reads the whole prompt in one pass (prefill (the step that reads the whole prompt at once, limited by GPU math)), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
+  **Why it happens.** The server reads the whole prompt in one pass, called prefill (the step that reads the whole prompt at once, limited by GPU math), limited by compute, so the work grows with prompt length. Attention compares every token with every earlier one, which grows with length squared and bends the line up for long prompts. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the prompt](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#2-sweep-the-prompt-output-fixed-at-256)
   
   ### [context] Long prompts slow every answer in the batch (S02)
   
-  **At 32 users, time per output token rises 1.7× from 128-token to 8,192-token prompts (10.6 ms to 18.5 ms).**
+  **At 32 users, time per output token rises 1.6× from 128-token to 6,656-token prompts (10.6 ms to 17 ms).**
   
   **What we measured.** The same prompt-length sweep, repeated at the operating point the concurrency sweep found, with the output fixed.
   
@@ -1595,7 +1595,7 @@
   | 128 | 10.6 ms | 12.8 ms | 30% |
   | 512 | 11 ms | 13.2 ms | 30% |
   | 2,048 | 12.5 ms | 15 ms | 30% |
-  | 8,192 | 18.5 ms | 22.2 ms | 30% |
+  | 6,656 | 17 ms | 20.4 ms | 30% |
   
   **What it means.** Users with short prompts stream slower when they share the server with long-prompt traffic. Plan latency for your longest common prompts, not the average.
   
@@ -1603,24 +1603,24 @@
   
   ### [context] Answer time grows in a straight line with output length (S03)
   
-  **Each extra output token adds about 5.8 ms; a 6,912-token answer takes 40.1 s for one user.**
+  **Each extra output token adds about 5.8 ms; a 5,888-token answer takes 34.2 s for one user.**
   
-  **What we measured.** One user at a time, answers from 128 to 6,912 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
+  **What we measured.** One user at a time, answers from 128 to 5,888 tokens with 1,024-token prompts. The line starts at about 40 ms (prompt processing plus the network) and its slope is the time per output token.
   
   | Output tokens | E2E P50 | TTFT P50 | TPOT P50 |
   |---|---|---|---|
   | 128 | 782 ms | 39 ms | 5.8 ms |
   | 512 | 3.01 s | 39 ms | 5.8 ms |
   | 2,048 | 11.9 s | 39 ms | 5.8 ms |
-  | 6,912 | 40.1 s | 39 ms | 5.8 ms |
+  | 5,888 | 34.2 s | 39 ms | 5.8 ms |
   
   **What it means.** Long answers are slow answers: reasoning models and long-form writing pay this per token, so cap max_tokens where your product allows and stream the output to users.
   
-  **Why it happens.** The answer is written one token per step (decode), and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
+  **Why it happens.** The answer is written one token per step, called decode, and each step reads the whole model from memory. Output tokens are the expensive ones; the prompt is read once. [Learn more: Lesson 26: Sweep prompt and output length, Sweep the output](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#3-sweep-the-output-prompt-fixed-at-1000)
   
   ### [context] Long answers hold their seat longer (S04)
   
-  **At 32 users, requests finished per second fall from 23.81 to 0.44 as answers grow from 128 to 6,912 tokens, while output tokens per second stay about the same.**
+  **At 32 users, requests finished per second fall from 23.81 to 0.52 as answers grow from 128 to 5,888 tokens, while output tokens per second stay about the same.**
   
   **What we measured.** The output-length sweep repeated at the operating point, prompts fixed.
   
@@ -1629,7 +1629,7 @@
   | 128 | 23.8 | 3,048 | 21% | 0 |
   | 512 | 6.0 | 3,048 | 25% | 0 |
   | 2,048 | 1.5 | 3,048 | 40% | 0 |
-  | 6,912 | 0.4 | 3,048 | 89% | 0 |
+  | 5,888 | 0.5 | 3,048 | 79% | 0 |
   
   **What it means.** Tokens per second can look healthy while far fewer requests finish. Size for requests per second at your real answer length.
   
@@ -1643,7 +1643,7 @@
   
   **What it means.** Shortening answers saves far more time than shortening prompts. Prompts aren't free, though: they still cost first-token time and cache.
   
-  **Why it happens.** The prompt is read in parallel (prefill), limited by compute. The answer is written one token per step (decode), each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
+  **Why it happens.** The prompt is read in parallel, called prefill, limited by compute. The answer is written one token per step, called decode, each step reading the whole model from memory. [Learn more: Lesson 26: Sweep prompt and output length, Two lengths, two machines](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/26-sweep-prompt-output-length.md#1-two-lengths-two-machines)
   
   ### [context] Test with your own request sizes (S05)
   
@@ -1701,9 +1701,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -1721,8 +1721,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -1730,7 +1730,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -1738,8 +1738,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -1804,18 +1804,18 @@
   | 24 | shape_prompt | done | 512 | 256 | 32 | 160 | 25.4 ms | 38 ms | 11 ms | 13.2 ms | 2.84 s | n/a | n/a |
   | 25 | shape_prompt | done | 2,048 | 256 | 1 | 5 | 71.4 ms | 107 ms | 5.8 ms | 7 ms | 1.56 s | n/a | n/a |
   | 26 | shape_prompt | done | 2,048 | 256 | 32 | 160 | 71.4 ms | 107 ms | 12.5 ms | 15 ms | 3.27 s | n/a | n/a |
-  | 27 | shape_prompt | done | 8,192 | 256 | 1 | 5 | 256 ms | 384 ms | 5.8 ms | 7 ms | 1.74 s | n/a | n/a |
-  | 28 | shape_prompt | done | 8,192 | 256 | 32 | 160 | 256 ms | 384 ms | 18.5 ms | 22.2 ms | 4.99 s | n/a | n/a |
+  | 27 | shape_prompt | done | 6,656 | 256 | 1 | 5 | 210 ms | 315 ms | 5.8 ms | 7 ms | 1.69 s | n/a | n/a |
+  | 28 | shape_prompt | done | 6,656 | 256 | 32 | 160 | 210 ms | 315 ms | 17 ms | 20.4 ms | 4.56 s | n/a | n/a |
   | 29 | shape_output | done | 1,024 | 128 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 782 ms | n/a | n/a |
   | 30 | shape_output | done | 1,024 | 128 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 1.38 s | n/a | n/a |
   | 31 | shape_output | done | 1,024 | 512 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 3.01 s | n/a | n/a |
   | 32 | shape_output | done | 1,024 | 512 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 5.42 s | n/a | n/a |
   | 33 | shape_output | done | 1,024 | 2,048 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 11.9 s | n/a | n/a |
   | 34 | shape_output | done | 1,024 | 2,048 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 21.5 s | n/a | n/a |
-  | 35 | shape_output | done | 1,024 | 6,912 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 40.1 s | n/a | n/a |
-  | 36 | shape_output | done | 1,024 | 6,912 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 72.6 s | n/a | n/a |
-  | 37 | shape_map | done | 1,024 | 7,040 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 84.6 s | n/a | n/a |
-  | 38 | shape_map | done | 7,040 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
+  | 35 | shape_output | done | 1,024 | 5,888 | 1 | 5 | 40 ms | 200 ms | 5.8 ms | 7 ms | 34.2 s | n/a | n/a |
+  | 36 | shape_output | done | 1,024 | 5,888 | 32 | 160 | 40 ms | 200 ms | 10.5 ms | 12.6 ms | 61.9 s | n/a | n/a |
+  | 37 | shape_map | done | 1,024 | 5,988 | 32 | 160 | 100 ms | 200 ms | 12 ms | 24 ms | 72 s | n/a | n/a |
+  | 38 | shape_map | done | 5,988 | 1,024 | 32 | 160 | 100 ms | 200 ms | 30 ms | 60 ms | 30.8 s | n/a | n/a |
   
   ### Client distance
   
@@ -2031,8 +2031,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -2040,7 +2040,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -2048,8 +2048,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -2067,9 +2067,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   
@@ -2169,7 +2169,7 @@
   
   ## Verdict
   
-  For your reasoning and agents traffic (1,024 tokens in, 7,040 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  For your reasoning and agents traffic (1,024 tokens in, 5,988 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   
@@ -2178,16 +2178,16 @@
   | [good] | Baseline vs physics | 71% of memory bandwidth |
   | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
   | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 66 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
   | [good] | Test reliability | No problems with the test itself |
   
   ## What needs attention
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 8,064 tokens per finished request gives 66. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75. Your latency target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
@@ -2207,7 +2207,7 @@
   
   ## Try these next
   
-  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 66 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 42
@@ -2219,7 +2219,7 @@
   
   **Capacity for reasoning traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
   
-  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 66; max_num_seqs 1,024.
+  **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 76; max_num_seqs 1,024.
   
   **What it means.** Whichever wall comes first is the limit; the others don't matter until it moves. Each traffic shape has its own walls.
   
@@ -2337,7 +2337,7 @@
   
   ### [context] How many requests fit in memory at once (T03)
   
-  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 66 at full length, summarization about 66 at full length.**
+  **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
   **What we measured.** The cache size divided by each shape's final length (prompt plus output).
   
@@ -2345,8 +2345,8 @@
   |---|---|---|---|
   | baseline | 512 | 256 | 694 |
   | chat | 1,024 | 1,024 | 260 |
-  | reasoning | 1,024 | 7,040 | 66 |
-  | summarization | 7,040 | 1,024 | 66 |
+  | reasoning | 1,024 | 5,988 | 76 |
+  | summarization | 5,988 | 1,024 | 76 |
   
   **What it means.** This is the memory ceiling on how many of these requests can be in flight together. Past it, the server either queues new requests or evicts running ones.
   
@@ -2372,8 +2372,8 @@
   |---|---|---|---|---|---|
   | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
   | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 7,040 | 19.7 ms | 4.1 ms | 29 s |
-  | summarization | 7,040 | 1,024 | 135 ms | 4.1 ms | 4.35 s |
+  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
+  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
@@ -2381,9 +2381,9 @@
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
-  **reasoning 1,024/8,192 became 1,024/7,040; summarization 8,192/1,024 became 7,040/1,024 to fit the 8,192-token context.**
+  **reasoning 1,024/8,192 became 1,024/5,988; summarization 8,192/1,024 became 5,988/1,024 to fit the 8,192-token context.**
   
-  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens.
+  **What we measured.** Prompt plus output plus room for the chat template must fit in 8,192 tokens, with 15% to spare: sweeps vary each request's length a little, and the longest ones must still fit.
   
   **What it means.** kneebench shortened the longer side of these shapes. Their results describe the adjusted lengths, not the originals.
   

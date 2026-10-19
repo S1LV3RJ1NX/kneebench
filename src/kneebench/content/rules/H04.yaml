@@ -4,7 +4,7 @@ status_line:
   ok: Every point generated the full requested output length ({{ checked }} checked).
   bad: >-
     Some answers stopped early:
-    {% for p in points %}{{ p.phase }} asked for {{ num(p.requested) }} tokens and got
+    {% for p in points %}{{ p.phase | phase_label }} asked for {{ num(p.requested) }} tokens and got
     {{ num(p.mean, 0) }} on average{% if not loop.last %}; {% endif %}{% endfor %}.
 measured: >-
   Requested output length compared with the tokens actually generated, per point.

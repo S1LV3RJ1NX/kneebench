@@ -477,8 +477,8 @@ def shape_sweep(bend: float = 1.0, op: int = 32) -> tuple[PointView, ...]:
     """
     pts: list[PointView] = []
     seq = 20
-    for isl in (128, 512, 2048, 8192):
-        ttft = 10 + 0.03 * isl * (bend if isl == 8192 else 1.0)
+    for isl in (128, 512, 2048, 6656):
+        ttft = 10 + 0.03 * isl * (bend if isl == 6656 else 1.0)
         for c, tpot in ((1, 5.8), (op, 10.5 + isl / 1024)):
             seq += 1
             pts.append(
@@ -494,7 +494,7 @@ def shape_sweep(bend: float = 1.0, op: int = 32) -> tuple[PointView, ...]:
                     seq=seq,
                 )
             )
-    for osl in (128, 512, 2048, 6912):
+    for osl in (128, 512, 2048, 5888):
         for c, tpot, kv in ((1, 5.8, 0.05), (op, 10.5, 0.2 + osl / 10_000)):
             seq += 1
             pts.append(
@@ -510,7 +510,7 @@ def shape_sweep(bend: float = 1.0, op: int = 32) -> tuple[PointView, ...]:
                     seq=seq,
                 )
             )
-    for isl, osl, tpot in ((1024, 7040, 12.0), (7040, 1024, 30.0)):
+    for isl, osl, tpot in ((1024, 5988, 12.0), (5988, 1024, 30.0)):
         seq += 1
         pts.append(
             sweep_point(

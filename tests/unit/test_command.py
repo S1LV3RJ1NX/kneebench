@@ -65,10 +65,15 @@ def test_gamma_rate_point(tmp_path: Path) -> None:
         request_rate=5.0,
         arrival=Arrival.GAMMA,
         burstiness=0.5,
+        warmup_s=20,
         duration_s=90,
         concurrency=2048,
     )
-    profiling = build_config(_endpoint(), spec, tmp_path)["benchmark"]["phases"][-1]
+    warmup, profiling = build_config(_endpoint(), spec, tmp_path)["benchmark"]["phases"]
+    assert warmup["excludeFromResults"] is True
+    assert (warmup["type"], warmup["rate"], warmup["duration"]) == ("gamma", 5.0, 20)
+    assert "gracePeriod" not in warmup
+    assert profiling["seamless"] is True
     assert profiling["type"] == "gamma"
     assert profiling["rate"] == 5.0
     assert profiling["smoothness"] == 0.5
