@@ -56,7 +56,14 @@ jobs:
       - run: uv sync --locked
       - name: Warm the guidellm mock server environment
         run: uvx --from guidellm==0.8.1 guidellm --help > /dev/null
-      - run: uv run pytest -m integration
+      - name: Install headless Chromium for the PDF test
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            uv run playwright install --with-deps chromium
+          else
+            uv run playwright install chromium
+          fi
+      - run: uv run pytest -m "not live"
 
   clean-install:
     name: clean install (${{ matrix.os }})
