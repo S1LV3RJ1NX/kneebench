@@ -11,7 +11,8 @@
   <section class="card">
     <h3><span class="step-num">01</span>Connect</h3>
     <div class="row"><label for="url">Endpoint URL</label>
-      <div><input id="url" name="url" required placeholder="http://my-vllm-host:8000" value="{{ defaults.url or '' }}">
+      <div><input id="url" name="url" required placeholder="http://my-vllm-host:8000" value="{{ defaults.url or '' }}"
+                  oninput="lockSteps('The URL changed. Detect the server again to continue.')">
         <div class="help">The server root. kneebench adds /v1/chat/completions, /metrics and so on.</div></div></div>
     <div class="row"><label for="api_key">API key</label>
       <div><input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="optional">
@@ -25,8 +26,10 @@
   <div id="detected">
     <section class="card"><h3><span class="step-num">02</span>What kneebench found</h3>
       <p class="muted small" style="margin-bottom:0">Press <b>Detect server</b> to read the vLLM version, model,
-        context length and KV cache from the endpoint. You can also skip it; kneebench detects again when it starts.</p></section>
+        context length and KV cache from the endpoint. The rest of the form unlocks once the server answers.</p></section>
   </div>
+
+  <fieldset id="after-detect" class="locked" disabled>
 
   <section class="card">
     <h3><span class="step-num">03</span>Hardware and flags</h3>
@@ -96,10 +99,25 @@
     <span id="start-spin" class="htmx-indicator muted small"><span class="spinner"></span> Detecting the server and planning…</span>
   </div>
   <div id="start-result"></div>
+  </fieldset>
 </form>
 {% endblock %}
 {% block scripts %}
 <script>
+  function unlockSteps() {
+    const f = document.getElementById("after-detect");
+    f.disabled = false;
+    f.classList.remove("locked");
+  }
+  function lockSteps(message) {
+    const f = document.getElementById("after-detect");
+    if (f.disabled) return;
+    f.disabled = true;
+    f.classList.add("locked");
+    document.getElementById("detected").innerHTML =
+      `<section class="card"><h3><span class="step-num">02</span>What kneebench found</h3>` +
+      `<p class="muted small" style="margin-bottom:0">${message}</p></section>`;
+  }
   const PRESETS = {{ presets_json | safe }};
   function applyPreset(product) {
     const p = PRESETS[product];

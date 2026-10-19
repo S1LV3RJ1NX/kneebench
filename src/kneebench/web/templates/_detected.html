@@ -20,5 +20,6 @@
       {% if (snap.network.http_rtt_ms or 0) > 20 %}<div class="help">Far from the server: time per token stays reliable, and first-token times are judged without the network.</div>{% endif %}</td></tr>
     {% endif %}
   </table>
+  <script>unlockSteps();</script>
   {% endif %}
 </section>

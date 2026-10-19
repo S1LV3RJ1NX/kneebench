@@ -1,16 +1,19 @@
 {% set labels = {"ok": "good", "warn": "watch", "bad": "problem", "info": "context", "skip": "not checked"} %}
-<section class="card finding {{ f.status }}" id="rule-{{ f.rule_id }}">
-  <div class="head">
-    <h3>{{ f.title }}</h3>
-    <span style="white-space:nowrap"><span class="badge {{ f.status }}">{{ labels[f.status] }}</span><span class="rule">{{ f.rule_id }}</span></span>
-  </div>
-  <p class="line">{{ f.status_line | safe }}</p>
+<details class="card finding {{ f.status }}" id="rule-{{ f.rule_id }}"{% if open %} open{% endif %}>
+  <summary>
+    <div class="head">
+      <h3>{{ f.title }}</h3>
+      <span class="tags"><span class="badge {{ f.status }}">{{ labels[f.status] }}</span><span class="rule">{{ f.rule_id }}</span><span class="chev" aria-hidden="true"></span></span>
+    </div>
+    <p class="line">{{ f.status_line | safe }}</p>
+  </summary>
+  <div class="body">
   {% for fig in figures.get(f.rule_id, []) %}
-    <div class="chart" id="chart-{{ f.rule_id }}-{{ loop.index0 }}"></div>
+    <div class="chart" data-chart="{{ f.rule_id }}-{{ loop.index0 }}"></div>
   {% endfor %}
   {% if f.measured %}<div class="part"><b>What we measured</b>{{ f.measured | safe }}</div>{% endif %}
   {% if f.table %}
-  <details{% if not figures.get(f.rule_id) %} open{% endif %}>
+  <details class="data"{% if not figures.get(f.rule_id) %} open{% endif %}>
     <summary>Data table</summary>
     <table>
       <thead><tr>{% for c in f.table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
@@ -29,4 +32,5 @@
     {% if a.verify %}<div class="small"><b>Verify</b> {{ a.verify | safe }}</div>{% endif %}
   </div>
   {% endfor %}
-</section>
+  </div>
+</details>

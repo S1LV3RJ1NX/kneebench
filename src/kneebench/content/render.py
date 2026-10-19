@@ -17,6 +17,8 @@ from kneebench import content
 from kneebench.analysis.engine import REGISTRY, Finding
 
 UNKNOWN = "n/a"
+# OK findings the report shows as full cards (see report/composer.py).
+DETAILED_OK = ("B01", "B04")
 
 
 # ---- number formatting ----
@@ -218,7 +220,9 @@ def render_finding(
         line_tpl = _pick(spec["status_line"], status)
     status_line = _render(env, line_tpl, variables) or spec["title"]
 
-    detailed = status in ("warn", "bad", "info")
+    detailed = status in ("warn", "bad", "info") or (
+        status == "ok" and finding.rule_id in DETAILED_OK
+    )
     measured = meaning = analogy = why = None
     if detailed:
         measured = _render(env, _pick(spec.get("measured"), status), variables)

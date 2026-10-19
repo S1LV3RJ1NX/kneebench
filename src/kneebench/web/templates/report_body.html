@@ -1,4 +1,28 @@
 {% set s = report.sections %}
+{% set open_capacity = ["W03", "C02"] %}
+<div class="report">
+<aside class="toc no-print">
+  <div class="eyebrow">On this page</div>
+  <nav>
+    <a href="#verdict">{{ s.verdict }}</a>
+    <a href="#scorecard">{{ s.scorecard }}</a>
+    {% if report.problems %}<a href="#problems">{{ s.problems }} <span class="count">{{ report.problems | length }}</span></a>{% endif %}
+    {% if report.next_steps %}<a href="#next">{{ s.next }}</a>{% endif %}
+    {% if report.capacity %}<a href="#capacity">{{ s.capacity }}</a>{% endif %}
+    {% if report.context %}<a href="#context">{{ s.context }}</a>{% endif %}
+    {% if report.passed %}<a href="#passed">{{ s.passed }} <span class="count">{{ report.passed | length }}</span></a>{% endif %}
+    {% if report.skipped %}<a href="#skipped">{{ s.skipped }}</a>{% endif %}
+    <a href="#caveats">{{ s.caveats }}</a>
+    {% if report.glossary %}<a href="#glossary">{{ s.glossary }}</a>{% endif %}
+    <a href="#appendix">{{ s.appendix }}</a>
+  </nav>
+  <div class="toc-actions">
+    <button type="button" class="secondary small-btn" onclick="kbSetAll(true)">Expand all</button>
+    <button type="button" class="secondary small-btn" onclick="kbSetAll(false)">Collapse all</button>
+  </div>
+</aside>
+
+<div class="report-main">
 <div class="eyebrow">kneebench report · run #{{ report.run_id }}</div>
 <h1>{{ report.summary.model }}</h1>
 <p class="meta">{{ report.summary.gpu }} · vLLM {{ report.summary.vllm_version }} ·
@@ -7,10 +31,11 @@
 
 {% if report.summary.run_error %}<div class="notice bad">This run {{ report.summary.run_status }}: {{ report.summary.run_error }}
   The report below uses the points measured before it stopped.</div>{% endif %}
-<h2>{{ s.verdict }}</h2>
+
+<h2 id="verdict">{{ s.verdict }}</h2>
 <div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
 
-<h2>{{ s.scorecard }}</h2>
+<h2 id="scorecard">{{ s.scorecard }}</h2>
 <div class="grid">
   {% for t in report.scorecard %}
   <div class="tile {{ t.status }}"><div class="label">{{ t.label }}</div><div class="text">{{ t.text | safe }}</div></div>
@@ -18,15 +43,15 @@
 </div>
 
 {% if report.problems %}
-<h2>{{ s.problems }}</h2>
-{% for f in report.problems %}{% include "_finding.html" %}{% endfor %}
+<h2 id="problems">{{ s.problems }}</h2>
+{% for f in report.problems %}{% with open = true %}{% include "_finding.html" %}{% endwith %}{% endfor %}
 {% endif %}
 
 {% if report.next_steps %}
-<h2>{{ s.next }}</h2>
+<h2 id="next">{{ s.next }}</h2>
 <ol class="steps">
   {% for step in report.next_steps %}
-  <li class="card action" style="padding-left:52px">
+  <li class="card action">
     <b>{{ step.action.title | safe }}</b><span class="rule">{{ step.rule_id }}</span>
     {% if step.action.flag %}<pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">Copy</button><code>{{ step.action.flag | safe }}</code></pre>{% endif %}
     <div class="small"><b>Why</b> {{ step.reason | safe }}</div>
@@ -38,71 +63,95 @@
 {% endif %}
 
 {% if report.capacity %}
-<h2>{{ s.capacity }}</h2>
-{% for f in report.capacity %}{% include "_finding.html" %}{% endfor %}
+<h2 id="capacity">{{ s.capacity }}</h2>
+{% for f in report.capacity %}{% with open = f.rule_id in open_capacity %}{% include "_finding.html" %}{% endwith %}{% endfor %}
 {% endif %}
 
 {% if report.context %}
-<h2>{{ s.context }}</h2>
-{% for f in report.context %}{% include "_finding.html" %}{% endfor %}
+<h2 id="context">{{ s.context }}</h2>
+<p class="muted small">Background on what this hardware can do. Open a card for the explanation.</p>
+{% for f in report.context %}{% with open = false %}{% include "_finding.html" %}{% endwith %}{% endfor %}
 {% endif %}
 
 {% if report.passed %}
-<h2>{{ s.passed }}</h2>
-<div class="card" style="padding:4px 22px"><ul class="plain">
+<h2 id="passed">{{ s.passed }}</h2>
+<details class="card section">
+  <summary><b>{{ report.passed | length }} checks passed</b> <span class="muted small">show them</span><span class="chev" aria-hidden="true"></span></summary>
+  <ul class="plain">
   {% for f in report.passed %}<li><span class="badge ok">good</span> <b>{{ f.title }}</b><span class="rule">{{ f.rule_id }}</span>
     <div class="reading muted">{{ f.status_line | safe }}</div></li>{% endfor %}
-</ul></div>
+  </ul>
+</details>
 {% endif %}
 
 {% if report.skipped %}
-<h2>{{ s.skipped }}</h2>
+<h2 id="skipped">{{ s.skipped }}</h2>
 <div class="card" style="padding:4px 22px"><ul class="plain">
   {% for f in report.skipped %}<li><span class="badge">not checked</span> <b>{{ f.title }}</b><span class="rule">{{ f.rule_id }}</span>
     <div class="reading muted">{{ f.status_line | safe }}</div></li>{% endfor %}
 </ul></div>
 {% endif %}
 
-<h2>{{ s.caveats }}</h2>
+<h2 id="caveats">{{ s.caveats }}</h2>
 <div class="card" style="padding:4px 22px"><ul class="plain caveats">{% for c in report.caveats %}<li>{{ c | safe }}</li>{% endfor %}</ul></div>
 
 {% if report.glossary %}
-<h2>{{ s.glossary }}</h2>
-<div class="card" style="padding:4px 22px"><ul class="plain">{% for term, definition in report.glossary %}<li><b>{{ term }}</b> <span class="reading muted">{{ definition }}</span></li>{% endfor %}</ul></div>
+<h2 id="glossary">{{ s.glossary }}</h2>
+<details class="card section">
+  <summary><b>{{ report.glossary | length }} terms</b> <span class="muted small">used in this report</span><span class="chev" aria-hidden="true"></span></summary>
+  <ul class="plain">{% for term, definition in report.glossary %}<li><b>{{ term }}</b> <span class="reading muted">{{ definition }}</span></li>{% endfor %}</ul>
+</details>
 {% endif %}
 
-<h2>{{ s.appendix }}</h2>
-<p class="muted small">Every number behind this report, as plain tables. The JSON and Markdown
-  versions carry the same data for further analysis.</p>
-{% for t in report.appendix %}
-<div class="card" style="padding:16px 18px"><div class="eyebrow">{{ t.title }}</div>
-<table>
-  <thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
-  <tbody>{% for row in t.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-</table></div>
-{% endfor %}
+<h2 id="appendix">{{ s.appendix }}</h2>
+<details class="card section">
+  <summary><b>Every number behind this report</b> <span class="muted small">as plain tables; the JSON and Markdown exports carry the same data</span><span class="chev" aria-hidden="true"></span></summary>
+  {% for t in report.appendix %}
+  <div class="eyebrow" style="margin-top:18px">{{ t.title }}</div>
+  <table>
+    <thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in t.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+</details>
 <p class="meta">kneebench {{ report.summary.kneebench_version }} · AIPerf
   {{ report.summary.aiperf_version }} · rules {{ report.summary.rules_version }} · generated
   {{ report.generated_at }}</p>
+</div>
+</div>
 
 <script type="application/json" id="kb-figures">{{ figures_json | safe }}</script>
 <script>
   window.kneebenchReady = false;
-  // Plotly loads after this block, so draw once the whole page (and Plotly) has loaded.
-  window.addEventListener("load", function () {
-    const figures = JSON.parse(document.getElementById("kb-figures").textContent);
+  const KB_FIGURES = JSON.parse(document.getElementById("kb-figures").textContent);
+
+  // Charts draw the first time they become visible; collapsed ones would get zero width.
+  function kbDraw(root) {
     const jobs = [];
-    for (const [rule, figs] of Object.entries(figures)) {
-      figs.forEach((fig, i) => {
-        const el = document.getElementById(`chart-${rule}-${i}`);
-        if (el && window.Plotly) {
-          jobs.push(Plotly.newPlot(el, fig.data, fig.layout, {displaylogo: false, responsive: true}));
-        }
-      });
-    }
-    Promise.all(jobs).then(() => { window.kneebenchReady = true; });
+    if (!window.Plotly) return Promise.resolve();
+    root.querySelectorAll(".chart").forEach((el) => {
+      if (el.offsetParent === null) return;
+      if (el.dataset.drawn) { Plotly.Plots.resize(el); return; }
+      const [rule, i] = el.dataset.chart.split(/-(?=\d+$)/);
+      const fig = (KB_FIGURES[rule] || [])[Number(i)];
+      if (!fig) return;
+      el.dataset.drawn = "1";
+      jobs.push(Plotly.newPlot(el, fig.data, fig.layout, {displaylogo: false, responsive: true,
+        modeBarButtonsToRemove: ["lasso2d", "select2d"]}));
+    });
+    return Promise.all(jobs);
+  }
+  function kbSetAll(open) {
+    document.querySelectorAll(".report details").forEach((d) => { d.open = open; });
+    return kbDraw(document);
+  }
+  // Used for printing and PDF export: everything open, every chart drawn.
+  window.kneebenchExpandAll = () => kbSetAll(true);
+  window.addEventListener("load", () => {
+    document.querySelectorAll(".report details").forEach((d) => {
+      d.addEventListener("toggle", () => { if (d.open) kbDraw(d); });
+    });
+    kbDraw(document).then(() => { window.kneebenchReady = true; });
   });
-  window.addEventListener("beforeprint", () => {
-    document.querySelectorAll("details").forEach((d) => d.setAttribute("open", ""));
-  });
+  window.addEventListener("beforeprint", () => { kbSetAll(true); });
 </script>

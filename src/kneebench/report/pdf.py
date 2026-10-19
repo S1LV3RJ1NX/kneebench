@@ -39,9 +39,8 @@ def html_to_pdf(html: str) -> bytes:
                 page = browser.new_page()
                 page.set_content(html, wait_until="load")
                 page.wait_for_function("window.kneebenchReady === true", timeout=READY_TIMEOUT_MS)
-                page.evaluate(
-                    "document.querySelectorAll('details').forEach(d => d.setAttribute('open', ''))"
-                )
+                # Open every collapsed section and wait until its charts have drawn.
+                page.evaluate("() => window.kneebenchExpandAll()")
                 page.emulate_media(media="print")
                 pdf: bytes = page.pdf(
                     format="A4",

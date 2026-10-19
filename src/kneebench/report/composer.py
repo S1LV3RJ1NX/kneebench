@@ -24,6 +24,8 @@ from kneebench.content.render import (
 )
 
 INFO_RULES_IN_CONTEXT = ("T01", "T02", "T03", "T05", "B05")
+# Healthy baseline findings still get a card here, so their charts stay one click away.
+CHARTED_OK_IN_CONTEXT = ("B01", "B04")
 # Findings that describe the load curve and its walls get their own section.
 CAPACITY_RULES = ("W03", "C02", "W02", "W01", "C01", "C04", "W05", "W09", "W08")
 CAVEAT_RULES = ("H06",)
@@ -127,7 +129,13 @@ def compose(
         (f for f in findings if f.status in (Status.BAD, Status.WARN)),
         key=lambda f: (-score[f.rule_id], f.rule_id),
     )
-    context_f = sorted(
+    charted_ok = [
+        f
+        for rid in CHARTED_OK_IN_CONTEXT
+        for f in findings
+        if f.rule_id == rid and f.status is Status.OK
+    ]
+    context_f = charted_ok + sorted(
         (f for f in findings if f.status is Status.INFO and f.rule_id in INFO_RULES_IN_CONTEXT),
         key=lambda f: (-_weight(f, product), f.rule_id),
     )
@@ -142,7 +150,7 @@ def compose(
     problems = [render_finding(f, common, env) for f in problems_f]
     capacity_r = [render_finding(f, common, env) for f in capacity_f]
     context_r = [render_finding(f, common, env) for f in context_f]
-    shown = problem_ids | {f.rule_id for f in capacity_f}
+    shown = problem_ids | {f.rule_id for f in capacity_f} | {f.rule_id for f in charted_ok}
     passed = [
         render_finding(f, common, env)
         for f in findings

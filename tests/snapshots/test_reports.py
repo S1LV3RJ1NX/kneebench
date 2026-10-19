@@ -57,5 +57,6 @@ def test_sweep_report_renders_every_section(
     assert "How much load it takes" in md
     assert "comfortably handles about 32 users" in md
     html = render_html(compose(context, findings, now=NOW, style="html"))
-    assert 'id="chart-C02-0"' in html
+    assert 'data-chart="C02-0"' in html
+    assert 'data-chart="W03-0"' in html
     assert md == snapshot

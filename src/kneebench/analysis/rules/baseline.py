@@ -36,6 +36,7 @@ def mbu_band(ctx: RunContext) -> Finding | None:
     tpot, floor = measured
     mbu = floor / tpot
     base = ctx.baseline
+    shape = ctx.theory.shape("baseline")
     data = {
         "tpot_ms": tpot,
         "floor_ms": floor,
@@ -43,6 +44,11 @@ def mbu_band(ctx: RunContext) -> Finding | None:
         "ratio": tpot / floor,
         "gpu_name": ctx.setup.gpu_name,
         "requests": base.m("request_count", "avg") if base else None,
+        # For the measured-vs-floor chart.
+        "e2e_ms": base.m("request_latency", "p50") if base else None,
+        "e2e_floor_ms": shape.e2e_floor_ms if shape else None,
+        "server_ttft_ms": ctx.server_ttft_ms(base) if base else None,
+        "ttft_floor_ms": shape.ttft_floor_ms if shape else None,
     }
     if mbu > 1.0 / 0.97:
         return skip("B01", "above_physics", **data)
@@ -119,6 +125,7 @@ def spread(ctx: RunContext) -> Finding | None:
         "p99_ms": p99,
         "p99_over_p50": p99 / p50,
         "requests": base.m("request_count", "avg"),
+        "samples": [round(r.tpot_ms, 3) for r in base.requests if r.ok and r.tpot_ms][:200],
     }
     if cv > SPREAD_MAX_CV or p99 / p50 > SPREAD_MAX_P99_OVER_P50:
         return warn("B04", **data)

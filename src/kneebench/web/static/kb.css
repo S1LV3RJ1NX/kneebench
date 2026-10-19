@@ -213,3 +213,44 @@ header.top .live { margin-left: auto; display: inline-flex; align-items: center;
   font-size: 13px; text-decoration: underline; text-decoration-color: var(--border);
   text-underline-offset: 3px; }
 .link-danger:hover { background: none; color: var(--bad); text-decoration-color: var(--bad); }
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.locked { opacity: .45; filter: saturate(.6); transition: opacity .2s ease; }
+fieldset.locked * { cursor: not-allowed; }
+
+/* Report layout: sticky contents on the left, collapsible cards on the right. */
+main:has(.report) { max-width: 1200px; }
+.report { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; align-items: start; }
+.toc { position: sticky; top: 24px; font-size: 13px; }
+.toc nav { display: flex; flex-direction: column; margin: 10px 0 18px; border-left: 1px solid var(--border); }
+.toc nav a { color: var(--muted); text-decoration: none; padding: 5px 0 5px 14px; margin-left: -1px;
+  border-left: 2px solid transparent; display: flex; justify-content: space-between; gap: 6px; }
+.toc nav a:hover { color: var(--ink); border-left-color: var(--clay); }
+.toc .count { font-family: var(--mono); font-size: 11px; color: var(--subtle); }
+.toc-actions { display: flex; flex-direction: column; gap: 6px; }
+.small-btn { font-size: 12.5px; padding: 6px 10px; justify-content: center; }
+.report-main > h2:first-of-type { margin-top: 32px; }
+
+details.card > summary { list-style: none; cursor: pointer; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.finding > summary .line { margin-bottom: 0; }
+details.finding[open] > summary .line { margin-bottom: 14px; }
+details.finding > summary .tags { white-space: nowrap; display: inline-flex; align-items: center; }
+.chev { display: inline-block; width: 8px; height: 8px; margin-left: 12px; flex: none;
+  border-right: 1.5px solid var(--subtle); border-bottom: 1.5px solid var(--subtle);
+  transform: rotate(45deg) translateY(-3px); transition: transform .15s ease; }
+details[open] > summary .chev { transform: rotate(225deg) translate(-2px, 0); }
+details.card:not([open]):hover { border-color: var(--subtle); }
+details.section > summary { display: flex; align-items: center; gap: 10px; }
+details.section > summary .chev { margin-left: auto; }
+details.section[open] > summary { margin-bottom: 8px; }
+details.data > summary { display: inline-block; }
+
+@media (max-width: 960px) {
+  .report { grid-template-columns: 1fr; }
+  .toc { display: none; }
+}
+@media print {
+  .report { display: block; }
+  details > summary .chev { display: none; }
+}
