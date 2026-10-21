@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed (from the full live run)
+- B06 and B04 compare the client's time per token with the server's own histogram: when the
+  server held steady they say the network path changed, instead of blaming the GPU.
+- H04 trusts the server's output-token count over AIPerf's recount of long streamed answers,
+  and expects the mixed lengths of a scheduled point. H05 skips multi-turn points, where
+  every message adds its own chat-template tokens.
+- "1 users" in sentences.
+
+### Changed
+- The bundled demo and README screenshots come from a fresh full run with every phase.
+
 ### Added (quality gate)
 - Guided experiments can record answers before a change and compare them after (lesson 54):
   the same questions twice for the noise floor, then question by question with flips, the

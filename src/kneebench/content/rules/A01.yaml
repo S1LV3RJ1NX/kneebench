@@ -15,7 +15,7 @@ status_line:
     generated {{ num(per_request, 0) }} tokens per abandoned request, between stopping and
     finishing.{% endif %}
 measured: >-
-  {{ num(concurrency) }} users each asked for {{ num(osl) }}-token answers and disconnected
+  {{ users(concurrency) }} each asked for {{ num(osl) }}-token answers and disconnected
   {{ num(cancel_after_s, 0) }} s after sending. kneebench read the server's token and request
   counters before, and again {{ num(linger_s, 0) }} s after, long enough for any answer it
   kept generating to finish.{% if aborted %} The server counted {{ num(aborted, 0) }} of them

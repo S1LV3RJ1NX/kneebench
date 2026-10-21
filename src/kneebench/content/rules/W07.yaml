@@ -1,13 +1,13 @@
 id: W07
 title: Errors and timeouts under load
 status_line:
-  ok: No requests failed up to {{ num(max_tested) }} users.
+  ok: No requests failed up to {{ users(max_tested) }}.
   warn: >-
-    Some requests failed from {{ num(first) }} users (worst {{ pct(worst) }}).
+    Some requests failed from {{ users(first) }} (worst {{ pct(worst) }}).
   bad: >-
-    Many requests failed from {{ num(first) }} users (worst {{ pct(worst) }}).
+    Many requests failed from {{ users(first) }} (worst {{ pct(worst) }}).
 measured: >-
-  {% for p in points %}{{ num(p.concurrency) }} users: {{ pct(p.rate) }} failed ({{ p.codes }})
+  {% for p in points %}{{ users(p.concurrency) }}: {{ pct(p.rate) }} failed ({{ p.codes }})
   {%- if not loop.last %}; {% endif %}{% endfor %}.
 meaning: >-
   Failed requests are users who got nothing. kneebench counts them as missing the target, so

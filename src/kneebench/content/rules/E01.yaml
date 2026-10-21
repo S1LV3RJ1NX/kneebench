@@ -4,7 +4,7 @@ status_line:
   info: >-
     At {{ num(first.concurrency) }} {{ "user" if first.concurrency == 1 else "users" }}, the server
     itself takes {{ ms(first.engine_ms) }} of the {{ ms(first.client_ms) }} to the first token;
-    {% if queued_from %}from {{ num(queued_from) }} users, waiting in its queue takes longer than
+    {% if queued_from %}from {{ users(queued_from) }}, waiting in its queue takes longer than
     reading the prompt{% else %}requests never waited long in its queue{% endif %}.
 measured: >-
   Two stopwatches on the same requests: kneebench's, from sending to the first token, and vLLM's

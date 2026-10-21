@@ -2,16 +2,16 @@ id: C03
 title: The best load that still meets your targets
 status_line:
   ok: >-
-    The best operating point is {{ num(op.concurrency) }} users in flight:
+    The best operating point is {{ users(op.concurrency) }} in flight:
     {{ num(op.tok_s, 0) }} output tokens per second with every target met at P{{ pct_label }}.
   warn: >-
-    Even {{ num(op.concurrency) }} users in flight, the highest level tested, met every target:
+    Even {{ users(op.concurrency) }} in flight, the highest level tested, met every target:
     real capacity is higher than this test measured.
   bad: >-
     No load level met your targets, not even one user at a time.
   skip: "No latency targets were set, so there is no operating point to pick."
 measured: >-
-  {% if op is defined and op %}At {{ num(op.concurrency) }} users: {{ term("TPOT") }}
+  {% if op is defined and op %}At {{ users(op.concurrency) }}: {{ term("TPOT") }}
   P{{ pct_label }} {{ ms(op.tpot_tail) }}{% if slo_tpot_ms %} (target {{ ms(slo_tpot_ms) }}){% endif %},
   {{ term("TTFT") }} P{{ pct_label }} {{ ms(op.ttft_tail) }}{% if slo_ttft_ms %} (target
   {{ ms(slo_ttft_ms) }}){% endif %}.{% else %}At one user: TPOT P{{ pct_label }}
@@ -28,7 +28,7 @@ meaning:
     {{ term("SLO") }} line.
   warn: >-
     The curve never reached your latency limit, so the true operating point is somewhere above
-    {{ num(max_tested) }} users.
+    {{ users(max_tested) }}.
   bad: >-
     Either the targets are tighter than this hardware can deliver for {{ shape_name }} requests, or
     something in the setup is slowing every request down (see the baseline findings).

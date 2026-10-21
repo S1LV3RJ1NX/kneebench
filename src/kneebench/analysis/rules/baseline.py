@@ -133,9 +133,14 @@ def spread(ctx: RunContext) -> Finding | None:
         "requests": base.m("request_count", "avg"),
         "samples": [round(r.tpot_ms, 3) for r in base.requests if r.ok and r.tpot_ms][:200],
     }
-    if cv > SPREAD_MAX_CV or p99 / p50 > SPREAD_MAX_P99_OVER_P50:
-        return warn("B04", **data)
-    return ok("B04", **data)
+    if cv <= SPREAD_MAX_CV and p99 / p50 <= SPREAD_MAX_P99_OVER_P50:
+        return ok("B04", case="steady", **data)
+    e50, e99 = base.engine_ms("engine_itl", "p50"), base.engine_ms("engine_itl", "p99")
+    data |= {"engine_p50_ms": e50, "engine_p99_ms": e99}
+    # Histogram estimates are coarse, but a steady server and a jittery client are far apart.
+    if e50 and e99 and e99 / e50 <= SPREAD_MAX_P99_OVER_P50:
+        return warn("B04", case="network", **data)
+    return warn("B04", case="server", **data)
 
 
 @rule("B05", tags={"physics", "ttft", "prefill"}, source="24#4")
@@ -182,5 +187,19 @@ def drift(ctx: RunContext) -> Finding | None:
     if not (a and b):
         return None
     change = (b - a) / a
-    data = {"start_ms": a, "end_ms": b, "change": change}
-    return warn("B06", **data) if abs(change) > DRIFT_MAX else ok("B06", **data)
+    ea, eb = start.engine_ms("engine_itl"), end.engine_ms("engine_itl")
+    engine_change = (eb - ea) / ea if ea and eb else None
+    data = {
+        "start_ms": a,
+        "end_ms": b,
+        "change": change,
+        "engine_start_ms": ea,
+        "engine_end_ms": eb,
+        "engine_change": engine_change,
+    }
+    if abs(change) <= DRIFT_MAX:
+        return ok("B06", case="steady", **data)
+    # The server's own time per token held: the slowdown was on the way here, not the GPU.
+    if engine_change is not None and abs(engine_change) <= DRIFT_MAX:
+        return warn("B06", case="network", **data)
+    return warn("B06", case="server", **data)

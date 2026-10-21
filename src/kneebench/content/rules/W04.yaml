@@ -2,19 +2,19 @@ id: W04
 title: "Wall 3: requests evicted when memory runs out"
 status_line:
   ok: >-
-    No {{ term("preemption") }} up to {{ num(max_tested) }} users (KV cache peaked at
+    No {{ term("preemption") }} up to {{ users(max_tested) }} (KV cache peaked at
     {{ pct(kv_max) }}).
   warn: >-
-    A few evictions from {{ num(concurrency) }} users ({{ num(per_1000, 1) }} per 1,000 requests),
-    above the {{ num(operating_point) }} users you would run at: occasional, not thrashing.
+    A few evictions from {{ users(concurrency) }} ({{ num(per_1000, 1) }} per 1,000 requests),
+    above the {{ users(operating_point) }} you would run at: occasional, not thrashing.
   bad: >-
-    From {{ num(concurrency) }} users{% if at_planned_load %}, within the load you would run
+    From {{ users(concurrency) }}{% if at_planned_load %}, within the load you would run
     at{% endif %}, the server ran out of cache and evicted running requests
     ({{ num(preemptions, 0) }} times at that level{% if per_1000 %}, {{ num(per_1000, 1) }} per
     1,000 requests{% endif %}{% if errors == 0 %}, with no errors{% endif %}).
   skip: "Not visible: /metrics wasn't reachable, so evictions can't be seen."
 measured: >-
-  At {{ num(concurrency) }} users the KV cache peaked at {{ pct(kv_max) }} and the preemption
+  At {{ users(concurrency) }} the KV cache peaked at {{ pct(kv_max) }} and the preemption
   counter rose by {{ num(preemptions, 0) }}{% if tpot_tail_before %}. P{{ pct_label }} per-token
   latency went from {{ ms(tpot_tail_before) }} to {{ ms(tpot_tail) }}{% endif %}.
 meaning:

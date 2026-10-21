@@ -10,7 +10,7 @@ status_line:
     token rises {{ times(growth) }} from {{ num(shortest_isl) }}-token to
     {{ num(longest_isl) }}-token prompts ({{ ms(tpot_short_ms) }} to {{ ms(tpot_long_ms) }}).
   warn: >-
-    At {{ num(concurrency) }} users, {{ num(longest_isl) }}-token prompts push time per output
+    At {{ users(concurrency) }}, {{ num(longest_isl) }}-token prompts push time per output
     token to {{ ms(tpot_long_ms) }} ({{ times(growth) }} the short-prompt speed), past your
     {{ ms(tpot_target_ms) }} target.
 measured: >-

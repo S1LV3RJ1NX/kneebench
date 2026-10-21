@@ -1,5 +1,8 @@
 """B01-B06: the single-request baseline (note 24). Floor on H100 NVL for 8B is ~4.12 ms."""
 
+from dataclasses import replace
+from typing import Any
+
 import pytest
 
 from kneebench.analysis.engine import Status
@@ -83,3 +86,31 @@ def test_b06_drift_between_start_and_end() -> None:
     assert run_rule("B06", ctx(points=(start,))) is None
     assert run_rule("B06", ctx(points=(start, same))).status is Status.OK  # type: ignore[union-attr]
     assert run_rule("B06", ctx(points=(start, drifted))).status is Status.WARN  # type: ignore[union-attr]
+
+
+def _engine(p: Any, p50_ms: float, p99_ms: float) -> Any:
+    server = {
+        "vllm:inter_token_latency_seconds": {
+            "p50_estimate": p50_ms / 1000,
+            "p99_estimate": p99_ms / 1000,
+        }
+    }
+    return replace(p, server=server)
+
+
+def test_b06_blames_the_network_when_the_server_held_steady() -> None:
+    start = _engine(point(tpot_p50=6.5), 5.7, 5.8)
+    end = _engine(point(phase="baseline_end", seq=5, tpot_p50=10.8), 5.8, 8.0)
+    f = run_rule("B06", ctx(points=(start, end)))
+    assert f is not None and f.status is Status.WARN and f.data["case"] == "network"
+    slower = _engine(point(phase="baseline_end", seq=5, tpot_p50=10.8), 9.5, 12.0)
+    g = run_rule("B06", ctx(points=(start, slower)))
+    assert g is not None and g.data["case"] == "server"
+
+
+def test_b04_blames_the_network_when_the_server_was_steady() -> None:
+    jittery = point(tpot_p50=6.5, tpot_std=2.3, tpot_p99=16.0)
+    f = run_rule("B04", ctx(points=(_engine(jittery, 5.7, 5.7),)))
+    assert f is not None and f.status is Status.WARN and f.data["case"] == "network"
+    f = run_rule("B04", ctx(points=(_engine(jittery, 5.7, 14.0),)))
+    assert f is not None and f.data["case"] == "server"

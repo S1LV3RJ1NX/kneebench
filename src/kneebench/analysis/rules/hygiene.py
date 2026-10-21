@@ -76,10 +76,17 @@ def output_length(ctx: RunContext) -> Finding | None:
         return None
     short = []
     for p in checked:
-        mean_osl = p.m("output_sequence_length", "avg")
+        # With ignore_eos the server generates exactly what was asked. AIPerf counts by
+        # re-tokenizing the streamed text, which drifts on long answers; prefer the server's.
+        mean_osl = p.m("usage_completion_tokens", "avg") or p.m("output_sequence_length", "avg")
         mismatches = p.m("osl_mismatch_count", "avg") or 0
         requests = p.m("request_count", "avg") or 0
-        ratio = (mean_osl / p.osl) if mean_osl else None
+        schedule = p.spec.get("schedule") or ()
+        # A scheduled point mixes lengths (long prompts with short answers among the streams).
+        expected = sum(r[2] for r in schedule) / len(schedule) if schedule else p.osl
+        ratio = (mean_osl / expected) if mean_osl else None
+        if p.m("usage_completion_tokens", "avg") and ratio is not None and ratio >= 0.99:
+            mismatches = 0.0  # AIPerf's per-request warning came from its own recount
         share = mismatches / requests if requests else None
         # AIPerf warns on a single short answer; only a real shortfall changes the numbers.
         warned_without_counts = share is None and p.has_warning(OSL_WARNING)
@@ -113,7 +120,8 @@ def token_count_discrepancy(ctx: RunContext) -> Finding | None:
     pairs = [
         (client, server)
         for p in ctx.points
-        if (client := p.m("input_sequence_length", "avg"))
+        if not (p.spec.get("turns") or 0) > 1
+        and (client := p.m("input_sequence_length", "avg"))
         and (server := p.m("usage_prompt_tokens", "avg"))
     ]
     if len(pairs) >= 2:

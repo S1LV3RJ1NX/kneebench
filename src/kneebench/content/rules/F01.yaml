@@ -3,7 +3,7 @@ title: Where decode sits on the roofline
 status_line:
   info: >-
     {% if all_memory_bound %}Every load you tested is limited by memory, not math: at
-    {{ num(top.concurrency) }} users a decode step does {{ num(top.intensity, 0) }} FLOPs per
+    {{ users(top.concurrency) }} a decode step does {{ num(top.intensity, 0) }} FLOPs per
     byte read, below the {{ gpu_name }}'s ridge at {{ num(ridge, 0) }}.{% else %}From
     {{ num(rows | selectattr("intensity", "ge", ridge) | map(attribute="concurrency") | first) }}
     users, decode does more than {{ num(ridge, 0) }} FLOPs per byte and is limited by math.{% endif %}
@@ -19,7 +19,7 @@ meaning: >-
   Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer
   bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the
   weights once for everyone, so adding users is nearly free until every request's cache
-  reads add up. At {{ num(top.concurrency) }} users the server reached
+  reads add up. At {{ users(top.concurrency) }} the server reached
   {{ pct(top.share) }} of what the roofline allows.
 why: >-
   A step takes about as long as the larger of its math and its memory traffic. Intensity, the

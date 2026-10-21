@@ -4,7 +4,7 @@ status_line:
   ok: All {{ checked }} load levels ran long enough at full load to measure throughput.
   warn: >-
     {{ points | length }} load level{{ "s" if points | length != 1 else "" }} spent too little time
-    at full load ({% for p in points %}{{ num(p.concurrency) }} users{% if not loop.last %},
+    at full load ({% for p in points %}{{ users(p.concurrency) }}{% if not loop.last %},
     {% endif %}{% endfor %}); their throughput is less certain.
 measured: >-
   Throughput counts only the window where the requested number of requests was really in

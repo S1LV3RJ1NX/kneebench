@@ -7,7 +7,7 @@ status_line:
     {%- if saving is not none and saving > 0 %}, cutting first-token time
     {{ pct(saving) }} ({{ ms(ranked.ttft_ms) }} to {{ ms(sorted.ttft_ms) }}){% endif %}.
 measured: >-
-  {{ num(concurrency) }} users sent retrieval prompts: {{ num(instructions) }} tokens of
+  {{ users(concurrency) }} sent retrieval prompts: {{ num(instructions) }} tokens of
   instructions, the same {{ num(passages) }} passages of {{ num(passage_len) }} tokens, then a
   new question each time. Once with the passages shuffled per request, as a retriever's scores
   would order them, once sorted by document number.

@@ -2,7 +2,7 @@ id: P03
 title: How many different prompts the cache holds
 status_line:
   info: >-
-    At {{ num(concurrency) }} users the cache has room for about {{ num(held) }} different
+    At {{ users(concurrency) }} the cache has room for about {{ num(held) }} different
     {{ num(prefix_len) }}-token system prompts; rotate through more and reuse drops to almost
     nothing.
 measured: >-

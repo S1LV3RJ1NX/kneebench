@@ -2,13 +2,13 @@ id: S04
 title: Long answers hold their seat longer
 status_line:
   info: >-
-    At {{ num(concurrency) }} users, requests finished per second fall from
+    At {{ users(concurrency) }}, requests finished per second fall from
     {{ num(req_s_short, 2) }} to {{ num(req_s_long, 2) }} as answers grow from
     {{ num(shortest_osl) }} to {{ num(longest_osl) }} tokens{% if tok_ratio and 0.8 < tok_ratio < 1.25 %},
     while output tokens per second stay about the same{% elif tok_ratio %}, while output tokens
     per second change {{ times(tok_ratio) }}{% endif %}.
   warn: >-
-    At {{ num(concurrency) }} users, long answers made the server evict
+    At {{ users(concurrency) }}, long answers made the server evict
     {{ num(preemptions) }} running requests, and finished requests per second fell from
     {{ num(req_s_short, 2) }} to {{ num(req_s_long, 2) }}.
 measured: >-

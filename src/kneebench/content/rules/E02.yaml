@@ -2,10 +2,10 @@ id: E02
 title: Which limit makes requests wait
 status_line:
   ok: >-
-    Requests didn't queue inside the server up to {{ num(max_tested) }} users: none of its
+    Requests didn't queue inside the server up to {{ users(max_tested) }}: none of its
     admission limits was reached.
   info: >-
-    From {{ num(first.concurrency) }} users requests queue inside the server
+    From {{ users(first.concurrency) }} requests queue inside the server
     {%- if known %}; {% if known.concurrency != first.concurrency %}by {{ num(known.concurrency) }}
     users {% endif %}the limit is {% if gate == "max_num_seqs" %}max_num_seqs
     ({{ num(max_num_seqs) }}): every slot is busy{% elif gate == "kv_cache" %}the KV cache,

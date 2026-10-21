@@ -13,7 +13,7 @@ status_line:
     {{ pct(shared.hit_rate) }} of prompt blocks even though every request started with the same
     {{ num(prefix_len) }} tokens.{% endif %}
 measured: >-
-  The same load ({{ num(control.concurrency) }} users) twice: once with prompts that never
+  The same load ({{ users(control.concurrency) }}) twice: once with prompts that never
   repeat, once where every prompt starts with one {{ num(prefix_len) }}-token system prompt
   followed by a different {{ num(question_len) }}-token question. First-token times are
   {% if shared.from_engine %}the server's own (from vLLM's histogram){% else %}with the network

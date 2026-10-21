@@ -3,7 +3,7 @@ title: The latency-throughput curve
 status_line:
   info: >-
     For {{ shape_name }} requests, throughput {% if knee %}stops growing almost for free after
-    {{ num(knee) }} users{% else %}keeps growing almost for free across the tested range{% endif %}.
+    {{ users(knee) }}{% else %}keeps growing almost for free across the tested range{% endif %}.
 measured: >-
   kneebench kept a fixed number of requests in flight (1, 2, 4 and so on, doubling) and measured
   steady-state output tokens per second and per-token latency at each level.

@@ -3,10 +3,10 @@ title: The slow tail breaks first
 status_line:
   ok: The target was judged on the P{{ pct_label }} tail, and medians didn't hide anything here.
   warn: >-
-    At {{ num(concurrency) }} users the median {{ metric | upper }} ({{ ms(median) }}) still looks
+    At {{ users(concurrency) }} the median {{ metric | upper }} ({{ ms(median) }}) still looks
     fine, but P{{ pct_label }} ({{ ms(tail) }}) is past the {{ ms(target) }} target.
 measured: >-
-  Median and P{{ pct_label }} {{ metric | upper }} at {{ num(concurrency) }} users.
+  Median and P{{ pct_label }} {{ metric | upper }} at {{ users(concurrency) }}.
 meaning: >-
   {{ pct_label }} out of 100 requests must meet the target; the slowest ones are what users
   remember. A dashboard of medians would call this load fine.

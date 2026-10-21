@@ -11,7 +11,7 @@ status_line:
     ({{ ms(first_ttft_ms) }} to {{ ms(last_ttft_ms) }}) along with the prompt: the server reads
     the whole history again every turn.
 measured: >-
-  {{ num(concurrency) }} users each held {{ num(turns) }}-turn conversations: a shared system
+  {{ users(concurrency) }} each held {{ num(turns) }}-turn conversations: a shared system
   prompt, a short question per turn, and the model's real answer added to the history before
   the next turn, exactly as a chat app resends it. First-token times have the network removed.
 meaning:

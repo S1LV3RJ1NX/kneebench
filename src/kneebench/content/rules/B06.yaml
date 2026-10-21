@@ -5,21 +5,30 @@ status_line:
     Time per token at the end of the run matched the start ({{ ms(start_ms) }} and
     {{ ms(end_ms) }}).
   warn: >-
-    Time per token changed by {{ pct(change) }} between the start and the end of the run
-    ({{ ms(start_ms) }} to {{ ms(end_ms) }}).
-measured: The same baseline request, measured at the start and again at the end.
+    {% if case == "network" %}The server's own time per token held ({{ ms(engine_start_ms) }} to
+    {{ ms(engine_end_ms) }}), but what arrived here changed by {{ pct(change) }}
+    ({{ ms(start_ms) }} to {{ ms(end_ms) }}): the network path changed during the run, not the
+    GPU.{% else %}Time per token changed by {{ pct(change) }} between the start and the end of
+    the run ({{ ms(start_ms) }} to {{ ms(end_ms) }}){% if engine_change is not none %}, and the
+    server's own measure moved {{ pct(engine_change) }} too{% endif %}.{% endif %}
+measured: >-
+  The same baseline request, measured at the start and again at the end{% if engine_start_ms %},
+  both as it arrived here and by the server's own histogram{% endif %}.
 meaning:
   ok: Conditions were stable, so the sweep results in between are comparable.
   warn: >-
-    Conditions changed during the run, so points measured at different times aren't directly
-    comparable.
+    {% if case == "network" %}The GPU's numbers are comparable across the run, but client-side
+    timings measured late in it carry extra network delay. Server-side findings still
+    hold.{% else %}Conditions changed during the run, so points measured at different times aren't
+    directly comparable.{% endif %}
 why: >-
-  Same request, same idle GPU, different time: the hardware or something sharing it changed while
-  the test ran.
+  Same request, same idle GPU, different time: {% if case == "network" %}the server was as fast
+  as before, so the delay grew on the way, in Wi-Fi, a VPN or a gateway{% else %}the hardware or
+  something sharing it changed while the test ran{% endif %}.
 learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
 actions:
   - when: [warn]
-    title: Rerun when the GPU is not shared
+    title: Rerun when the GPU is not shared, or from closer to the server
     expected: Start and end match within 10%.
     risk: None.
     verify: Rerun; this check should turn green.

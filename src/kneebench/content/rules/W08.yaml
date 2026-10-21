@@ -4,7 +4,7 @@ status_line:
   ok: >-
     {% if planned_rps %}Plan for about {{ num(planned_rps, 2) }} requests per second, keeping
     {{ pct(headroom) }} below the {{ num(slo_rps, 2) }} that met your targets with random
-    arrivals.{% else %}Plan for at most {{ num(run_at) }} users in flight to keep
+    arrivals.{% else %}Plan for at most {{ users(run_at) }} in flight to keep
     {{ pct(headroom) }} headroom below the {{ num(c_star, 0) }}-user limit.{% endif %}
 measured: >-
   {% if planned_rps %}The highest random-arrival rate that met your targets, times

@@ -81,6 +81,10 @@ def _plain(value: Any) -> str:
     return UNKNOWN if value is None else str(value)
 
 
+def users(value: float | None) -> str:
+    return f"{num(value)} user" if value == 1 else f"{num(value)} users"
+
+
 def num0(value: float | None) -> str:
     return num(value, 0)
 
@@ -94,6 +98,7 @@ FORMATTERS: dict[str, Callable[..., str]] = {
     "pct": pct,
     "num": num,
     "num0": num0,
+    "users": users,
     "gib": gib,
     "gb": gb,
     "kib": kib,

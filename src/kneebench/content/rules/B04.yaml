@@ -6,7 +6,9 @@ status_line:
     {{ times(p99_over_p50) }} the median).
   warn: >-
     Time per token varied a lot between identical requests (variation {{ pct(cv) }}, P99
-    {{ times(p99_over_p50) }} the median). Treat these numbers with care until you know why.
+    {{ times(p99_over_p50) }} the median){% if case == "network" %}, but the server's own measure
+    was steady ({{ ms(engine_p50_ms) }} median, {{ ms(engine_p99_ms) }} P99): the spread comes
+    from the network path{% else %}. Treat these numbers with care until you know why{% endif %}.
 measured: >-
   {{ num(requests, 0) }} identical requests: median {{ ms(p50_ms) }}, {{ term("P99") }}
   {{ ms(p99_ms) }}, coefficient of variation {{ pct(cv) }}.

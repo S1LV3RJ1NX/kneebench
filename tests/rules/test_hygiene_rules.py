@@ -1,5 +1,8 @@
 """H03-H08: is the test itself trustworthy?"""
 
+from dataclasses import replace
+from typing import Any
+
 import pytest
 
 from kneebench.analysis.engine import Status
@@ -108,3 +111,31 @@ def test_h04_one_short_answer_in_a_small_point_is_not_a_shortfall() -> None:
     assert run_rule("H04", ctx(points=(one_of_16,))).status is Status.OK  # type: ignore[union-attr]
     two_of_16 = point(requests=16, extra={"osl_mismatch_count": {"avg": 2.0}})
     assert run_rule("H04", ctx(points=(two_of_16,))).status is Status.BAD  # type: ignore[union-attr]
+
+
+def test_h04_trusts_the_server_count_over_aiperf_recount() -> None:
+    recounted = point(
+        osl=6884,
+        osl_mean=6741,
+        extra={"usage_completion_tokens": {"avg": 6884.0}, "osl_mismatch_count": {"avg": 30.0}},
+    )
+    f = run_rule("H04", ctx(points=(recounted,)))
+    assert f is not None and f.status is Status.OK
+
+
+def test_h05_ignores_multi_turn_template_tokens() -> None:
+    def pt(phase: str, isl: float, server: float, seq: int, **spec: Any) -> Any:
+        p = point(
+            phase=phase,
+            seq=seq,
+            extra={"input_sequence_length": {"avg": isl}, "usage_prompt_tokens": {"avg": server}},
+        )
+        return replace(p, spec=spec)
+
+    pts = (
+        pt("baseline", 512, 547, 0),
+        pt("concurrency", 2000, 2035, 1),
+        pt("reuse_turns", 2036, 2092, 2, turns=6),
+    )
+    f = run_rule("H05", ctx(points=pts))
+    assert f is not None and f.status is Status.OK and f.data["overhead"] == 35

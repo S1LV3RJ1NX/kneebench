@@ -2,11 +2,11 @@ id: C01
 title: What batching users together buys you
 status_line:
   info: >-
-    Serving {{ num(concurrency) }} users at once gives {{ times(multiple) }} the throughput of
+    Serving {{ users(concurrency) }} at once gives {{ times(multiple) }} the throughput of
     one user{% if tpot_increase is not none %}, for {{ pct(tpot_increase) }} slower tokens each{% endif %}.
 measured: >-
   One user at a time: {{ num(tok_s_one, 0) }} output tokens per second
-  ({{ ms(tpot_one) }} per token). {{ num(concurrency) }} users at once: {{ num(tok_s, 0) }} tokens per
+  ({{ ms(tpot_one) }} per token). {{ users(concurrency) }} at once: {{ num(tok_s, 0) }} tokens per
   second in total ({{ ms(tpot) }} per token each).
 meaning: >-
   Extra users mostly ride along on work the GPU does anyway, so the same hardware serves many

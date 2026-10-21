@@ -2,7 +2,7 @@ id: W02
 title: "Wall 2: missing your latency target"
 status_line:
   ok: >-
-    No latency target was crossed up to {{ num(max_tested) }} users.
+    No latency target was crossed up to {{ users(max_tested) }}.
   info: >-
     P{{ pct_label }} {{ metric | upper }} crosses your {{ ms(target) }} target at about
     {{ num(at, 0) }} users{% if last_pass %} (fine at {{ num(last_pass) }}, {{ ms(value) }} at

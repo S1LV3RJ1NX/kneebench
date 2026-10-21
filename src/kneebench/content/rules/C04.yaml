@@ -4,9 +4,9 @@ status_line:
   info: >-
     Peak throughput ({{ num(peak.tok_s, 0) }} tokens per second at {{ num(peak.concurrency) }}
     users) is {{ pct(gap) }} above what you can run within your targets
-    ({{ num(op.tok_s, 0) }} at {{ num(op.concurrency) }} users).
+    ({{ num(op.tok_s, 0) }} at {{ users(op.concurrency) }}).
 measured: >-
-  At {{ num(peak.concurrency) }} users the server produced the most tokens per second, but
+  At {{ users(peak.concurrency) }} the server produced the most tokens per second, but
   per-token latency there was {{ ms(peak.tpot_tail) }} at P{{ pct_label }}.
 meaning: >-
   Quoting the peak as capacity would promise users a speed they won't get. Plan with the

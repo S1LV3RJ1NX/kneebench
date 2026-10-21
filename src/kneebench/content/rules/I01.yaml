@@ -20,7 +20,7 @@ status_line:
     ({{ times(amplification) }} a normal gap); with no per-token target set, judge whether that
     matters for your users.{% endif %}
 measured: >-
-  {{ num(streams) }} users streamed long answers while a {{ num(inject_isl) }}-token prompt
+  {{ users(streams) }} streamed long answers while a {{ num(inject_isl) }}-token prompt
   arrived {{ num(injections) }} times, 10 seconds apart; the same streams ran once without them.
   kneebench timed every gap between streamed chunks. {{ num(aligned) }} of {{ num(injections) }}
   long prompts were followed within {{ num(1.5, 1) }} s by a pause, which is what ties the pauses
