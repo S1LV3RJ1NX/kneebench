@@ -105,6 +105,22 @@ kneebench never starts, stops or reconfigures your server. It only benchmarks an
 
 Every run also checks that the test itself is trustworthy: steady state reached (throughput counts only the window at full load), client not the bottleneck, outputs really as long as requested, tails and not just medians, errors counted as failures, gateways not limiting load, versions recorded.
 
+## Did a change keep answers right?
+
+Speed is half of a change like FP8 or a 4-bit checkpoint. The other half is quality (lesson 54), so every guided experiment can ask a fixed set of questions before you change anything and again afterwards:
+
+- **Before:** the current model answers every question twice, at temperature 0 and 16 at a time. The second pass is the noise floor: how much answers move with nothing changed.
+- **After:** the same questions again, compared question by question: what went right to wrong and back, the paired accuracy change with a 95% interval, a McNemar test, and every category.
+- **The rule comes first.** You set the allowed drop (default 1 point at 95% confidence) before any answer exists. The verdict is pass, fail or inconclusive, and the changed answers are shown side by side to read.
+
+Answers are checked by rules (exact, contains, number, multiple choice, regex), not by a model. kneebench bundles a 290-question starter set with answers a program can check; for the decision that matters, use your own prompts as JSONL (`prompt` or `messages`, `answer`, `match`, `category`). From the command line:
+
+```bash
+kneebench quality ask --repeat 2          # before the change: a pass plus the noise floor
+kneebench quality ask --role after        # after the change
+kneebench quality compare 1 3 --floor 2   # question by question, against the rule
+```
+
 ## How to read the report
 
 Diagnosis first, evidence second, next steps last: a short verdict, a traffic-light scorecard, the findings that need attention, a ranked "try these next" list with copy-ready flags for your vLLM version, then the curve and the walls. Each finding says what was measured, what it means, why it happens (with a link to the lesson it comes from) and what to do. Problems open by default; background findings collapse to one line; healthy checks fold into a single list. The order follows your product type: a chat team sees time to first token first, a reasoning team sees memory first.

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (quality gate)
+- Guided experiments can record answers before a change and compare them after (lesson 54):
+  the same questions twice for the noise floor, then question by question with flips, the
+  paired accuracy change and its 95% interval, an exact McNemar test and per-category
+  results. The pass rule is saved before any answer exists; changed answers are listed to read.
+- A 290-question starter set with program-checkable answers, or your own JSONL. Answers are
+  graded by rules, never by a model. `kneebench quality ask | runs | compare` on the command
+  line, which also covers two endpoints side by side.
+
 ### Added (roofline and precision what-ifs)
 - F01 places every load level on the GPU's roofline: FLOPs per byte of a decode step against
   the ridge, the throughput each level reached against the line, and where the cache reads

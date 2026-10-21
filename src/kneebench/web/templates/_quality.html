@@ -1,0 +1,35 @@
+{% if q_error %}<div class="notice bad">{{ q_error }}</div>{% endif %}
+{% if quality %}
+{% set c = quality.comparison %}
+<div class="verdict" style="font-size:17px">
+  <span class="badge {{ {'pass': 'ok', 'fail': 'bad', 'inconclusive': 'warn'}[c.verdict.overall] }}">{{ c.verdict.overall }}</span>
+  {% for s in quality_summary %}{{ s }} {% endfor %}
+</div>
+<table style="margin-top:12px">
+  <thead><tr><th>Category</th><th>Questions</th><th>Right before</th><th>Right after</th><th>Lost</th><th>Gained</th>{% if c.floor %}<th>Flipped when asked twice</th>{% endif %}</tr></thead>
+  <tbody>{% for name, p in c.categories.items() %}
+    <tr><td>{{ name }}{% if name in c.verdict.categories %} <span class="badge bad">worse</span>{% endif %}</td>
+      <td>{{ p.n }}</td><td>{{ "%.1f%%" % (100 * p.acc_a) }}</td><td>{{ "%.1f%%" % (100 * p.acc_b) }}</td>
+      <td>{{ p.lost }}</td><td>{{ p.gained }}</td>
+      {% if c.floor %}{% set f = c.floor_categories.get(name) %}<td>{{ f.flips if f else "n/a" }}</td>{% endif %}</tr>
+  {% endfor %}</tbody>
+</table>
+<p class="small muted">Rule, written before the answers were recorded: accuracy may drop at most
+  {{ c.rule.max_drop_points }} point{{ "" if c.rule.max_drop_points == 1 else "s" }} at 95% confidence,
+  and flips may exceed the noise floor by at most {{ c.rule.max_flip_excess_points }} points.
+  Answers are checked by rules, not a model: read the changed ones below before you decide
+  (<a href="https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/54-measure-quality-regression.md#7-decide">lesson 54</a>).</p>
+{% if quality.examples %}
+<details class="explain" style="margin-top:10px"{% if c.overall.lost %} open{% endif %}>
+  <summary>Changed answers ({{ quality.examples | length }}{% if quality.examples | length >= 60 %}, first 60{% endif %})</summary>
+  <table class="small" style="margin-top:8px">
+    <thead><tr><th></th><th>Question</th><th>Expected</th><th>Before</th><th>After</th></tr></thead>
+    <tbody>{% for x in quality.examples %}
+      <tr><td><span class="badge {{ {'lost': 'bad', 'gained': 'ok'}.get(x.kind, '') }}">{{ x.kind }}</span></td>
+        <td title="{{ x.question }}">{{ x.question | truncate(110) }}</td><td><code>{{ x.expected }}</code></td>
+        <td><code>{{ (x.before or "") | truncate(80) }}</code></td><td><code>{{ (x.after or "") | truncate(80) }}</code></td></tr>
+    {% endfor %}</tbody>
+  </table>
+</details>
+{% endif %}
+{% endif %}

@@ -12,6 +12,7 @@ from rich.table import Table
 from kneebench import __version__
 from kneebench.config import api_key_from_env, data_dir, load_local_config
 from kneebench.doctor import Check, Status, exit_code, run_doctor
+from kneebench.quality.cli import app as quality_app
 
 app = typer.Typer(
     name="kneebench",
@@ -20,6 +21,7 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+app.add_typer(quality_app, name="quality")
 
 _STATUS_LABEL = {
     Status.OK: "[green]  ok[/]",

@@ -17,7 +17,35 @@
 </section>
 
 <section class="card">
-  <h3><span class="step-num">02</span>Apply it</h3>
+  <h3><span class="step-num">02</span>Before you change anything: record answers</h3>
+  {% if q_before %}
+  <p>Recorded {{ q_before.questions }} questions ({{ q_before.set_name }}) twice, passes #{{ q_before.id }} and
+    #{{ q_floor.id if q_floor else "?" }}: {{ "%.1f%%" % (100 * q_before.accuracy) }} right{% if q_floor_flips is not none %};
+    asking twice flipped {{ "%.1f%%" % (100 * q_floor_flips) }}, the noise floor{% endif %}.
+    After the change, step 06 asks the same questions again.</p>
+  {% else %}
+  <p>Optional, and worth it for anything that changes the numbers the model computes with (number formats,
+    a new checkpoint, a different engine). kneebench asks every question twice now, at temperature 0 with
+    16 at a time, so it knows how much answers move with nothing changed.</p>
+  <form hx-post="/experiments/{{ e.id }}/quality/before" hx-target="#q-before" hx-encoding="multipart/form-data"
+        hx-indicator="#q-before-spin" class="whatif-form" style="margin-top:0">
+    <label><input type="radio" name="evalset" value="starter" checked> Starter set (290 checkable questions)</label>
+    <label><input type="radio" name="evalset" value="file"> Your JSONL <input type="file" name="file" accept=".jsonl,.json,.txt"></label>
+    <br>
+    <label>Allowed accuracy drop <input name="max_drop" value="1.0" style="width:60px"> points</label>
+    <label>Allowed flips above the floor <input name="max_flip_excess" value="2.0" style="width:60px"> points</label>
+    <label>API key <input name="api_key" type="password" autocomplete="off" placeholder="if the server needs one" style="width:200px"></label>
+    <button type="submit" class="secondary">Record answers</button>
+    <span id="q-before-spin" class="htmx-indicator muted small"><span class="spinner"></span> Asking every question twice…</span>
+  </form>
+  <p class="small muted">The rule is saved now, before any answers exist, so the result can't move it (lesson 54).
+    JSONL lines: <code>{"prompt": "...", "answer": "...", "match": "exact|contains|number|choice|regex", "category": "..."}</code>.</p>
+  {% endif %}
+  <div id="q-before"></div>
+</section>
+
+<section class="card">
+  <h3><span class="step-num">03</span>Apply it</h3>
   <form method="post" action="/experiments/{{ e.id }}/style" class="whatif-form" style="margin-top:0">
     <span class="muted small">How do you run vLLM?</span>
     {% for key, label in styles.items() %}
@@ -31,7 +59,7 @@
 </section>
 
 <section class="card">
-  <h3><span class="step-num">03</span>Check it landed</h3>
+  <h3><span class="step-num">04</span>Check it landed</h3>
   <form hx-post="/experiments/{{ e.id }}/check" hx-target="#check" hx-indicator="#check-spin" class="whatif-form" style="margin-top:0">
     <label>API key <input name="api_key" type="password" autocomplete="off" placeholder="if the server needs one" style="width:220px"></label>
     <button type="submit" class="secondary">I've applied it: check</button>
@@ -41,7 +69,7 @@
 </section>
 
 <section class="card">
-  <h3><span class="step-num">04</span>Measure what it did</h3>
+  <h3><span class="step-num">05</span>Measure what it did to speed</h3>
   {% if verify_run %}
     {% if verify_run.status == "running" %}
       <p><span class="spinner"></span> The verification run is in progress. <a href="/runs/{{ verify_run.id }}/live">Follow it</a>.</p>
@@ -79,6 +107,21 @@
     <span id="verify-spin" class="htmx-indicator muted small"><span class="spinner"></span> Detecting and planning…</span>
   </form>
   <div id="verify-notice"></div>
+  {% endif %}
+</section>
+<section class="card">
+  <h3><span class="step-num">06</span>Measure what it did to answers</h3>
+  {% if not q_before %}
+  <p class="muted">Record answers in step 02 before applying a change to compare them afterwards.</p>
+  {% else %}
+  <div id="q-after">{% if quality %}{% include "_quality.html" %}{% endif %}</div>
+  {% if e.status not in ("kept", "reverted") %}
+  <form hx-post="/experiments/{{ e.id }}/quality/after" hx-target="#q-after" hx-indicator="#q-after-spin" class="whatif-form" style="margin-top:10px">
+    <label>API key <input name="api_key" type="password" autocomplete="off" placeholder="if the server needs one" style="width:200px"></label>
+    <button type="submit"{% if quality %} class="secondary"{% endif %}>{{ "Ask again" if quality else "I've applied it: ask again and compare" }}</button>
+    <span id="q-after-spin" class="htmx-indicator muted small"><span class="spinner"></span> Asking every question…</span>
+  </form>
+  {% endif %}
   {% endif %}
 </section>
 {% endblock %}

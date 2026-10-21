@@ -13,7 +13,7 @@ from sqlite3 import Connection
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -28,7 +28,14 @@ from kneebench.demo import seed as demo_seed
 from kneebench.detect.server import detect_server
 from kneebench.doctor import exit_code, run_doctor
 from kneebench.domain import ProductType, Slo, user_shapes
+from kneebench.loadgen.base import Endpoint
 from kneebench.physics.gpus import catalog, get_gpu
+from kneebench.quality import service as qservice
+from kneebench.quality import stats as qstats
+from kneebench.quality import store as qstore
+from kneebench.quality.evalset import EvalSetError
+from kneebench.quality.evalset import parse as parse_evalset
+from kneebench.quality.evalset import starter as starter_evalset
 from kneebench.report.build import build_report
 from kneebench.report.compare import build_comparison, render_comparison_md
 from kneebench.report.pdf import PdfUnavailableError, attach, html_to_pdf, install_chromium
@@ -383,9 +390,11 @@ def create_app(home: Path, manager: RunManager | None = None, demo: bool = True)
             if e["base_run_id"]:
                 bundle = repo.run_bundle(conn, e["base_run_id"])
                 model = bundle["snapshot"]["hf_model_id"] or bundle["snapshot"]["served_model"]
+            q = quality_state(conn, e)
         style = e["deploy_style"] or "cli"
         return page(
             "experiment.html",
+            **q,
             e=dict(e),
             before=before,
             styles=experiments.DEPLOY_STYLES,
@@ -453,6 +462,110 @@ def create_app(home: Path, manager: RunManager | None = None, demo: bool = True)
         with db() as conn:
             repo.update_experiment(conn, experiment_id, verify_run_id=run_id, status="verifying")
         return Response(status_code=204, headers={"HX-Redirect": f"/runs/{run_id}/live"})
+
+    def quality_state(conn: Connection, e: Any) -> dict[str, Any]:
+        passes = qstore.for_experiment(conn, e["id"])
+        out: dict[str, Any] = {
+            "q_before": None, "q_floor": None, "q_floor_flips": None, "quality": None,
+            "quality_summary": [], "q_error": None,
+        }  # fmt: skip
+        if "before" not in passes:
+            return out
+        before = dict(qstore.get_run(conn, passes["before"]) or {})
+        before["questions"] = before.get("set_items")
+        rows = qstore.answers(conn, passes["before"])
+        before["accuracy"] = sum(a.correct for a in rows) / len(rows) if rows else 0.0
+        out["q_before"] = before
+        if "floor" in passes:
+            out["q_floor"] = dict(qstore.get_run(conn, passes["floor"]) or {})
+            floor_pair, _ = qstats.pair(rows, qstore.answers(conn, passes["floor"]))
+            out["q_floor_flips"] = floor_pair.flip_rate
+        if "after" in passes:
+            rule = json.loads(e["quality_rule_json"]) if e["quality_rule_json"] else None
+            view = qservice.compare_runs(
+                conn, passes["before"], passes["after"], passes.get("floor"), rule
+            )
+            out["quality"] = view
+            out["quality_summary"] = qservice.summary(view)
+        return out
+
+    def experiment_endpoint(conn: Connection, e: Any, api_key: str | None) -> Endpoint:
+        if not e["base_run_id"]:
+            raise HTTPException(400, "the run that proposed this change was deleted")
+        snap = repo.run_bundle(conn, e["base_run_id"])["snapshot"]
+        return Endpoint(
+            base_url=e["base_url"], model=snap["served_model"], tokenizer="", api_key=api_key
+        )
+
+    def quality_busy() -> str | None:
+        if runs.busy or holder(home):
+            return "A benchmark is running; asking now would disturb it. Wait for it to finish."
+        return None
+
+    @app.post("/experiments/{experiment_id}/quality/before", response_class=HTMLResponse)
+    async def quality_before(
+        experiment_id: int,
+        evalset: Annotated[str, Form()] = "starter",
+        file: Annotated[UploadFile | None, File()] = None,
+        max_drop: Annotated[float, Form()] = 1.0,
+        max_flip_excess: Annotated[float, Form()] = 2.0,
+        api_key: Annotated[str, Form()] = "",
+    ) -> Response:
+        if busy := quality_busy():
+            return page("_quality.html", q_error=busy, quality=None)
+        try:
+            if evalset == "file":
+                if file is None or not file.filename:
+                    raise EvalSetError("choose a JSONL file, or use the starter set")
+                chosen = parse_evalset(file.filename, (await file.read()).decode())
+            else:
+                chosen = starter_evalset()
+        except (EvalSetError, UnicodeDecodeError) as exc:
+            return page(
+                "_quality.html", q_error=f"That eval set can't be used: {exc}", quality=None
+            )
+        if max_drop <= 0 or max_flip_excess < 0:
+            return page(
+                "_quality.html", q_error="The allowed drop must be above zero.", quality=None
+            )
+        rule = {"max_drop_points": max_drop, "max_flip_excess_points": max_flip_excess}
+        with db() as conn:
+            e = experiment_or_404(conn, experiment_id)
+            endpoint = experiment_endpoint(conn, e, api_key or None)
+
+        def job() -> None:
+            with db() as conn:
+                qservice.record_before(conn, endpoint, chosen, experiment_id, rule)
+
+        try:
+            await run_in_threadpool(job)
+        except Exception as exc:
+            return page("_quality.html", q_error=explain(exc), quality=None)
+        return Response(status_code=204, headers={"HX-Redirect": f"/experiments/{experiment_id}"})
+
+    @app.post("/experiments/{experiment_id}/quality/after", response_class=HTMLResponse)
+    async def quality_after(experiment_id: int, api_key: Annotated[str, Form()] = "") -> Response:
+        if busy := quality_busy():
+            return page("_quality.html", q_error=busy, quality=None)
+        with db() as conn:
+            e = experiment_or_404(conn, experiment_id)
+            passes = qstore.for_experiment(conn, experiment_id)
+            if "before" not in passes:
+                raise HTTPException(400, "record answers before the change first")
+            before = qstore.get_run(conn, passes["before"])
+            assert before is not None
+            chosen = qstore.load_set(conn, before["set_id"])
+            endpoint = experiment_endpoint(conn, e, api_key or None)
+
+        def job() -> None:
+            with db() as conn:
+                qservice.record(conn, endpoint, chosen, "after", experiment_id)
+
+        try:
+            await run_in_threadpool(job)
+        except Exception as exc:
+            return page("_quality.html", q_error=explain(exc), quality=None)
+        return Response(status_code=204, headers={"HX-Redirect": f"/experiments/{experiment_id}"})
 
     @app.post("/experiments/{experiment_id}/decide")
     def experiment_decide(experiment_id: int, decision: Annotated[str, Form()]) -> Response:
