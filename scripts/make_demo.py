@@ -77,6 +77,21 @@ def sanitize(bundle: dict[str, Any]) -> dict[str, Any]:
     return clean
 
 
+def with_current_theory(bundle: dict[str, Any]) -> dict[str, Any]:
+    """Recompute the physics from the stored server metadata, so the demo carries today's
+    floors and memory math rather than those of the kneebench that measured it."""
+    from kneebench.phases.theory import theory_from_snapshot
+    from kneebench.physics.floors import Hardware
+    from kneebench.physics.gpus import gpu_from_json
+
+    t = bundle["tables"]
+    setup = t["setups"][0]
+    hw = Hardware(gpu_from_json(json.loads(setup["gpu_json"])), setup["gpu_count"])
+    theory = theory_from_snapshot(t["snapshots"][0], t["workloads"][0], hw)
+    t["runs"][0]["theory_json"] = json.dumps(theory.to_json())
+    return bundle
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
@@ -90,7 +105,7 @@ def main() -> None:
     run = conn.execute("SELECT status FROM runs WHERE id = ?", (args.run,)).fetchone()
     if run is None or run["status"] != "done":
         raise SystemExit(f"run {args.run} is missing or not finished")
-    bundle = sanitize(export_run(conn, args.run))
+    bundle = sanitize(with_current_theory(export_run(conn, args.run)))
 
     # Prove it imports and analyzes before shipping it.
     import tempfile
