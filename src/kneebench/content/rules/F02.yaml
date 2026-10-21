@@ -1,0 +1,62 @@
+id: F02
+title: What other number formats would change
+status_line:
+  info: >-
+    {% if fp8_kv_row and fp8_kv_row.fits %}An FP8 cache would hold
+    {{ num(fp8_kv_row.fits, 0) }} requests of {{ num(isl) }} in and {{ num(osl) }} out instead of
+    {{ num(rows[0].fits, 0) }}. {% endif %}{% if best %}{{ best_label }} would make decode
+    about {{ times(best.decode_speedup) }} faster at {{ num(batch) }}
+    {{ "user" if batch == 1 else "users" }}{% endif %} (kneebench estimates, before checking
+    quality).
+  warn: >-
+    The cache is the limit ({% if preempted %}requests were evicted{% else %}it reached
+    {{ pct(kv_max) }} full{% endif %}): an FP8 cache would hold
+    {{ num(fp8_kv_row.fits, 0) }} requests of {{ num(isl) }} in and {{ num(osl) }} out instead of
+    {{ num(rows[0].fits, 0) }}.
+measured: >-
+  Not measured: projected from the served {% if scheme %}{{ scheme }}{% else %}{{ num(bits, 0) }}-bit{% endif %}
+  model on the {{ gpu_name }}. Weights shrink with their bits and the freed memory goes to the
+  cache. Decode time follows the roofline at {{ num(batch) }}
+  {{ "user" if batch == 1 else "users" }}{% if measured %}, scaled from your measured time per
+  token{% endif %}. Prefill only gets faster when the math itself runs in fewer bits.
+  {% if not has_fp8 %}This GPU has no FP8 tensor cores, so FP8 is not offered.{% endif %}
+meaning: >-
+  An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit.
+  In the large study the lesson cites, FP8 weights and activations were essentially lossless
+  and speed up both decode and prefill where supported; INT8 weights and activations lost
+  about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches,
+  its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your
+  own tasks before shipping.
+why: >-
+  Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill
+  is math, so it only speeds up when the tensor cores compute in the smaller format. The
+  estimates leave out unpacking costs, so they are upper bounds, closest at small batches.
+learn_more: {note: "50", anchor: "5-two-ways-to-use-low-precision", label: "Two ways to use low precision"}
+table:
+  rows: rows
+  columns:
+    - key: id
+      label: Format
+      labels:
+        served: As served
+        fp8_kv: FP8 KV cache
+        fp8: FP8 weights and activations
+        int8: INT8 weights and activations
+        w4a16: 4-bit weights only
+    - {key: weights_gb, label: Weights, fmt: gb}
+    - {key: fits, label: Requests that fit, fmt: num0}
+    - {key: decode_speedup_one, label: Decode at 1 user, fmt: times}
+    - {key: decode_speedup, label: Decode at load, fmt: times}
+    - {key: prefill_speedup, label: Prefill, fmt: times}
+actions:
+  - when: [warn]
+    kind: server
+    title: Store the KV cache in FP8
+    flag: --kv-cache-dtype fp8
+    expected: >-
+      About twice the cache tokens, so about twice as many requests fit before evictions.
+    risk: >-
+      The cache holds slightly less exact numbers; quality usually holds, but check it on your
+      own tasks before shipping.
+    verify: >-
+      The cache size on /metrics doubles; rerun and check that evictions stop at the same load.

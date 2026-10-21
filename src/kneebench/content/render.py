@@ -63,6 +63,10 @@ def gib(value: float | None) -> str:
     return UNKNOWN if value is None else f"{value:.1f} GiB"
 
 
+def gb(value: float | None) -> str:
+    return UNKNOWN if value is None else f"{value:.1f} GB"
+
+
 def kib(value_bytes: float | None) -> str:
     return UNKNOWN if value_bytes is None else f"{value_bytes / 1024:,.0f} KiB"
 
@@ -91,6 +95,7 @@ FORMATTERS: dict[str, Callable[..., str]] = {
     "num": num,
     "num0": num0,
     "gib": gib,
+    "gb": gb,
     "kib": kib,
     "times": times,
     "yesno": yesno,
@@ -186,6 +191,9 @@ class RenderedFinding:
 
 
 def _cell(row: dict[str, Any], column: dict[str, Any]) -> str:
+    if "labels" in column:
+        value = row.get(str(column["key"]))
+        return str(column["labels"].get(value, value))
     fmt: Callable[..., str] = FORMATTERS.get(str(column.get("fmt", "")), _plain)
     return fmt(row.get(str(column["key"])))
 

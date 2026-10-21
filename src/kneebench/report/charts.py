@@ -61,6 +61,7 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         ("I01", _interference),
         ("P01", _shared_prompt),
         ("P02", _turns),
+        ("F01", _roofline),
     )
     for rule_id, build in builders:
         data = _data(report, rule_id)
@@ -779,6 +780,62 @@ def _interference(d: dict[str, Any]) -> dict[str, Any] | None:
         "Longest gap between streamed chunks; dotted lines are long prompts arriving",
         xaxis={"title": "Seconds into the test"},
         yaxis={"title": "Milliseconds", "rangemode": "tozero"},
+    )
+
+
+# ---- roofline ----
+
+
+def _roofline(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    peak, bw, ridge = d.get("peak_tflops"), d.get("bandwidth_tbps"), d.get("ridge")
+    if not rows or not (peak and bw and ridge):
+        return None
+    lo = min(0.5, min(r["intensity"] for r in rows) / 2)
+    hi = ridge * 4
+    xs = [lo * (hi / lo) ** (i / 60) for i in range(61)]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=xs,
+        y=[min(peak, bw * x) for x in xs],
+        mode="lines",
+        name="Roofline",
+        line={"color": SECOND, "width": 2},
+        hovertemplate="%{x:,.0f} FLOPs/byte: %{y:,.0f} TFLOPS<extra></extra>",
+    )
+    fig.add_scatter(
+        x=[r["intensity"] for r in rows],
+        y=[r["achieved_tflops"] for r in rows],
+        mode="markers+text",
+        name="Decode at each load",
+        text=[f"{r['concurrency']}" for r in rows],
+        textposition="top center",
+        marker={"color": ACCENT, "size": 9},
+        hovertemplate="%{text} users: %{y:,.1f} TFLOPS at %{x:,.1f} FLOPs/byte<extra></extra>",
+    )
+    # Log axes read shape positions as exponents, so vertical markers are traces.
+    bottom = min(r["achieved_tflops"] for r in rows) / 2
+    markers = [(ridge, f"ridge {ridge:,.0f}", MUTED, "dot", "top right")]
+    limit = d.get("limit")
+    if limit and limit < ridge:
+        markers.append((limit, f"cache reads cap decode at {limit:,.0f}", BAD, "dash", "top left"))
+    for x, label, color, dash, side in markers:
+        fig.add_scatter(
+            x=[x, x],
+            y=[bottom, peak],
+            mode="lines+text",
+            text=["", label],
+            textposition=side,
+            textfont={"color": color if color != MUTED else SECOND},
+            line={"color": color, "dash": dash, "width": 1.5},
+            hoverinfo="skip",
+        )
+    return _fig(
+        fig,
+        "Decode steps against the GPU's roofline (labels: users)",
+        xaxis={"title": "FLOPs per byte moved (log scale)", "type": "log"},
+        yaxis={"title": "TFLOPS (log scale)", "type": "log"},
+        showlegend=False,
     )
 
 

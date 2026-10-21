@@ -1,0 +1,36 @@
+id: F01
+title: Where decode sits on the roofline
+status_line:
+  info: >-
+    {% if all_memory_bound %}Every load you tested is limited by memory, not math: at
+    {{ num(top.concurrency) }} users a decode step does {{ num(top.intensity, 0) }} FLOPs per
+    byte read, below the {{ gpu_name }}'s ridge at {{ num(ridge, 0) }}.{% else %}From
+    {{ num(rows | selectattr("intensity", "ge", ridge) | map(attribute="concurrency") | first) }}
+    users, decode does more than {{ num(ridge, 0) }} FLOPs per byte and is limited by math.{% endif %}
+    {% if ridge_batch is none %}At {{ num(context, 0) }}-token contexts the cache reads cap it at
+    {{ num(limit, 0) }}, so more users never make decode math-bound.{% elif all_memory_bound %}It
+    would reach the ridge at about {{ num(ridge_batch, 0) }} users.{% endif %}
+measured: >-
+  For each load level: the math and the bytes of one decode step at that many users, with
+  {{ num(context, 0) }}-token contexts (the prompt plus half the answer), against the measured
+  time per token. The {{ gpu_name }} peaks are {{ num(peak_tflops, 0) }} TFLOPS
+  ({{ compute | upper }}) and {{ num(bandwidth_tbps, 2) }} TB/s.
+meaning: >-
+  Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer
+  bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the
+  weights once for everyone, so adding users is nearly free until every request's cache
+  reads add up. At {{ num(top.concurrency) }} users the server reached
+  {{ pct(top.share) }} of what the roofline allows.
+why: >-
+  A step takes about as long as the larger of its math and its memory traffic. Intensity, the
+  math per byte, decides which: below the ridge (peak math divided by bandwidth) memory wins.
+  Real roofs sit about 20% below the datasheet, so 70-80% of the line is good.
+learn_more: {note: "61", anchor: "4-why-this-picture-runs-inference", label: "Why this picture runs inference"}
+table:
+  rows: rows
+  columns:
+    - {key: concurrency, label: Users, fmt: num}
+    - {key: intensity, label: FLOPs per byte, fmt: num0}
+    - {key: achieved_tflops, label: Achieved TFLOPS, fmt: num}
+    - {key: ceiling_tflops, label: Roofline TFLOPS, fmt: num}
+    - {key: share, label: Of the line, fmt: pct}

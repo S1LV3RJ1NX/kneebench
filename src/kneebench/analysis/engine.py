@@ -89,6 +89,7 @@ def _load_rules() -> None:
         interference,
         rate,
         reuse,
+        roofline,
         scheduler,
         shape,
         theory,

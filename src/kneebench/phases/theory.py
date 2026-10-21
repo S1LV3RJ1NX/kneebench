@@ -16,7 +16,7 @@ from kneebench.physics.floors import (
     startup_fit,
 )
 from kneebench.physics.gpus import GIB
-from kneebench.physics.model import ModelSpec
+from kneebench.physics.model import ModelSpec, compute_format
 from kneebench.servers.vllm import batch_defaults
 
 
@@ -66,6 +66,11 @@ class Theory:
     shapes: tuple[ShapeTheory, ...] = field(default=())
     block_size: int | None = None  # KV cache block, from vllm:cache_config_info
     model_quant_scheme: str | None = None
+    # For the roofline (note 61): attention width, and one GPU's peak per number format.
+    model_attn_width: int | None = None
+    model_compute: str = "bf16"  # bf16, fp8 or int8 tensor cores
+    gpu_bf16_tflops: float | None = None
+    gpu_fp8_tflops: float | None = None
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -151,6 +156,10 @@ def compute_theory(
         shapes=tuple(shape_rows),
         block_size=block,
         model_quant_scheme=model.quant_scheme,
+        model_attn_width=model.num_layers * model.num_attention_heads * model.head_dim,
+        model_compute=compute_format(model),
+        gpu_bf16_tflops=hw.gpu.bf16_tflops,
+        gpu_fp8_tflops=hw.gpu.fp8_tflops,
     )
 
 

@@ -23,7 +23,7 @@ from kneebench.content.render import (
     render_finding,
 )
 
-INFO_RULES_IN_CONTEXT = ("T01", "T02", "T03", "T05", "B05")
+INFO_RULES_IN_CONTEXT = ("T01", "T02", "T03", "T05", "B05", "F01", "F02")
 # Healthy baseline findings still get a card here, so their charts stay one click away.
 CHARTED_OK_IN_CONTEXT = ("B01", "B04")
 # Findings that describe the load curve and its walls get their own section.

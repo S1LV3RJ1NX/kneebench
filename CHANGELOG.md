@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (roofline and precision what-ifs)
+- F01 places every load level on the GPU's roofline: FLOPs per byte of a decode step against
+  the ridge, the throughput each level reached against the line, and where the cache reads
+  cap decode at long contexts (lesson 61). With a roofline chart.
+- F02 projects an FP8 KV cache, FP8 or INT8 weights and activations (only where the GPU has
+  those tensor cores) and 4-bit weight-only: weight memory, requests that fit, decode and
+  prefill speed at your load (lessons 50, 51, 53). When the cache is the limit it suggests
+  `--kv-cache-dtype fp8`, which the guided experiment can verify from outside.
+
 ### Added (prompt reuse)
 - New phase at the operating point: the same load with prompts that never repeat, with one
   shared 1,500-token system prompt, and as six-turn conversations that resend the real

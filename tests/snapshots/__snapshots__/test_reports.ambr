@@ -85,6 +85,23 @@
   
   **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
   
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 520 requests of 1,024 in and 1,024 out instead of 260. 4-bit weights would make decode about 3.7× faster at 1 user (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 1 user. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 260 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 520 | 1.0× | 1.0× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 290 | 2.0× | 2.0× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 305 | 3.7× | 3.7× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
+  
   ### [context] The fastest this setup can possibly go (T01)
   
   **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
@@ -316,6 +333,23 @@
   
   **What to do.** Raise the context limit if your real traffic is longer. Try `--max-model-len <tokens>`. Expected: The original shapes can be measured as-is. Verify: Rerun; this note disappears.
   
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 152 requests of 5,988 in and 1,024 out instead of 76. 4-bit weights would make decode about 3.4× faster at 1 user (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 1 user. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 76 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 152 | 1.0× | 1.0× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 85 | 1.9× | 1.9× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 89 | 3.4× | 3.4× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
+  
   ### [context] The fastest this setup can possibly go (T01)
   
   **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
@@ -502,6 +536,23 @@
   **What it means.** The measurement is repeatable, so differences in later runs are real.
   
   **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 152 requests of 1,024 in and 5,988 out instead of 76. 4-bit weights would make decode about 3.6× faster at 1 user (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 1 user. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 76 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 152 | 1.0× | 1.0× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 85 | 1.9× | 1.9× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 89 | 3.6× | 3.6× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
   
   ### [context] How much memory each token of context takes (T02)
   
@@ -725,6 +776,23 @@
   
   **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
   
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 520 requests of 1,024 in and 1,024 out instead of 260. 4-bit weights would make decode about 3.7× faster at 1 user (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 SXM 80GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 1 user. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 260 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 520 | 1.0× | 1.0× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 290 | 2.0× | 2.0× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 305 | 3.7× | 3.7× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
+  
   ### [context] The fastest this setup can possibly go (T01)
   
   **Physics floor for one request (512 in, 256 out): 4.8 ms per token, 1.24 s end to end.**
@@ -923,6 +991,23 @@
   **What it means.** The measurement is repeatable, so differences in later runs are real.
   
   **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **4-bit weights would make decode about 3.7× faster at 1 user (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 1 user. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | n/a | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | n/a | 1.0× | 1.0× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | n/a | 2.0× | 2.0× | 2.0× |
+  | 4-bit weights only | 4.1 GB | n/a | 3.7× | 3.7× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
   
   ### [context] The fastest this setup can possibly go (T01)
   
@@ -1301,6 +1386,43 @@
   **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long prompts should keep them much busier.
   
   **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
+  
+  ### [context] Where decode sits on the roofline (F01)
+  
+  **Every load you tested is limited by memory, not math: at 64 users a decode step does 37 FLOPs per byte read, below the NVIDIA H100 NVL 94GB's ridge at 214. At 1,536-token contexts the cache reads cap it at 84, so more users never make decode math-bound.**
+  
+  **What we measured.** For each load level: the math and the bytes of one decode step at that many users, with 1,536-token contexts (the prompt plus half the answer), against the measured time per token. The NVIDIA H100 NVL 94GB peaks are 835 TFLOPS (BF16) and 3.90 TB/s.
+  
+  | Users | FLOPs per byte | Achieved TFLOPS | Roofline TFLOPS | Of the line |
+  |---|---|---|---|---|
+  | 1 | 1 | 2.9 | 4.0 | 72% |
+  | 2 | 2 | 5.7 | 8.0 | 72% |
+  | 4 | 4 | 11.1 | 15.6 | 71% |
+  | 8 | 8 | 21.1 | 29.8 | 71% |
+  | 16 | 14 | 38.6 | 54.6 | 71% |
+  | 32 | 24 | 51.4 | 93.5 | 55% |
+  | 64 | 37 | 54.0 | 145.4 | 37% |
+  
+  **What it means.** Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the weights once for everyone, so adding users is nearly free until every request's cache reads add up. At 64 users the server reached 37% of what the roofline allows.
+  
+  **Why it happens.** A step takes about as long as the larger of its math and its memory traffic. Intensity, the math per byte, decides which: below the ridge (peak math divided by bandwidth) memory wins. Real roofs sit about 20% below the datasheet, so 70-80% of the line is good. [Learn more: Lesson 61: Compute-bound vs memory-bound and the roofline model, Why this picture runs inference](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/61-compute-vs-memory-bound-roofline.md#4-why-this-picture-runs-inference)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 520 requests of 1,024 in and 1,024 out instead of 260. 4-bit weights would make decode about 2.1× faster at 32 users (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 32 users, scaled from your measured time per token. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 260 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 520 | 1.0× | 1.2× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 290 | 2.0× | 1.6× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 305 | 3.7× | 2.1× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
   
   ### [context] The fastest this setup can possibly go (T01)
   
@@ -1759,6 +1881,43 @@
   
   **What to do.** Raise the context limit if your real traffic is longer. Try `--max-model-len <tokens>`. Expected: The original shapes can be measured as-is. Verify: Rerun; this note disappears.
   
+  ### [context] Where decode sits on the roofline (F01)
+  
+  **Every load you tested is limited by memory, not math: at 64 users a decode step does 18 FLOPs per byte read, below the NVIDIA H100 NVL 94GB's ridge at 214. At 6,500-token contexts the cache reads cap it at 23, so more users never make decode math-bound.**
+  
+  **What we measured.** For each load level: the math and the bytes of one decode step at that many users, with 6,500-token contexts (the prompt plus half the answer), against the measured time per token. The NVIDIA H100 NVL 94GB peaks are 835 TFLOPS (BF16) and 3.90 TB/s.
+  
+  | Users | FLOPs per byte | Achieved TFLOPS | Roofline TFLOPS | Of the line |
+  |---|---|---|---|---|
+  | 1 | 1 | 3.4 | 4.5 | 75% |
+  | 2 | 2 | 6.6 | 8.5 | 77% |
+  | 4 | 4 | 12.8 | 15.6 | 82% |
+  | 8 | 7 | 24.3 | 26.6 | 92% |
+  | 16 | 10 | 44.5 | 40.9 | 109% |
+  | 32 | 14 | 59.3 | 56.1 | 106% |
+  | 64 | 18 | 62.3 | 68.8 | 90% |
+  
+  **What it means.** Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the weights once for everyone, so adding users is nearly free until every request's cache reads add up. At 64 users the server reached 90% of what the roofline allows.
+  
+  **Why it happens.** A step takes about as long as the larger of its math and its memory traffic. Intensity, the math per byte, decides which: below the ridge (peak math divided by bandwidth) memory wins. Real roofs sit about 20% below the datasheet, so 70-80% of the line is good. [Learn more: Lesson 61: Compute-bound vs memory-bound and the roofline model, Why this picture runs inference](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/61-compute-vs-memory-bound-roofline.md#4-why-this-picture-runs-inference)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 152 requests of 5,988 in and 1,024 out instead of 76. 4-bit weights would make decode about 1.4× faster at 32 users (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 32 users, scaled from your measured time per token. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 76 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 152 | 1.0× | 1.5× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 85 | 1.9× | 1.2× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 89 | 3.4× | 1.4× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
+  
   ### [context] The fastest this setup can possibly go (T01)
   
   **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
@@ -2078,6 +2237,43 @@
   
   **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
   
+  ### [context] Where decode sits on the roofline (F01)
+  
+  **Every load you tested is limited by memory, not math: at 64 users a decode step does 37 FLOPs per byte read, below the NVIDIA H100 NVL 94GB's ridge at 214. At 1,536-token contexts the cache reads cap it at 84, so more users never make decode math-bound.**
+  
+  **What we measured.** For each load level: the math and the bytes of one decode step at that many users, with 1,536-token contexts (the prompt plus half the answer), against the measured time per token. The NVIDIA H100 NVL 94GB peaks are 835 TFLOPS (BF16) and 3.90 TB/s.
+  
+  | Users | FLOPs per byte | Achieved TFLOPS | Roofline TFLOPS | Of the line |
+  |---|---|---|---|---|
+  | 1 | 1 | 2.9 | 4.0 | 72% |
+  | 2 | 2 | 5.7 | 8.0 | 72% |
+  | 4 | 4 | 11.1 | 15.6 | 71% |
+  | 8 | 8 | 21.1 | 29.8 | 71% |
+  | 16 | 14 | 38.6 | 54.6 | 71% |
+  | 32 | 24 | 51.4 | 93.5 | 55% |
+  | 64 | 37 | 54.0 | 145.4 | 37% |
+  
+  **What it means.** Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the weights once for everyone, so adding users is nearly free until every request's cache reads add up. At 64 users the server reached 37% of what the roofline allows.
+  
+  **Why it happens.** A step takes about as long as the larger of its math and its memory traffic. Intensity, the math per byte, decides which: below the ridge (peak math divided by bandwidth) memory wins. Real roofs sit about 20% below the datasheet, so 70-80% of the line is good. [Learn more: Lesson 61: Compute-bound vs memory-bound and the roofline model, Why this picture runs inference](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/61-compute-vs-memory-bound-roofline.md#4-why-this-picture-runs-inference)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 520 requests of 1,024 in and 1,024 out instead of 260. 4-bit weights would make decode about 2.1× faster at 32 users (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 32 users, scaled from your measured time per token. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 260 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 520 | 1.0× | 1.2× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 290 | 2.0× | 1.6× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 305 | 3.7× | 2.1× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
+  
   ### [context] The fastest this setup can possibly go (T01)
   
   **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
@@ -2391,6 +2587,43 @@
   **What it means.** The measurement is repeatable, so differences in later runs are real.
   
   **Why it happens.** Every baseline request is identical, so they should take the same time. Spread means something else is involved: another workload on the GPU, throttling, or a noisy network path. [Learn more: Lesson 24: Establish the single-request baseline, When it looks off](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#5-when-it-looks-off)
+  
+  ### [context] Where decode sits on the roofline (F01)
+  
+  **Every load you tested is limited by memory, not math: at 64 users a decode step does 23 FLOPs per byte read, below the NVIDIA H100 NVL 94GB's ridge at 214. At 4,018-token contexts the cache reads cap it at 34, so more users never make decode math-bound.**
+  
+  **What we measured.** For each load level: the math and the bytes of one decode step at that many users, with 4,018-token contexts (the prompt plus half the answer), against the measured time per token. The NVIDIA H100 NVL 94GB peaks are 835 TFLOPS (BF16) and 3.90 TB/s.
+  
+  | Users | FLOPs per byte | Achieved TFLOPS | Roofline TFLOPS | Of the line |
+  |---|---|---|---|---|
+  | 1 | 1 | 3.1 | 4.3 | 73% |
+  | 2 | 2 | 6.2 | 8.3 | 74% |
+  | 4 | 4 | 11.9 | 15.6 | 76% |
+  | 8 | 7 | 22.7 | 28.0 | 81% |
+  | 16 | 12 | 41.5 | 46.3 | 90% |
+  | 32 | 18 | 55.4 | 68.9 | 80% |
+  | 64 | 23 | 58.1 | 91.1 | 64% |
+  
+  **What it means.** Left of the ridge, the GPU waits on memory: a faster chip's math changes nothing, and fewer bytes (smaller weights, an FP8 cache) or more users per step help. Each step reads the weights once for everyone, so adding users is nearly free until every request's cache reads add up. At 64 users the server reached 64% of what the roofline allows.
+  
+  **Why it happens.** A step takes about as long as the larger of its math and its memory traffic. Intensity, the math per byte, decides which: below the ridge (peak math divided by bandwidth) memory wins. Real roofs sit about 20% below the datasheet, so 70-80% of the line is good. [Learn more: Lesson 61: Compute-bound vs memory-bound and the roofline model, Why this picture runs inference](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/61-compute-vs-memory-bound-roofline.md#4-why-this-picture-runs-inference)
+  
+  ### [context] What other number formats would change (F02)
+  
+  **An FP8 cache would hold 152 requests of 1,024 in and 5,988 out instead of 76. 4-bit weights would make decode about 1.6× faster at 32 users (kneebench estimates, before checking quality).**
+  
+  **What we measured.** Not measured: projected from the served 16-bit model on the NVIDIA H100 NVL 94GB. Weights shrink with their bits and the freed memory goes to the cache. Decode time follows the roofline at 32 users, scaled from your measured time per token. Prefill only gets faster when the math itself runs in fewer bits.
+  
+  | Format | Weights | Requests that fit | Decode at 1 user | Decode at load | Prefill |
+  |---|---|---|---|---|---|
+  | As served | 16.1 GB | 76 | 1.0× | 1.0× | 1.0× |
+  | FP8 KV cache | 16.1 GB | 152 | 1.0× | 1.3× | 1.0× |
+  | FP8 weights and activations | 8.0 GB | 85 | 1.9× | 1.3× | 2.0× |
+  | 4-bit weights only | 4.1 GB | 89 | 3.6× | 1.6× | 1.0× |
+  
+  **What it means.** An FP8 cache is one flag (`--kv-cache-dtype fp8`) and doubles how many requests fit. In the large study the lesson cites, FP8 weights and activations were essentially lossless and speed up both decode and prefill where supported; INT8 weights and activations lost about 1 to 3%; 4-bit weight-only kept about 99% with a good method and suits small batches, its gain shrinking as batches grow. Every one changes the numbers the model computes with: check quality on your own tasks before shipping.
+  
+  **Why it happens.** Decode reads every weight and the cache each step, so fewer bytes make it faster. Prefill is math, so it only speeds up when the tensor cores compute in the smaller format. The estimates leave out unpacking costs, so they are upper bounds, closest at small batches. [Learn more: Lesson 50: Precision, memory and hardware support, Two ways to use low precision](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/50-precision-memory-hardware-support.md#5-two-ways-to-use-low-precision)
   
   ### [context] How much memory each token of context takes (T02)
   

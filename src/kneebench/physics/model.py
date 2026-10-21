@@ -133,6 +133,15 @@ def quant_scheme(config: dict[str, Any]) -> tuple[str | None, bool]:
     return None, False
 
 
+def compute_format(model: ModelSpec) -> str:
+    """Which tensor cores the matmuls use: W8A8-INT8 runs in INT8, FP8 schemes in FP8."""
+    if model.fp8_compute:
+        return "fp8"
+    if model.quant_scheme and model.quant_scheme.endswith("A8-INT8"):
+        return "int8"
+    return "bf16"
+
+
 def estimate_params(config: dict[str, Any]) -> int:
     """Dense decoder parameter estimate: embeddings, attention and gated MLP per layer."""
     cfg = _text_config(config)
