@@ -31,6 +31,7 @@ TABLES: tuple[tuple[str, dict[str, str]], ...] = (
     ("server_metrics", {"point_id": "points"}),
     ("requests", {"point_id": "points"}),
     ("warnings", {"point_id": "points"}),
+    ("point_series", {"point_id": "points"}),
 )
 
 

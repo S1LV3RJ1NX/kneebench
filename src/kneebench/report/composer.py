@@ -44,7 +44,7 @@ CAPACITY_RULES = (
     "E01",
 )
 # Note 26: the shape map leads; the rest explain why shapes differ.
-SHAPE_RULES = ("S06", "S01", "S02", "S03", "S04", "S07", "S05")
+SHAPE_RULES = ("S06", "S01", "S02", "I01", "S03", "S04", "S07", "S05")
 CAVEAT_RULES = ("H06",)
 LIMITER_TEXT = {
     "slo_tpot": "per-token latency crosses your target",

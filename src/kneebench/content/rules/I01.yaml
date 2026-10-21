@@ -1,0 +1,76 @@
+id: I01
+title: Do long prompts freeze other users' answers?
+status_line:
+  ok: >-
+    {% if tpot_target_ms and mixed.max_ms <= tpot_target_ms %}Long prompts don't freeze the
+    streaming answers: the longest pause was {{ ms(mixed.max_ms) }}, within your
+    {{ ms(tpot_target_ms) }} per-token target.{% else %}The pauses in the streaming answers didn't
+    line up with the long prompts ({{ num(aligned) }} of {{ num(injections) }}), so they come from
+    something else.{% endif %}
+  warn: >-
+    Each {{ num(inject_isl) }}-token prompt froze every streaming answer for up to
+    {{ ms(mixed.max_ms) }}, {{ times(amplification) }} a normal token gap and past your
+    {{ ms(tpot_target_ms) }} per-token target{% if alone.max_ms %} (without them the longest pause
+    was {{ ms(alone.max_ms) }}){% endif %}.
+  info: >-
+    {% if noisy %}Can't tell from here: the streaming answers already paused for up to
+    {{ ms(alone.max_ms) }} without any long prompts (P99 {{ ms(alone.p99_ms) }} against a
+    typical {{ ms(alone.p50_ms) }}), which hides any pause the long prompts cause.{% else %}Long
+    prompts paused the streaming answers for up to {{ ms(mixed.max_ms) }}
+    ({{ times(amplification) }} a normal gap); with no per-token target set, judge whether that
+    matters for your users.{% endif %}
+measured: >-
+  {{ num(streams) }} users streamed long answers while a {{ num(inject_isl) }}-token prompt
+  arrived {{ num(injections) }} times, 10 seconds apart; the same streams ran once without them.
+  kneebench timed every gap between streamed chunks. {{ num(aligned) }} of {{ num(injections) }}
+  long prompts were followed within {{ num(1.5, 1) }} s by a pause, which is what ties the pauses
+  to them.{% if inject_ttft_ms %} The long prompts' own first token took
+  {{ ms(inject_ttft_ms) }}.{% endif %} The median barely moves and P99 can stay normal: with a
+  few spikes among thousands of gaps, only the longest pause and P99.9 show them.
+meaning:
+  ok: >-
+    Mixed traffic with long prompts is safe for streaming speed at this load.
+  warn: >-
+    Users mid-answer see the text stop while someone else's long prompt is read. Average and P99
+    per-token numbers hide it.{% if can_lower %} Cutting each step's prompt share to about
+    {{ num(safe_budget) }} tokens keeps every step within your target, at the cost of a slower
+    first token for the long prompts.{% else %} The step budget is already near the smallest
+    efficient size, so send long prompts to a separate pool of servers.{% endif %}
+  info: >-
+    {% if noisy %}Pauses this large without long prompts come from between kneebench and the
+    engine (the network, a gateway bundling chunks, or a busy client), not from the server's
+    scheduling. Run the test next to the server to measure the real effect.{% else %}The pause
+    is real but you haven't set a per-token target to judge it against.{% endif %}
+why: >-
+  While a prompt is read ({{ term("prefill") }}), the engine step carrying it is much longer
+  than a normal step that writes one token per user, and every user streaming at that moment
+  waits for it. vLLM reads long prompts in chunks of at most max_num_batched_tokens
+  (about {{ num(budget) }} here) per step, so that budget sets how long the pause can be.
+learn_more: {note: "44", anchor: "4-read-the-results", label: "Read the results"}
+actions:
+  - when: [info]
+    title: Run kneebench next to the server, on a machine that keeps up
+    group: client
+    expected: Without network jitter, any pause the long prompts cause stands out.
+    risk: None.
+    verify: Rerun; the streams alone should pause no more than a few normal gaps.
+  - when: [warn]
+    kind: server
+    title: >-
+      {% if can_lower %}Read long prompts in smaller chunks{% else %}Send long prompts to a
+      separate pool of servers{% endif %}
+    flag: "{% if can_lower %}--max-num-batched-tokens {{ safe_budget }}{% endif %}"
+    expected: >-
+      Pauses shrink to about your per-token target. The long prompts take a few more steps to
+      read, so their own first token gets slower.
+    risk: First-token time for long prompts rises; very small chunks waste the GPU.
+    verify: Rerun the long-prompt interference test and check the longest pause.
+table:
+  rows: rows
+  columns:
+    - {key: run, label: Run}
+    - {key: p50_ms, label: Gap P50, fmt: ms}
+    - {key: p99_ms, label: Gap P99, fmt: ms}
+    - {key: p999_ms, label: Gap P99.9, fmt: ms}
+    - {key: max_ms, label: Longest pause, fmt: ms}
+    - {key: stalls, label: Stalls, fmt: num}

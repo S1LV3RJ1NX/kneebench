@@ -19,8 +19,9 @@ from kneebench.loadgen.aiperf.parse import (
     SUMMARY_FILE,
     TIMESLICES_FILE,
     ParsedPoint,
+    stream_summary,
 )
-from kneebench.loadgen.base import PointResult, PointSpec
+from kneebench.loadgen.base import LoadMode, PointResult, PointSpec
 
 # Raw artifacts copied into SQLite so reports survive a deleted artifacts directory.
 STORED_ARTIFACTS = (
@@ -299,6 +300,13 @@ def finish_point(
         )
         if parsed is not None:
             _store_parsed(conn, point_id, parsed)
+            if result.spec.mode is LoadMode.SCHEDULE:
+                summary = stream_summary(parsed.profiling_requests())
+                if summary is not None:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO point_series VALUES (?, 'streams', ?)",
+                        (point_id, _dumps(summary)),
+                    )
         _store_artifacts(conn, point_id, result.artifact_dir)
         conn.execute("COMMIT")
     except Exception:
@@ -448,6 +456,12 @@ def point_dict(conn: Connection, point_id: int) -> dict[str, Any]:
             "SELECT source, code, message FROM warnings WHERE point_id = ?", (point_id,)
         )
     ]
+    p["series"] = {
+        row["name"]: json.loads(row["data_json"])
+        for row in conn.execute(
+            "SELECT name, data_json FROM point_series WHERE point_id = ?", (point_id,)
+        )
+    }
     p["requests"] = [
         dict(r)
         for r in conn.execute(

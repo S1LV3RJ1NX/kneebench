@@ -26,6 +26,7 @@ from kneebench.loadgen.aiperf.overhead import point_overhead_s
 from kneebench.loadgen.aiperf.parse import parse_point
 from kneebench.loadgen.base import Endpoint, LoadGenerator, PointResult
 from kneebench.phases.plan import (
+    INTERFERENCE_PHASES,
     SHAPE_MIN_ROUNDS,
     SHAPE_PHASES,
     SHAPE_POINT_TARGET_S,
@@ -234,7 +235,7 @@ def execute_run(
                 rate_stopped = "point_failed"
                 repo.set_stop_reason(conn, point_id, rate_stopped)
                 continue
-            if not result.ok and planned.phase in SHAPE_PHASES:
+            if not result.ok and planned.phase in (*SHAPE_PHASES, *INTERFERENCE_PHASES):
                 repo.set_stop_reason(conn, point_id, "point_failed")
                 continue
             if not result.ok:

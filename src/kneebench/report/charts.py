@@ -58,6 +58,7 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         ("S04", _output_slots),
         ("S06", _shape_map),
         ("E01", _ttft_split),
+        ("I01", _interference),
     )
     for rule_id, build in builders:
         data = _data(report, rule_id)
@@ -747,5 +748,33 @@ def _ttft_split(d: dict[str, Any]) -> dict[str, Any] | None:
         "Median time to first token, split by where it is spent",
         barmode="stack",
         xaxis={"title": "Users in flight", "type": "category"},
+        yaxis={"title": "Milliseconds", "rangemode": "tozero"},
+    )
+
+
+def _interference(d: dict[str, Any]) -> dict[str, Any] | None:
+    alone, mixed = d.get("alone"), d.get("mixed")
+    if not alone or not mixed:
+        return None
+    fig = go.Figure()
+    for run, name, color, width in (
+        (alone, "Streams alone", MUTED, 1.5),
+        (mixed, "With long prompts", ACCENT, 2),
+    ):
+        fig.add_scatter(
+            x=[t for t, _ in run["series"]],
+            y=[g for _, g in run["series"]],
+            mode="lines",
+            name=name,
+            line={"color": color, "width": width},
+            hovertemplate="%{x:.2f} s: longest gap %{y:,.0f} ms<extra>" + name + "</extra>",
+        )
+    for inj in mixed["injected"]:
+        fig.add_vline(x=inj["at_s"], line_dash="dot", line_color=SECOND, opacity=0.6)
+    _target(fig, d.get("tpot_target_ms"), f"target {d.get('tpot_target_ms') or 0:g} ms")
+    return _fig(
+        fig,
+        "Longest gap between streamed chunks; dotted lines are long prompts arriving",
+        xaxis={"title": "Seconds into the test"},
         yaxis={"title": "Milliseconds", "rangemode": "tozero"},
     )

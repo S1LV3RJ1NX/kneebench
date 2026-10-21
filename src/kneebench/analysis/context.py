@@ -60,6 +60,7 @@ class PointView:
     request_rate: float | None = None
     arrival: str | None = None
     burstiness: float | None = None
+    series: dict[str, Any] = field(default_factory=dict)
 
     def m(self, metric: str, stat: str = "p50") -> float | None:
         return self.metrics.get(metric, {}).get(stat)
@@ -248,6 +249,7 @@ def point_from_dict(p: dict[str, Any]) -> PointView:
         request_rate=p.get("request_rate"),
         arrival=spec.get("arrival"),
         burstiness=spec.get("burstiness"),
+        series=p.get("series") or {},
     )
 
 

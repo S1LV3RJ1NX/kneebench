@@ -15,6 +15,7 @@ from kneebench.domain import (
 from kneebench.loadgen.aiperf.overhead import estimate_point_overhead_s
 from kneebench.loadgen.base import Arrival, LoadMode, PointSpec
 from kneebench.phases.theory import ShapeTheory, Theory
+from kneebench.physics.floors import requests_that_fit
 
 BASELINE_WARMUP = 10  # note 24: warm up, discarded
 BASELINE_REPEATS = 30  # note 24: about 30 repeats give a median and a spread
@@ -56,6 +57,16 @@ SHAPE_LONG_OUTPUT = 2048
 SHAPE_POINT_TARGET_S = 150
 SHAPE_MIN_ROUNDS = 2
 SHAPE_PHASES = ("shape_prompt", "shape_output", "shape_map")
+# Lesson 44 section 2: 32 streaming chats with short prompts and long answers, one long
+# prompt every 10 seconds, the first at 5 s; once without the long prompts to compare.
+INTERFERENCE_PHASES = ("interference_base", "interference")
+INTERFERENCE_STREAMS = 32
+INTERFERENCE_STREAM_ISL = 128
+INTERFERENCE_AT_S = (5, 15, 25, 35)
+INTERFERENCE_ISL = 8192
+INTERFERENCE_OSL = 16
+# Answers must still be streaming after the last long prompt.
+INTERFERENCE_WINDOW_S = 45.0
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -241,7 +252,7 @@ def plan_run(
         add("baseline", baseline_spec(theory), base_shape)
 
     dropped: list[int] = []
-    for needs_sweep in ("rate", "shape"):
+    for needs_sweep in ("rate", "shape", "interference"):
         if needs_sweep in phases and "concurrency" not in phases:
             raise ValueError(
                 f"the {needs_sweep} sweep needs the concurrency sweep to find capacity first"
@@ -277,6 +288,8 @@ def plan_run(
                     points.append(PlannedPoint("rate", spec, eta, rate_factor=factor))
         if "shape" in phases:
             points.extend(_shape_points(theory, shape, slo or Slo(None, None), slowdown))
+        if "interference" in phases:
+            points.extend(_interference_points(theory, slowdown))
         # Re-measuring the baseline at the end catches a GPU that changed mid-run (B06).
         add("baseline_end", replace(baseline_spec(theory), warmup_count=2), base_shape)
         if budget_s is not None:
@@ -335,6 +348,54 @@ def _shape_points(
         if s.name not in ("baseline", primary.name):
             out.append(point("shape_map", s.isl, s.osl, True))
     return out
+
+
+def interference_schedules(
+    theory: Theory,
+) -> tuple[tuple[tuple[int, int, int], ...], tuple[tuple[int, int, int], ...], int, int]:
+    """The background streams alone, and with long prompts injected (lesson 44 section 2)."""
+    base = theory.shape("baseline")
+    assert base is not None
+    budget = context_budget(theory.max_model_len or 32_768)
+    streams = INTERFERENCE_STREAMS
+    # Size answers with the fastest per-token time physics allows, so even a fast server is
+    # still streaming when the last long prompt arrives.
+    weights = theory.model_weight_bytes
+    kv_one = INTERFERENCE_STREAM_ISL * theory.kv_bytes_per_token
+    tpot_ms = base.tpot_floor_ms * (weights + streams * kv_one) / (weights + kv_one)
+    osl = math.ceil(INTERFERENCE_WINDOW_S * 1000 / tpot_ms)
+    osl = max(256, min(osl, budget - INTERFERENCE_STREAM_ISL))
+    if theory.pool_tokens:
+        # Evictions would muddy the stalls, so the streams fill at most 80% of the cache.
+        fit = requests_that_fit(theory.pool_tokens, INTERFERENCE_STREAM_ISL, osl, theory.block_size)
+        streams = max(4, min(streams, int(fit * 0.8)))
+    inject_isl = min(INTERFERENCE_ISL, (budget - INTERFERENCE_OSL) // 256 * 256)
+    background = tuple((0, INTERFERENCE_STREAM_ISL, osl) for _ in range(streams))
+    injected = tuple((at * 1000, inject_isl, INTERFERENCE_OSL) for at in INTERFERENCE_AT_S)
+    return background, background + injected, osl, inject_isl
+
+
+def _interference_points(theory: Theory, slowdown: float) -> list[PlannedPoint]:
+    base = theory.shape("baseline")
+    assert base is not None
+    alone, mixed, osl, _ = interference_schedules(theory)
+    # The streams run as long as their answers; the planner's usual slowdown applies.
+    seconds = osl * base.tpot_floor_ms * slowdown / 1000
+    eta = seconds + estimate_point_overhead_s([], first_launch=False)
+    return [
+        PlannedPoint(
+            phase,
+            PointSpec(
+                isl=INTERFERENCE_STREAM_ISL,
+                osl=osl,
+                mode=LoadMode.SCHEDULE,
+                schedule=schedule,
+                slice_duration_s=SLICE_S,
+            ),
+            eta,
+        )
+        for phase, schedule in zip(INTERFERENCE_PHASES, (alone, mixed), strict=True)
+    ]
 
 
 def _trim(points: list[PlannedPoint], budget_s: float) -> list[int]:

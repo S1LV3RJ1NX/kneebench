@@ -116,6 +116,8 @@ phase_labels:
   shape_prompt: the prompt-length sweep
   shape_output: the output-length sweep
   shape_map: the shape map
+  interference_base: the streams alone
+  interference: the long-prompt interference test
 sections:
   verdict: Verdict
   scorecard: Scorecard

@@ -39,6 +39,8 @@ class RequestRecord:
     error_code: int | None = None
     # DNS lookup plus TCP and TLS setup when the request opened a new connection; 0 if reused.
     connect_ms: float | None = None
+    # Time between consecutive streamed chunks after the first token (ms).
+    chunk_gaps_ms: tuple[float, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -169,6 +171,7 @@ def _records(path: Path) -> list[RequestRecord]:
                     error=_error_text(error),
                     error_code=_error_code(error),
                     connect_ms=_connect_ms(metrics),
+                    chunk_gaps_ms=_gaps(metrics),
                 )
             )
     return out
@@ -226,6 +229,14 @@ def _profiling_window(server: dict[str, Any] | None, artifact_dir: Path) -> tupl
     return (int(prof["start_ns"]), int(prof["end_ns"])) if prof else None
 
 
+def _gaps(metrics: dict[str, Any]) -> tuple[float, ...]:
+    entry = metrics.get("inter_chunk_latency")
+    values = entry.get("value") if isinstance(entry, dict) else None
+    if not isinstance(values, list):
+        return ()
+    return tuple(float(v) for v in values if isinstance(v, int | float))
+
+
 def _connect_ms(metrics: dict[str, Any]) -> float | None:
     parts = [_value(metrics, k) for k in ("http_req_dns_lookup", "http_req_connecting")]
     known = [p for p in parts if p is not None]
@@ -268,3 +279,83 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 def _read_text(path: Path) -> str:
     return path.read_text(errors="replace") if path.exists() else ""
+
+
+# Background streams are the short prompts in a scheduled point; anything this much longer
+# than the shortest prompt is an injected one (lesson 44 section 2).
+_INJECTED_ISL_FACTOR = 2
+# A gap counts as a stall at this multiple of the typical gap, and never below 40 ms
+# (kneebench estimate: a few decode steps).
+STALL_FACTOR = 4.0
+STALL_MIN_MS = 40.0
+STREAM_BIN_S = 0.25
+
+
+def stream_summary(requests: list[RequestRecord]) -> dict[str, Any] | None:
+    """What the streaming answers felt while long prompts arrived (lesson 44).
+
+    Rebuilds every chunk's arrival time from the request start, its first token and the
+    chunk gaps, then keeps only compact results: gap percentiles, stalls, the largest gap
+    every quarter second, and when each long prompt arrived.
+    """
+    sized = [r for r in requests if r.isl]
+    if not sized:
+        return None
+    shortest = min(r.isl or 0 for r in sized)
+    background = [
+        r
+        for r in sized
+        if r.ok
+        and r.chunk_gaps_ms
+        and r.ttft_ms is not None
+        and (r.isl or 0) <= _INJECTED_ISL_FACTOR * shortest
+    ]
+    injected = [r for r in sized if (r.isl or 0) > _INJECTED_ISL_FACTOR * shortest]
+    if not background:
+        return None
+    t0 = min(r.start_ns for r in requests)
+    # Skip the first second (streams still starting) and stop when the first stream ends.
+    first_end = min((r.end_ns - t0) / 1e9 for r in background)
+    events: list[tuple[float, float]] = []
+    for r in background:
+        t = r.start_ns + (r.ttft_ms or 0.0) * 1e6
+        for gap in r.chunk_gaps_ms:
+            t += gap * 1e6
+            at = (t - t0) / 1e9
+            if 1.0 <= at <= first_end:
+                events.append((at, gap))
+    # Gateways can bundle chunks; the zero gaps that leaves say nothing about the server.
+    gaps = sorted(g for _, g in events if g > 0)
+    if not gaps:
+        return None
+
+    def pct(q: float) -> float:
+        return gaps[min(len(gaps) - 1, int(q * (len(gaps) - 1)))]
+
+    typical = pct(0.5)
+    stall_ms = max(STALL_MIN_MS, STALL_FACTOR * typical)
+    bins: dict[int, float] = {}
+    for at, gap in events:
+        i = int(at / STREAM_BIN_S)
+        bins[i] = max(bins.get(i, 0.0), gap)
+    return {
+        "streams": len(background),
+        "gaps": len(gaps),
+        "p50_ms": typical,
+        "p99_ms": pct(0.99),
+        "p999_ms": pct(0.999),
+        "max_ms": gaps[-1],
+        "stall_ms": stall_ms,
+        "stalls": sum(1 for g in gaps if g > stall_ms),
+        "window_s": first_end,
+        "series": [[round(i * STREAM_BIN_S, 2), round(g, 1)] for i, g in sorted(bins.items())],
+        "injected": [
+            {
+                "at_s": round((r.start_ns - t0) / 1e9, 2),
+                "isl": r.isl,
+                "ttft_ms": r.ttft_ms,
+                "ok": r.ok,
+            }
+            for r in sorted(injected, key=lambda r: r.start_ns)
+        ],
+    }

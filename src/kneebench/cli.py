@@ -174,8 +174,9 @@ def run(
     slo_tpot_ms: Annotated[float | None, typer.Option(help="TPOT target (ms)")] = None,
     label: Annotated[str | None, typer.Option(help="A note to tell runs apart")] = None,
     phases: Annotated[
-        str, typer.Option(help="Comma-separated: baseline, concurrency, rate, shape")
-    ] = "baseline,concurrency,rate,shape",
+        str,
+        typer.Option(help="Comma-separated: baseline, concurrency, rate, shape, interference"),
+    ] = "baseline,concurrency,rate,shape,interference",
     shapes: Annotated[
         str | None,
         typer.Option(

@@ -50,6 +50,12 @@ SPECS = {
         duration_s=90,
         concurrency=2048,
     ),
+    "schedule": PointSpec(
+        isl=128,
+        osl=400,
+        mode=LoadMode.SCHEDULE,
+        schedule=((0, 128, 400), (0, 128, 400), (500, 8000, 16)),
+    ),
     "gamma": PointSpec(
         isl=1024,
         osl=256,

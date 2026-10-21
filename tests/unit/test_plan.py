@@ -133,3 +133,16 @@ def test_shape_points_run_at_the_operating_point_sized_by_time() -> None:
     assert resolved_long.spec.request_count == 2 * 32  # long answers: fewer rounds
     _, skip = _resolve_operating_point(short, [], SLO)
     assert skip == "no_operating_point"
+
+
+def test_interference_points_follow_lesson_44() -> None:
+    from kneebench.loadgen.base import LoadMode
+
+    plan = plan_run(theory_for(), ("baseline", "concurrency", "interference"), slo=SLO)
+    alone, mixed = [p for p in plan.points if p.phase.startswith("interference")]
+    assert alone.spec.mode is LoadMode.SCHEDULE and len(alone.spec.schedule) == 32
+    long = [s for s in mixed.spec.schedule if s[1] > 1000]
+    assert [s[0] for s in long] == [5000, 15000, 25000, 35000]
+    assert all((s[1] + s[2]) * 1.15 + 128 <= 8192 for s in mixed.spec.schedule)
+    with pytest.raises(ValueError, match="concurrency sweep"):
+        plan_run(theory_for(), ("baseline", "interference"), slo=SLO)

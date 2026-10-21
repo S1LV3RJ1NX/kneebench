@@ -98,7 +98,8 @@ kneebench never starts, stops or reconfigures your server. It only benchmarks an
 | 2. Concurrency sweep | How do throughput and per-user speed trade off from 1 to hundreds of users? | Available |
 | 3. Request-rate sweep | What happens when users arrive at random, including in bursts? | Available |
 | 4. Shape sweep | How do prompt length and answer length change everything? Does every request size meet your targets at the same load? | Available |
-| 5. Three walls | Where does it saturate, miss your latency target, or run out of memory? | Available |
+| 5. Long-prompt interference | Do long prompts freeze other users' streaming answers? | Available |
+| 6. Three walls | Where does it saturate, miss your latency target, or run out of memory? | Available |
 
 Every run also checks that the test itself is trustworthy: steady state reached (throughput counts only the window at full load), client not the bottleneck, outputs really as long as requested, tails and not just medians, errors counted as failures, gateways not limiting load, versions recorded.
 

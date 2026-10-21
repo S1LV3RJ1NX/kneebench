@@ -41,7 +41,9 @@ def build_config(endpoint: Endpoint, spec: PointSpec, artifact_dir: Path) -> dic
         "model": endpoint.model,
         "tokenizer": {"name": endpoint.tokenizer},
         "endpoint": endpoint_cfg,
-        "dataset": {
+        "dataset": _schedule_dataset(spec)
+        if spec.schedule
+        else {
             "type": "synthetic",
             "entries": _dataset_entries(spec),
             "prompts": {
@@ -68,7 +70,23 @@ def build_env(endpoint: Endpoint, base_env: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def _schedule_dataset(spec: PointSpec) -> dict[str, Any]:
+    """A trace replayed at fixed times. Each prompt is sampled fresh from AIPerf's corpus, so
+    no two share a long beginning and prefix caching can't shorten the long ones. (Block ids
+    would guarantee it, but AIPerf 0.13 decodes those in a process pool that crashes here.)"""
+    return {
+        "type": "file",
+        "format": "mooncake_trace",
+        "records": [
+            {"timestamp": at_ms, "input_length": isl, "output_length": osl}
+            for at_ms, isl, osl in spec.schedule
+        ],
+    }
+
+
 def _phases(spec: PointSpec) -> list[dict[str, Any]]:
+    if spec.mode is LoadMode.SCHEDULE:
+        return [{"name": "profiling", "type": "fixed_schedule"}]
     phases: list[dict[str, Any]] = []
     if spec.warmup_count:
         phases.append(

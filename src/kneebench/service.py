@@ -28,7 +28,7 @@ from kneebench.physics.gpus import GpuSpec, get_gpu, gpu_from_json
 from kneebench.physics.model import model_spec_from_hf
 from kneebench.store import repo
 
-ALL_PHASES = ("baseline", "concurrency", "rate", "shape")
+ALL_PHASES = ("baseline", "concurrency", "rate", "shape", "interference")
 
 
 class PrepareError(ValueError):
@@ -114,6 +114,10 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
         raise PrepareError(
             "The request-rate sweep needs the concurrency sweep (it measures "
             "the capacity the rates are based on)."
+        )
+    if "interference" in req.phases and "concurrency" not in req.phases:
+        raise PrepareError(
+            "The long-prompt interference test runs as part of the concurrency sweep."
         )
     if "shape" in req.phases and "concurrency" not in req.phases:
         raise PrepareError(

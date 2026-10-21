@@ -16,6 +16,7 @@ from typing import Protocol
 class LoadMode(StrEnum):
     CONCURRENCY = "concurrency"
     RATE = "rate"
+    SCHEDULE = "schedule"  # every request at a planned time, from `schedule`
 
 
 class Arrival(StrEnum):
@@ -55,8 +56,12 @@ class PointSpec:
     slice_duration_s: float | None = 10.0
     goodput: tuple[tuple[str, float], ...] = ()
     random_seed: int = 42
+    # (send at ms, prompt tokens, output tokens) per request, for LoadMode.SCHEDULE.
+    schedule: tuple[tuple[int, int, int], ...] = ()
 
     def __post_init__(self) -> None:
+        if self.mode is LoadMode.SCHEDULE and not self.schedule:
+            raise ValueError("schedule mode needs a schedule")
         if self.mode is LoadMode.CONCURRENCY and not self.concurrency:
             raise ValueError("concurrency mode needs a concurrency level")
         if self.mode is LoadMode.RATE and not self.request_rate:

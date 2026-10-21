@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (long-prompt interference)
+- New phase: 32 streaming chats, once alone and once with a long prompt arriving every 10 s
+  (lesson 44), replayed on a fixed schedule. kneebench rebuilds every streamed chunk's arrival
+  time and reports the longest pause, P99.9 and stalls, which an average or P99 hides.
+- Rule I01 ties pauses to the long prompts only when they exceed anything the streams showed
+  alone, says so when the network is too noisy to tell, and otherwise suggests a smaller
+  `--max-num-batched-tokens` sized from your per-token target (lesson 45).
+
 ### Added (guided tuning and the engine view)
 - Guided experiments: every server change in a report has "Try this change". kneebench shows
   it for your deployment (vllm serve, Kubernetes/Helm or a managed platform), checks from
