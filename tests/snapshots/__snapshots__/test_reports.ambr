@@ -23,7 +23,7 @@
   
   ### [problem] Distance between kneebench and the server (H03)
   
-  **Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here.**
+  **Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here.**
   
   **What we measured.** A request to /health, which the server answers instantly, took 272 ms round trip over a warm connection (new connections: TCP 268 ms, TLS 269 ms). What users at this location see: TTFT (time to first token, how long a user waits before the answer starts appearing) 306 ms.
   
@@ -31,7 +31,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -61,7 +61,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -87,20 +87,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache (the memory where the server keeps each request's context while it answers) so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -121,7 +121,7 @@
   
   ### [context] How much memory each token of context takes (T02)
   
-  **Each token of context needs 128 KiB of KV cache (the memory where the server keeps each request's context while it answers); the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
+  **Each token of context needs 128 KiB of KV cache; the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
   
   **What we measured.** From the model's architecture: 128 KiB per token. From the server's /metrics: 532,768 tokens of cache after reserving 90% of GPU memory and loading the weights.
   
@@ -151,7 +151,7 @@
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): Server-side time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
+  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -235,7 +235,7 @@
   
   ### [problem] Distance between kneebench and the server (H03)
   
-  **Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here.**
+  **Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here.**
   
   **What we measured.** A request to /health, which the server answers instantly, took 272 ms round trip over a warm connection (new connections: TCP 268 ms, TLS 269 ms). What users at this location see: TTFT (time to first token, how long a user waits before the answer starts appearing) 306 ms.
   
@@ -243,7 +243,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -273,7 +273,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -321,20 +321,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -363,7 +363,7 @@
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): Server-side time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
+  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -459,7 +459,7 @@
   
   ### [problem] Distance between kneebench and the server (H03)
   
-  **Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here.**
+  **Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here.**
   
   **What we measured.** A request to /health, which the server answers instantly, took 272 ms round trip over a warm connection (new connections: TCP 268 ms, TLS 269 ms). What users at this location see: TTFT (time to first token, how long a user waits before the answer starts appearing) 306 ms.
   
@@ -467,7 +467,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ## Try these next
   
@@ -485,7 +485,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -538,20 +538,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
@@ -575,7 +575,7 @@
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): Server-side time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
+  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -671,7 +671,7 @@
   
   ### [problem] Distance between kneebench and the server (H03)
   
-  **Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here.**
+  **Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here.**
   
   **What we measured.** A request to /health, which the server answers instantly, took 272 ms round trip over a warm connection (new connections: TCP 268 ms, TLS 269 ms). What users at this location see: TTFT (time to first token, how long a user waits before the answer starts appearing) 306 ms.
   
@@ -679,7 +679,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
@@ -710,7 +710,7 @@
   These don't touch your server. They make the next run's numbers more trustworthy.
   
   1. **Correct the GPU type** (T07). Why: The server's cache (65.0 GiB) plus weights (15.0 GiB) need at least 90.0 GiB per GPU, more than NVIDIA H100 SXM 80GB has (79.6 GiB). The GPU entry is probably wrong. Expected: Floors and memory findings match the real hardware. Risk: None.
-  2. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  2. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   
   ## What the hardware allows
   
@@ -736,20 +736,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.8 ms per token, 1.23 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.8 ms per token, 1.24 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 SXM 80GB. Reading all 16.1 GB of weights once takes 4.8 ms at 3.35 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 8.3 ms of math at 989 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 SXM 80GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.8 ms at 3.35 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 8.4 ms of math at 989 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 8.3 ms | 4.8 ms | 1.23 s |
-  | chat | 1,024 | 1,024 | 16.6 ms | 4.8 ms | 4.92 s |
-  | reasoning | 1,024 | 5,988 | 16.6 ms | 4.8 ms | 28.7 s |
-  | summarization | 5,988 | 1,024 | 97.2 ms | 4.8 ms | 5 s |
+  | baseline | 512 | 256 | 8.4 ms | 4.8 ms | 1.24 s |
+  | chat | 1,024 | 1,024 | 16.9 ms | 4.9 ms | 4.98 s |
+  | reasoning | 1,024 | 5,988 | 16.9 ms | 5 ms | 29.7 s |
+  | summarization | 5,988 | 1,024 | 107 ms | 5 ms | 5.27 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache (the memory where the server keeps each request's context while it answers) so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -770,7 +770,7 @@
   
   ### [context] How much memory each token of context takes (T02)
   
-  **Each token of context needs 128 KiB of KV cache (the memory where the server keeps each request's context while it answers); the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
+  **Each token of context needs 128 KiB of KV cache; the server reserved room for 532,768 tokens (65.0 GiB per GPU).**
   
   **What we measured.** From the model's architecture: 128 KiB per token. From the server's /metrics: 532,768 tokens of cache after reserving 90% of GPU memory and loading the weights.
   
@@ -799,7 +799,7 @@
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): Server-side time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
+  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -883,7 +883,7 @@
   
   ### [problem] Distance between kneebench and the server (H03)
   
-  **Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here.**
+  **Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here.**
   
   **What we measured.** A request to /health, which the server answers instantly, took 272 ms round trip over a warm connection (new connections: TCP 268 ms, TLS 269 ms). What users at this location see: TTFT (time to first token, how long a user waits before the answer starts appearing) 306 ms.
   
@@ -891,7 +891,7 @@
   
   **Why it happens.** Every request crosses the network before the server starts working, and the first token crosses back. kneebench measures that round trip on its own so it isn't blamed on the server. A client far from the server, or too slow to keep up, ends up benchmarking itself. [Learn more: Lesson 25: Sweep concurrency and request rate, How sweeps quietly go wrong](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/25-sweep-concurrency-request-rate.md#6-how-sweeps-quietly-go-wrong)
   
-  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
+  **What to do.** Run kneebench next to the server, on a machine that keeps up. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Verify: Rerun from there; this check should turn green.
   
   ### [watch] Server metrics not visible (H08)
   
@@ -911,7 +911,7 @@
   
   These don't touch your server. They make the next run's numbers more trustworthy.
   
-  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. Server-side time to first token can't be measured reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and server-side time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
+  1. **Run kneebench next to the server, on a machine that keeps up** (H03). Why: Most of the time to first token is network: 272 ms of 306 ms. The server's own time to first token can't be estimated reliably from here. Expected: Time to first token drops by about the round trip (272 ms), and the server's own time to first token becomes measurable. Risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
   2. **Expose /metrics through your gateway (read-only)** (H08). Why: The server's /metrics wasn't reachable, so memory and queue findings (cache use, preemption, waiting requests) can't be shown. Expected: Cache use, preemptions and queue length appear in the report. Risk: Metrics reveal load and configuration; restrict access as you would any internal page.
   
   ## What the hardware allows
@@ -938,20 +938,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache (the memory where the server keeps each request's context while it answers) so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
@@ -973,7 +973,7 @@
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): Server-side time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
+  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   - **How much memory each token of context takes** (T02): The server didn't report its cache size, so memory limits are estimated rather than measured.
   - **How many requests fit in memory at once** (T03): Not computed: the server didn't report its cache size.
   - **Room for a full-length request** (T04): Not checked: the server didn't report its cache size.
@@ -989,6 +989,7 @@
   
   ## Glossary
   
+  - **KV cache**: the memory where the server keeps each request's context while it answers
   - **MBU**: model bandwidth utilization, how much of the GPU's memory speed decoding actually uses
   - **P99**: 99 out of 100 requests were at least this fast; the slow tail users notice
   - **TPOT**: time per output token, the gap between words once the answer is streaming
@@ -1261,7 +1262,7 @@
   
   ### [context] One output token costs as much as many prompt tokens (S07)
   
-  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 214).**
+  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 213).**
   
   **What we measured.** Time per output token for one user (5.8 ms) divided by the cost of one more prompt token (30 µs, from the prompt-length sweep).
   
@@ -1305,30 +1306,30 @@
   
   ### [context] How much of the GPU's math prefill uses (B05)
   
-  **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
+  **Prefill uses about 64% of the GPU's math throughput per prompt token.**
   
-  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  **What we measured.** From the prompt-length sweep, each extra prompt token costs 30 µs, against 19 µs if every math unit were busy: 64% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses). Measured as a slope, so the network round trip and fixed overheads drop out.
   
-  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long prompts should keep them much busier.
   
-  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode: each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill: it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode: each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill: about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -1371,7 +1372,7 @@
   
   ## Checks that passed
   
-  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **Time to first token versus its floor** (B03): Time to first token without the network is about 29 ms for a 512-token prompt (2.9× its 9.9 ms floor): normal for a short prompt.
   - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
   - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
   - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).
@@ -1399,7 +1400,6 @@
   - **MFU**: model FLOPs utilization, how much of the GPU's math throughput prefill actually uses
   - **P99**: 99 out of 100 requests were at least this fast; the slow tail users notice
   - **TPOT**: time per output token, the gap between words once the answer is streaming
-  - **TTFT**: time to first token, how long a user waits before the answer starts appearing
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **goodput**: requests per second that met the latency targets
@@ -1697,7 +1697,7 @@
   
   ### [context] One output token costs as much as many prompt tokens (S07)
   
-  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 214).**
+  **One output token takes as long as about 193 prompt tokens on this server (physics predicts about 213).**
   
   **What we measured.** Time per output token for one user (5.8 ms) divided by the cost of one more prompt token (30 µs, from the prompt-length sweep).
   
@@ -1741,13 +1741,13 @@
   
   ### [context] How much of the GPU's math prefill uses (B05)
   
-  **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
+  **Prefill uses about 64% of the GPU's math throughput per prompt token.**
   
-  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  **What we measured.** From the prompt-length sweep, each extra prompt token costs 30 µs, against 19 µs if every math unit were busy: 64% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses). Measured as a slope, so the network round trip and fixed overheads drop out.
   
-  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long prompts should keep them much busier.
   
-  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
   
   ### [context] How much memory each token of context takes (T02)
   
@@ -1773,20 +1773,20 @@
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode: each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill: it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode: each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill: about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -1807,7 +1807,7 @@
   
   ## Checks that passed
   
-  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **Time to first token versus its floor** (B03): Time to first token without the network is about 29 ms for a 512-token prompt (2.9× its 9.9 ms floor): normal for a short prompt.
   - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
   - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
   - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).
@@ -1835,7 +1835,6 @@
   - **MFU**: model FLOPs utilization, how much of the GPU's math throughput prefill actually uses
   - **P99**: 99 out of 100 requests were at least this fast; the slow tail users notice
   - **TPOT**: time per output token, the gap between words once the answer is streaming
-  - **TTFT**: time to first token, how long a user waits before the answer starts appearing
   - **decode**: the word-by-word step that writes the answer, limited by GPU memory speed
   - **floor**: the fastest time physics allows on this hardware; nothing can beat it
   - **goodput**: requests per second that met the latency targets
@@ -2085,28 +2084,28 @@
   
   **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
   
-  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  **What we measured.** Network-adjusted TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.9 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses). One short prompt includes fixed overheads, so this understates what longer prompts reach; the request-size sweep measures it more reliably.
   
-  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long prompts should keep them much busier.
   
-  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] How many requests fit in memory at once (T03)
   
@@ -2149,7 +2148,7 @@
   
   ## Checks that passed
   
-  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **Time to first token versus its floor** (B03): Time to first token without the network is about 29 ms for a 512-token prompt (2.9× its 9.9 ms floor): normal for a short prompt.
   - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
   - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
   - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).
@@ -2436,28 +2435,28 @@
   
   **Prefill uses about 34% of the GPU's math throughput on a 512-token prompt.**
   
-  **What we measured.** Server-side TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.8 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses).
+  **What we measured.** Network-adjusted TTFT (time to first token, how long a user waits before the answer starts appearing) 29 ms against a compute floor of 9.9 ms gives 34% MFU (model FLOPs utilization, how much of the GPU's math throughput prefill actually uses). One short prompt includes fixed overheads, so this understates what longer prompts reach; the request-size sweep measures it more reliably.
   
-  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  **What it means.** Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long prompts should keep them much busier.
   
-  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate (the lesson's example sits near 37%). Longer prompts should climb toward 50%. [Learn more: Lesson 24: Establish the single-request baseline, Compare against the floors](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#4-compare-against-the-floors)
+  **Why it happens.** A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is close to the math floor; real kernels usually reach well under the datasheet peak. [Learn more: Lesson 59: Profile prefill vs decode, The prefill profile](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#3-the-prefill-profile)
   
   ### [context] The fastest this setup can possibly go (T01)
   
-  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.06 s end to end.**
+  **Physics floor for one request (512 in, 256 out): 4.1 ms per token, 1.07 s end to end.**
   
-  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights once takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.8 ms of math at 835 TFLOPS.
+  **What we measured.** Before sending any traffic, kneebench worked out the floor (the fastest time physics allows on this hardware; nothing can beat it) from the model's size and the published speeds of NVIDIA H100 NVL 94GB. Reading all 16.1 GB of weights, plus the cache of the conversation so far, takes 4.1 ms at 3.90 TB/s, so no token can arrive faster. Reading a 512-token prompt needs at least 9.9 ms of math at 835 TFLOPS.
   
   | Shape | Prompt tokens | Output tokens | TTFT floor | TPOT floor | End-to-end floor |
   |---|---|---|---|---|---|
-  | baseline | 512 | 256 | 9.8 ms | 4.1 ms | 1.06 s |
-  | chat | 1,024 | 1,024 | 19.7 ms | 4.1 ms | 4.23 s |
-  | reasoning | 1,024 | 5,988 | 19.7 ms | 4.1 ms | 24.7 s |
-  | summarization | 5,988 | 1,024 | 115 ms | 4.1 ms | 4.33 s |
+  | baseline | 512 | 256 | 9.9 ms | 4.1 ms | 1.07 s |
+  | chat | 1,024 | 1,024 | 20 ms | 4.2 ms | 4.29 s |
+  | reasoning | 1,024 | 5,988 | 20 ms | 4.3 ms | 25.5 s |
+  | summarization | 5,988 | 1,024 | 126 ms | 4.3 ms | 4.56 s |
   
   **What it means.** This is the ruler every later number is measured against. Real servers always land above it; how far above tells you whether something is misconfigured.
   
-  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight from GPU memory once, so time per token is at least weights divided by memory bandwidth. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): it does about two math operations per parameter per prompt token, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 24: Establish the single-request baseline, Work out the floors first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/24-establish-single-request-baseline.md#2-work-out-the-floors-first)
+  **Why it happens.** Writing the answer is called decode (the word-by-word step that writes the answer, limited by GPU memory speed): each step reads every weight and the whole KV cache so far from GPU memory, so time per token is at least those bytes divided by memory bandwidth; long conversations make every token slower. Reading the prompt is called prefill (the step that reads the whole prompt at once, limited by GPU math): about two math operations per parameter per prompt token, plus attention, which grows with the square of the prompt, so it is bounded by the GPU's math throughput. End to end is the first token plus one decode step for each remaining token. [Learn more: Lesson 59: Profile prefill vs decode, Napkin math first](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/59-profile-prefill-vs-decode.md#2-napkin-math-first)
   
   ### [context] Shapes adjusted to fit the context window (T05)
   
@@ -2473,7 +2472,7 @@
   
   ## Checks that passed
   
-  - [good] **Time to first token versus its floor** (B03): Server-side time to first token is about 29 ms for a 512-token prompt (2.9× its 9.8 ms floor): normal for a short prompt.
+  - [good] **Time to first token versus its floor** (B03): Time to first token without the network is about 29 ms for a 512-token prompt (2.9× its 9.9 ms floor): normal for a short prompt.
   - [good] **The best load that still meets your targets** (C03): The best operating point is 32 users in flight: 3,000 output tokens per second with every target met at P99.
   - [good] **Did each load level reach a steady state?** (H01): All 7 load levels ran long enough at full load to measure throughput.
   - [good] **Did the client keep up?** (H02): The load generator held the requested concurrency at every level (7 checked).

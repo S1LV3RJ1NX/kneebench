@@ -134,8 +134,23 @@ def spread(ctx: RunContext) -> Finding | None:
 
 @rule("B05", tags={"physics", "ttft", "prefill"}, source="24#4")
 def prefill_mfu(ctx: RunContext) -> Finding | None:
+    """Prefill's share of the GPU's math. From the prompt-length sweep when it ran: the cost of
+    one more prompt token is a slope, so the network and fixed overheads drop out (note 59)."""
+    from kneebench.analysis.shape import axis, prompt_fit
+
+    t = ctx.theory
+    fit = prompt_fit(axis(ctx, "shape_prompt", single=True))
+    if fit is not None and fit[0] > 0:
+        floor_us = 2 * t.model_params / (t.gpu_peak_tflops * 1e12) * 1e6
+        return info(
+            "B05",
+            mfu=floor_us / (fit[0] * 1000),
+            from_slope=True,
+            per_token_us=fit[0] * 1000,
+            floor_per_token_us=floor_us,
+        )
     base = ctx.baseline
-    shape = ctx.theory.shape("baseline")
+    shape = t.shape("baseline")
     if base is None or shape is None:
         return None
     server_ttft = ctx.server_ttft_ms(base)
@@ -144,6 +159,7 @@ def prefill_mfu(ctx: RunContext) -> Finding | None:
     return info(
         "B05",
         mfu=shape.ttft_floor_ms / server_ttft,
+        from_slope=False,
         server_ttft_ms=server_ttft,
         floor_ms=shape.ttft_floor_ms,
         isl=shape.isl,

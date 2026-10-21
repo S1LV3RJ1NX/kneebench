@@ -70,7 +70,7 @@
     <h3><span class="step-num">05</span>Latency targets</h3>
     <div class="row"><label for="slo_ttft_ms">Time to first token</label>
       <div><input id="slo_ttft_ms" name="slo_ttft_ms" type="number" min="1" placeholder="ms, empty for no target">
-        <div class="help">How long a user waits before the answer starts, in milliseconds. Judged on the server's side of the network.</div></div></div>
+        <div class="help">How long a user waits before the answer starts, in milliseconds. Judged without the network round trip from where kneebench runs.</div></div></div>
     <div class="row"><label for="slo_tpot_ms">Time per token</label>
       <div><input id="slo_tpot_ms" name="slo_tpot_ms" type="number" min="1" step="0.1" placeholder="ms, empty for no target">
         <div class="help" id="tpot-help">The gap between words once the answer streams.</div></div></div>

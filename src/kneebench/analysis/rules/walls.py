@@ -23,6 +23,9 @@ ERROR_BAD = 0.05
 SEQS_SLACK = 1.2
 # Note 26 section 1 / 27 section 4: prefill at ~50% of peak for re-prefill cost.
 PREFILL_EFFICIENCY = 0.5
+# Note 41 section 4: one eviction can be harmless; a steady stream is thrashing. 1% of
+# requests evicted is where kneebench calls it steady (kneebench estimate).
+THRASHING_PER_1000 = 10.0
 # Note 42 section 5: size admission for a high-percentile request, then keep a margin
 # (its example sustains 187 and uses about 160).
 ADMISSION_PERCENTILE = 95
@@ -165,8 +168,10 @@ def capacity_wall(ctx: RunContext) -> Finding | None:
     )
 
 
-@rule("W04", tags={"memory", "preemption", "kv"}, source="27#4")
+@rule("W04", tags={"memory", "preemption", "kv"}, source="41#4")
 def preemption(ctx: RunContext) -> Finding | None:
+    """Evictions as a rate (note 41 section 4): an occasional one past the load you would run
+    at is not thrashing; any at the operating point, or a steady stream, is."""
     pts = sweep(ctx)
     if not pts:
         return None
@@ -178,8 +183,15 @@ def preemption(ctx: RunContext) -> Finding | None:
         return ok("W04", kv_max=kv_max, max_tested=pts[-1].concurrency)
     first = hit[0]
     before = [p for p in pts if p.concurrency < first.concurrency]
-    return bad(
+    op = operating_point(pts, ctx.workload.slo)
+    per_1000 = (first.preemptions or 0) / first.requests * 1000 if first.requests else None
+    at_planned_load = op is not None and first.concurrency <= op.concurrency
+    thrashing = at_planned_load or per_1000 is None or per_1000 >= THRASHING_PER_1000
+    return (bad if thrashing else warn)(
         "W04",
+        per_1000=per_1000,
+        at_planned_load=at_planned_load,
+        operating_point=op.concurrency if op else None,
         concurrency=first.concurrency,
         preemptions=first.preemptions,
         total=sum(p.preemptions or 0 for p in hit),

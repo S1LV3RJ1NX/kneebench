@@ -194,9 +194,9 @@ def estimate_e2e_ms(
 ) -> float:
     """Every decode step reads the weights once plus each user's cache (note 26 section 2)."""
     weights = theory.model_weight_bytes
-    avg_context = shape.isl + shape.osl / 2
-    kv_read = concurrency * avg_context * theory.kv_bytes_per_token
-    tpot = shape.tpot_floor_ms * slowdown * (weights + kv_read) / weights
+    kv_one = (shape.isl + shape.osl / 2) * theory.kv_bytes_per_token
+    # The floor already includes one user's cache; each extra user adds their own.
+    tpot = shape.tpot_floor_ms * slowdown * (weights + concurrency * kv_one) / (weights + kv_one)
     ttft = shape.ttft_floor_ms * slowdown * math.sqrt(concurrency)
     e2e = ttft + (shape.osl - 1) * tpot
     if shape.fits and concurrency > shape.fits:

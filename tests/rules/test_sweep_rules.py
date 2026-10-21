@@ -105,6 +105,12 @@ def test_w04_preemption() -> None:
     assert f.data["concurrency"] == 64
     assert f.data["preemptions"] == 212
     assert run_rule("W04", _ctx(healthy_sweep())).status is Status.OK  # type: ignore[union-attr]
+    # One eviction among 256 requests, well past the 32-user operating point: not thrashing.
+    once = list(healthy_sweep())
+    once[-1] = sweep_point(64, 3080, 20.0, 80.0, preemptions=1, seq=7)
+    rare = run_rule("W04", _ctx(tuple(once)))
+    assert rare is not None and rare.status is Status.WARN
+    assert rare.data["per_1000"] < 10 and not rare.data["at_planned_load"]
     blind = run_rule("W04", _ctx(healthy_sweep(), metrics_available=False))
     assert blind is not None
     assert blind.status is Status.SKIP

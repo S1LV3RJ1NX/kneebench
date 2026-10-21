@@ -6,10 +6,15 @@ status_line:
     hit it {{ pct(hit_rate) }} of the time{% endif %}. Real traffic that repeats system prompts
     will likely start answers faster than measured here.
 measured: >-
-  Prefix cache hits divided by lookups, from /metrics, across all points.
+  Prefix cache hits divided by lookups, from /metrics, across all points. kneebench makes every
+  prompt start differently on purpose, so this is a control, not a prediction of your hit rate;
+  the few hits come from short pieces every prompt shares, like the chat template.
 meaning: >-
-  kneebench gives every request a unique beginning on purpose, so results show the cost of real
-  work. Your production time to first token may be lower if prompts share a long beginning.
+  Results show the cost of real work with no reuse. Your production time to first token may be
+  lower if prompts share a long beginning, but a high hit rate doesn't cut first-token time by
+  the same share, and it doesn't speed up writing the answer.
 why: >-
-  Random prompts never share a prefix, so prefix caching never helps them; real chat often does.
-learn_more: {note: "25", anchor: "6-how-sweeps-quietly-go-wrong", label: "How sweeps quietly go wrong"}
+  The server reuses work only for whole blocks of identical tokens from the very start of a
+  prompt, stopping at the first difference. Random prompts never share a long start, so caching
+  barely helps them; real chat with a fixed system prompt often does.
+learn_more: {note: "47", anchor: "5-the-catch-matching-is-exact-from-token-one", label: "The catch: matching is exact, from token one"}

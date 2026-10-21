@@ -4,18 +4,27 @@ status_line:
   ok: >-
     No {{ term("preemption") }} up to {{ num(max_tested) }} users (KV cache peaked at
     {{ pct(kv_max) }}).
+  warn: >-
+    A few evictions from {{ num(concurrency) }} users ({{ num(per_1000, 1) }} per 1,000 requests),
+    above the {{ num(operating_point) }} users you would run at: occasional, not thrashing.
   bad: >-
-    From {{ num(concurrency) }} users, the server ran out of cache and evicted running requests
-    ({{ num(preemptions, 0) }} times at that level{% if errors == 0 %}, with no errors{% endif %}).
+    From {{ num(concurrency) }} users{% if at_planned_load %}, within the load you would run
+    at{% endif %}, the server ran out of cache and evicted running requests
+    ({{ num(preemptions, 0) }} times at that level{% if per_1000 %}, {{ num(per_1000, 1) }} per
+    1,000 requests{% endif %}{% if errors == 0 %}, with no errors{% endif %}).
   skip: "Not visible: /metrics wasn't reachable, so evictions can't be seen."
 measured: >-
   At {{ num(concurrency) }} users the KV cache peaked at {{ pct(kv_max) }} and the preemption
   counter rose by {{ num(preemptions, 0) }}{% if tpot_tail_before %}. P{{ pct_label }} per-token
   latency went from {{ ms(tpot_tail_before) }} to {{ ms(tpot_tail) }}{% endif %}.
-meaning: >-
-  The server let in more requests than memory can hold to the end, then threw some out to make
-  room. Nobody gets an error, but evicted users see long freezes, and recomputing them slows
-  everyone else.
+meaning:
+  warn: >-
+    Past your operating point the cache occasionally overflows. Keep production below that load;
+    evictions at the load you plan for are what matter.
+  bad: >-
+    The server let in more requests than memory can hold to the end, then threw some out to make
+    room. Nobody gets an error, but evicted users see long freezes, and recomputing them slows
+    everyone else.
 analogy: >-
   Like a restaurant seating every party at once and then asking some to leave mid-meal and come
   back later.
@@ -24,4 +33,4 @@ why: >-
   max_num_seqs requests; when the cache hits 100% it evicts one, discards its cache, and later
   recomputes the prompt plus everything it had generated. The only trace is a counter in
   /metrics.
-learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+learn_more: {note: "41", anchor: "4-thrashing", label: "Thrashing"}

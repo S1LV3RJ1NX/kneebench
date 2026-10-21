@@ -19,7 +19,7 @@ METRICS: tuple[tuple[str, str, str, int], ...] = (
     ("peak_tok_s", "Peak tokens per second", "", 1),
     ("rate_rps", "Requests per second with random arrivals", "", 1),
     ("tpot_ms", "Time per output token, one user", "ms", -1),
-    ("ttft_ms", "Time to first token, one user, server side", "ms", -1),
+    ("ttft_ms", "Time to first token, one user, without the network", "ms", -1),
     ("mbu_pct", "Memory bandwidth used, one user", "%", 1),
 )
 

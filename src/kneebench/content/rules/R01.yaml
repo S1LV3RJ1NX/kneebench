@@ -14,8 +14,8 @@ measured: >-
   the measured capacity to just past it, for 90 seconds each.
   {% if knee_rps %}Time to first token bends up from about {{ num(knee_rps, 2) }} requests per
   second.{% endif %}
-  {% if ttft_offset_ms > 1 %}First-token times are server side: the {{ ms(ttft_offset_ms) }}
-  network round trip from this location is removed.{% endif %}
+  {% if ttft_offset_ms > 1 %}First-token times have the {{ ms(ttft_offset_ms) }} network round
+  trip from this location removed: an estimate of the server's own time.{% endif %}
 meaning:
   info: >-
     Plan around this rate, not the concurrency number: it is what real, unsynchronized users

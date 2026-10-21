@@ -11,15 +11,15 @@ status_line:
     {% if dominates %}Almost all of the time to first token is network: a
     {{ ms(http_rtt_ms) }} round trip against {{ ms(user_ttft_ms) }} in total.{% else %}Most of the
     time to first token is network: {{ ms(http_rtt_ms) }} of {{ ms(user_ttft_ms) }}.{% endif %}
-    Server-side time to first token can't be measured reliably from here.
+    The server's own time to first token can't be estimated reliably from here.
   skip: The network round trip wasn't measured, so first-token times include an unknown network share.
 measured: >-
   A request to /health, which the server answers instantly, took {{ ms(http_rtt_ms) }} round trip
   over a warm connection (new connections: TCP {{ ms(tcp_connect_ms) }}
   {%- if tls_handshake_ms %}, TLS {{ ms(tls_handshake_ms) }}{% endif %}). What users at this
   location see: {{ term("TTFT") }} {{ ms(user_ttft_ms) }}.
-  {% if server_ttft_ms is not none %}Server side, with the {{ term("round trip") }} removed: about
-  {{ ms(server_ttft_ms) }}.{% endif %}
+  {% if server_ttft_ms is not none %}With the {{ term("round trip") }} removed, an estimate of the
+  server's own time: about {{ ms(server_ttft_ms) }}.{% endif %}
 meaning:
   ok: First-token times in this report are mostly server time.
   warn: >-
@@ -40,7 +40,7 @@ actions:
     title: Run kneebench next to the server, on a machine that keeps up
     group: client
     expected: >-
-      Time to first token drops by about the round trip ({{ ms(http_rtt_ms) }}), and server-side
-      time to first token becomes measurable.
+      Time to first token drops by about the round trip ({{ ms(http_rtt_ms) }}), and the server's
+      own time to first token becomes measurable.
     risk: None. kneebench runs anywhere Python does, such as a pod or VM in the same region.
     verify: Rerun from there; this check should turn green.

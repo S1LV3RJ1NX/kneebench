@@ -46,9 +46,23 @@ def flops_per_token(model: ModelSpec) -> float:
     return 2.0 * model.params
 
 
-def floors(model: ModelSpec, hw: Hardware, isl: int, osl: int) -> Floors:
-    tpot = model.weight_bytes / hw.bandwidth_bytes_s
-    ttft = flops_per_token(model) * isl / hw.peak_flops(model.fp8_compute)
+def attention_flops(model: ModelSpec, isl: int) -> float:
+    """Causal attention over a prompt: scores and weighted values, each 2·d·n²/2 per layer.
+
+    Small next to the weights at a few thousand tokens, but it grows with the square of the
+    prompt (note 59 section 3: about 4% of prefill math at 2k tokens, 38% at 32k).
+    """
+    return 2.0 * model.num_layers * model.num_attention_heads * model.head_dim * isl * isl
+
+
+def floors(model: ModelSpec, hw: Hardware, isl: int, osl: int, cache_dtype: str = "auto") -> Floors:
+    """Every decode step reads the weights and the cache so far; prefill does the weights' math
+    for every prompt token plus attention (note 59 section 2)."""
+    avg_context = isl + osl / 2
+    kv_read = avg_context * model.kv_bytes_per_token(cache_dtype)
+    tpot = (model.weight_bytes + kv_read) / hw.bandwidth_bytes_s
+    work = flops_per_token(model) * isl + attention_flops(model, isl)
+    ttft = work / hw.peak_flops(model.fp8_compute)
     return Floors(isl=isl, osl=osl, tpot_s=tpot, ttft_s=ttft)
 
 

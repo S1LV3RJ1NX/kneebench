@@ -16,7 +16,9 @@ def test_t01_floors_always_reported() -> None:
     f = run_rule("T01", ctx())
     assert f is not None
     assert f.status is Status.INFO
-    assert f.data["baseline"]["tpot_ms"] == pytest.approx(16.06e9 / 3.9e12 * 1e3, rel=1e-3)
+    # Weights plus the cache of the average context (512 + 256/2 tokens at 128 KiB each).
+    kv = 640 * 131_072
+    assert f.data["baseline"]["tpot_ms"] == pytest.approx((16.06e9 + kv) / 3.9e12 * 1e3, rel=1e-3)
     assert {s["name"] for s in f.data["shapes"]} == {
         "baseline",
         "chat",

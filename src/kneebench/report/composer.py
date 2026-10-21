@@ -490,7 +490,13 @@ def _appendix(ctx: RunContext) -> list[AppendixTable]:
                 (
                     "Weight dtype",
                     t.model_weight_dtype
-                    + (f" ({t.model_quantization})" if t.model_quantization else ""),
+                    + (
+                        f" ({t.model_quantization}, {t.model_quant_scheme})"
+                        if t.model_quant_scheme
+                        else f" ({t.model_quantization})"
+                        if t.model_quantization
+                        else ""
+                    ),
                 ),
                 ("KV bytes per token", num(t.kv_bytes_per_token)),
                 ("GPU", f"{t.gpu_count}× {t.gpu_name}"),

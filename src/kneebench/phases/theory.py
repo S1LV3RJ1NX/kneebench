@@ -65,6 +65,7 @@ class Theory:
     defaults_verified: bool
     shapes: tuple[ShapeTheory, ...] = field(default=())
     block_size: int | None = None  # KV cache block, from vllm:cache_config_info
+    model_quant_scheme: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -90,7 +91,7 @@ def compute_theory(
     for shape in (BASELINE_SHAPE, *shapes):
         fitted = fit_shape(shape, max_model_len)
         s = fitted.shape
-        f = floors(model, hw, s.isl, s.osl)
+        f = floors(model, hw, s.isl, s.osl, cache_dtype)
         shape_rows.append(
             ShapeTheory(
                 name=s.name,
@@ -149,6 +150,7 @@ def compute_theory(
         defaults_verified=defaults.verified,
         shapes=tuple(shape_rows),
         block_size=block,
+        model_quant_scheme=model.quant_scheme,
     )
 
 

@@ -107,3 +107,13 @@ def test_user_shapes_parse_and_validate() -> None:
         user_shapes("2000x500")
     with pytest.raises(ValueError, match="positive"):
         user_shapes("0/10")
+
+
+def test_b05_prefill_mfu_from_the_prompt_slope() -> None:
+    f = run_rule("B05", _ctx())
+    assert f is not None
+    assert f.data["from_slope"]
+    assert f.data["per_token_us"] == pytest.approx(30, rel=0.01)
+    assert f.data["mfu"] == pytest.approx(f.data["floor_per_token_us"] / 30, rel=0.01)
+    fallback = run_rule("B05", _ctx(shapes=False))
+    assert fallback is not None and not fallback.data["from_slope"]

@@ -2,13 +2,22 @@ id: B05
 title: How much of the GPU's math prefill uses
 status_line:
   info: >-
-    Prefill uses about {{ pct(mfu) }} of the GPU's math throughput on a {{ num(isl) }}-token prompt.
+    {% if from_slope %}Prefill uses about {{ pct(mfu) }} of the GPU's math throughput per prompt
+    token.{% else %}Prefill uses about {{ pct(mfu) }} of the GPU's math throughput on a
+    {{ num(isl) }}-token prompt.{% endif %}
 measured: >-
-  Server-side {{ term("TTFT") }} {{ ms(server_ttft_ms) }} against a compute floor of
-  {{ ms(floor_ms) }} gives {{ pct(mfu) }} {{ term("MFU") }}.
+  {% if from_slope %}From the prompt-length sweep, each extra prompt token costs
+  {{ num(per_token_us, 0) }} µs, against {{ num(floor_per_token_us, 0) }} µs if every math unit
+  were busy: {{ pct(mfu) }} {{ term("MFU") }}. Measured as a slope, so the network round trip and
+  fixed overheads drop out.{% else %}Network-adjusted {{ term("TTFT") }} {{ ms(server_ttft_ms) }}
+  against a compute floor of {{ ms(floor_ms) }} gives {{ pct(mfu) }} {{ term("MFU") }}. One short
+  prompt includes fixed overheads, so this understates what longer prompts reach; the
+  request-size sweep measures it more reliably.{% endif %}
 meaning: >-
-  Short prompts leave most of the GPU's math units idle; that is expected, not a problem.
+  Short prompts leave most of the GPU's math units idle; that is expected, not a problem. Long
+  prompts should keep them much busier.
 why: >-
-  A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads dominate
-  (the lesson's example sits near 37%). Longer prompts should climb toward 50%.
-learn_more: {note: "24", anchor: "4-compare-against-the-floors", label: "Compare against the floors"}
+  A few hundred tokens isn't enough work to keep every math unit busy, so fixed overheads
+  dominate. Past a few thousand tokens prefill becomes compute-bound and its cost per token is
+  close to the math floor; real kernels usually reach well under the datasheet peak.
+learn_more: {note: "59", anchor: "3-the-prefill-profile", label: "The prefill profile"}

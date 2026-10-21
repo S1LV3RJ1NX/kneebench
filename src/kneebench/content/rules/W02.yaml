@@ -11,9 +11,10 @@ measured: >-
   {% for c in crossings %}{{ c.metric | upper }} crosses its target at about {{ num(c.at, 0) }}
   users{% if not loop.last %}; {% endif %}{% endfor %}. The crossing is interpolated between the
   last passing and first failing level.
-  {% if ttft_offset_ms > 1 %} Time to first token is judged server side: the
-  {{ ms(ttft_offset_ms) }} network round trip from where kneebench ran is removed, because it
-  doesn't change with load and your users add their own.{% endif %}
+  {% if ttft_offset_ms > 1 %} Time to first token is judged without the network: the
+  {{ ms(ttft_offset_ms) }} round trip from where kneebench ran, and any new-connection setup, is
+  removed, because it doesn't change with load and your users add their own. What's left is an
+  estimate of the server's own time.{% endif %}
 meaning: >-
   This is where users start getting a worse experience than you promised. It usually comes
   before throughput saturates, which makes it your real limit.

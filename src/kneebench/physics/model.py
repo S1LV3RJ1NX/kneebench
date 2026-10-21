@@ -60,6 +60,7 @@ class ModelSpec:
     weight_dtype: str
     quantization: str | None = None
     fp8_compute: bool = False
+    quant_scheme: str | None = None  # e.g. W4A16 (weight-only) or W8A8-FP8
     support: Support = Support.EXACT
     notes: tuple[str, ...] = field(default=())
 
@@ -100,6 +101,36 @@ def _compressed_tensors_is_fp8(q: dict[str, Any]) -> bool:
         if weights.get("type") == "float" and weights.get("num_bits") == 8:
             return True
     return "fp8" in str(q.get("format", "")).lower()
+
+
+def quant_scheme(config: dict[str, Any]) -> tuple[str | None, bool]:
+    """The compute path, like W4A16 or W8A8-FP8, and whether matmuls run in FP8.
+
+    Storage bits alone don't say how the math runs (note 51 section 4): weight-only schemes
+    (W4A16) dequantize in registers and multiply in 16-bit, so only decode gets faster;
+    W8A8 also quantizes activations and uses 8-bit tensor cores, so prefill speeds up too.
+    """
+    q = config.get("quantization_config")
+    if not isinstance(q, dict):
+        return None, False
+    method = str(q.get("quant_method") or "").lower()
+    if method == "fp8":  # Hugging Face FP8 configs quantize activations too
+        return "W8A8-FP8", True
+    if method == "compressed-tensors":
+        group = next(iter((q.get("config_groups") or {}).values()), None) or {}
+        w = group.get("weights") or {}
+        a = group.get("input_activations") or {}
+        bits = w.get("num_bits")
+        if not bits:
+            return None, False
+        if a.get("num_bits") == 8:
+            fp8 = a.get("type") == "float" and w.get("type") == "float"
+            return f"W{bits}A8-{'FP8' if fp8 else 'INT8'}", fp8
+        return f"W{bits}A16", False
+    bits = q.get("bits") or q.get("w_bit")
+    if bits:
+        return f"W{bits}A16", False
+    return None, False
 
 
 def estimate_params(config: dict[str, Any]) -> int:
@@ -146,6 +177,7 @@ def model_spec_from_hf(
     head_dim = int(cfg.get("head_dim") or hidden // heads)
     weight_dtype = str(cfg.get("torch_dtype") or cfg.get("dtype") or "bfloat16")
     quant = _quant_method(config)
+    scheme, scheme_fp8 = quant_scheme(config)
 
     if safetensors_params:
         weight_bytes = sum(n * DTYPE_BYTES.get(dt, 2) for dt, n in safetensors_params.items())
@@ -171,7 +203,8 @@ def model_spec_from_hf(
         weight_bytes=weight_bytes,
         weight_dtype=weight_dtype,
         quantization=quant,
-        fp8_compute=quant == "fp8",
+        fp8_compute=scheme_fp8,
+        quant_scheme=scheme,
         support=support,
         notes=tuple(notes),
     )

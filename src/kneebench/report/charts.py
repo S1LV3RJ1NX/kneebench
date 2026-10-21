@@ -109,7 +109,7 @@ def _baseline_vs_floor(d: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         ("Time per token", d.get("tpot_ms"), d.get("floor_ms")),
         ("End to end", d.get("e2e_ms"), d.get("e2e_floor_ms")),
-        ("First token (server side)", d.get("server_ttft_ms"), d.get("ttft_floor_ms")),
+        ("First token (network removed)", d.get("server_ttft_ms"), d.get("ttft_floor_ms")),
     ]
     rows = [(name, float(v), float(f)) for name, v, f in candidates if v and f]
     if not rows:
@@ -388,7 +388,7 @@ def _latency(
     fig.add_scatter(
         x=xs,
         y=[p["ttft_tail"] for p in pts],
-        name=f"P{pct} time to first token (server side)",
+        name=f"P{pct} time to first token (network removed)",
         mode="lines+markers",
         line={"color": SECOND, "width": 2.5, "dash": "dot"},
         yaxis="y2",

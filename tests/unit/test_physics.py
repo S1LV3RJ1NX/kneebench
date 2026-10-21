@@ -65,6 +65,7 @@ def test_fp8_checkpoint_halves_weight_bytes_and_uses_fp8_compute() -> None:
     m = model_fixture(LLAMA_8B_FP8)
     assert m.quantization == "fp8"
     assert m.fp8_compute
+    assert m.quant_scheme == "W8A8-FP8"  # activations are FP8 too, so prefill uses FP8 math
     assert m.weight_bytes == pytest.approx(9.08e9, rel=0.01)
     assert m.params == pytest.approx(8.03e9, rel=0.01)
     dense = floors(model_fixture(LLAMA_8B), H100, 512, 256)
@@ -75,6 +76,7 @@ def test_awq_uses_stored_bytes_and_estimated_logical_params() -> None:
     m = model_fixture(LLAMA_8B_AWQ)
     assert m.quantization == "awq"
     assert not m.fp8_compute
+    assert m.quant_scheme == "W4A16"  # weight-only: 16-bit math after dequantizing
     assert m.weight_bytes == pytest.approx(5.73e9, rel=0.01)
     assert m.params == pytest.approx(8.03e9, rel=0.01)
 
@@ -93,7 +95,20 @@ def test_fp8_kv_cache_halves_kv_bytes() -> None:
 def test_tensor_parallel_splits_weights_and_kv() -> None:
     m = model_fixture(LLAMA_70B)
     hw = Hardware(get_gpu("h100-sxm"), count=4)
-    assert floors(m, hw, 512, 256).tpot_s == pytest.approx(m.weight_bytes / (4 * 3.35e12))
+    kv = 640 * m.kv_bytes_per_token()
+    assert floors(m, hw, 512, 256).tpot_s == pytest.approx((m.weight_bytes + kv) / (4 * 3.35e12))
+
+
+def test_floors_add_kv_reads_and_attention() -> None:
+    from kneebench.physics.floors import attention_flops
+
+    m = model_fixture(LLAMA_8B)
+    hw = Hardware(get_gpu("h100-sxm"))
+    short, long = floors(m, hw, 1024, 256), floors(m, hw, 32_768, 256)
+    assert long.tpot_s > 1.2 * short.tpot_s  # a 32k context rereads ~4 GB of cache per step
+    share = attention_flops(m, 32_768) / (2 * m.params * 32_768 + attention_flops(m, 32_768))
+    assert 0.3 < share < 0.45  # lesson 59: attention is about 38% of prefill math at 32k
+    assert attention_flops(m, 2048) / (2 * m.params * 2048) < 0.05
     assert m.kv_bytes_per_token_per_gpu(4) == m.kv_bytes_per_token() / 4
     assert m.kv_bytes_per_token_per_gpu(16) == m.kv_bytes_per_token() / 8  # 8 heads replicate
 
@@ -140,3 +155,28 @@ def test_custom_gpu() -> None:
     g = custom_gpu("My accelerator", memory_gib=64, bandwidth_tbps=2.5, bf16_tflops=500)
     assert g.custom
     assert g.memory_gib == pytest.approx(64)
+
+
+def test_fp8_weights_without_fp8_activations_keep_16_bit_math() -> None:
+    from kneebench.physics.model import quant_scheme
+
+    weight_only = {
+        "quantization_config": {
+            "quant_method": "compressed-tensors",
+            "config_groups": {"g": {"weights": {"num_bits": 8, "type": "float"}}},
+        }
+    }
+    assert quant_scheme(weight_only) == ("W8A16", False)
+    int8 = {
+        "quantization_config": {
+            "quant_method": "compressed-tensors",
+            "config_groups": {
+                "g": {
+                    "weights": {"num_bits": 8, "type": "int"},
+                    "input_activations": {"num_bits": 8, "type": "int"},
+                }
+            },
+        }
+    }
+    assert quant_scheme(int8) == ("W8A8-INT8", False)
+    assert quant_scheme({}) == (None, False)

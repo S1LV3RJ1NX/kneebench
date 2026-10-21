@@ -18,7 +18,9 @@ measured: >-
   with the output fixed.
 meaning:
   ok: >-
-    Mixing long and short prompts won't noticeably slow down streaming answers here.
+    Steady long-prompt traffic doesn't slow the typical streaming answer here. This test runs
+    each prompt length on its own, so it can't see the brief freezes a long prompt causes when
+    it arrives among short ones; the median hides those.
   info: >-
     Users with short prompts stream slower when they share the server with long-prompt
     traffic. Plan latency for your longest common prompts, not the average.
