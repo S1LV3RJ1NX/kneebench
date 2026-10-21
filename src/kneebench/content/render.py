@@ -19,7 +19,7 @@ from kneebench.domain import USER_SHAPE_PREFIX
 
 UNKNOWN = "n/a"
 # OK findings the report shows as full cards (see report/composer.py).
-DETAILED_OK = ("B01", "B04", "X01", "X02")
+DETAILED_OK = ("B01", "B04", "W08", "X01", "X02")
 
 
 # ---- number formatting ----

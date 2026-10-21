@@ -11,6 +11,11 @@ from kneebench.analysis.engine import REGISTRY, _load_rules
 RULE_TESTS = Path(__file__).parent
 
 
+def _notes() -> set[str]:
+    path = files("kneebench.content").joinpath("notes.yaml")
+    return set(yaml.safe_load(path.read_text())["notes"])
+
+
 def _content_ids() -> set[str]:
     folder = files("kneebench.content").joinpath("rules")
     return {e.name.removesuffix(".yaml") for e in folder.iterdir() if e.name.endswith(".yaml")}
@@ -24,7 +29,7 @@ def test_every_rule_has_content_and_content_has_a_rule() -> None:
 def test_every_rule_cites_its_source_note() -> None:
     _load_rules()
     for r in (*REGISTRY.values(), *COMPARE_REGISTRY.values()):
-        assert r.source[:2] in {"24", "25", "26", "27"}, f"{r.id} cites {r.source!r}"
+        assert r.source[:2] in _notes(), f"{r.id} cites {r.source!r}"
 
 
 def test_every_rule_is_tested() -> None:
@@ -42,7 +47,7 @@ def test_content_files_have_required_parts() -> None:
         assert spec["title"]
         assert spec["status_line"]
         assert spec["why"], f"{rid} lacks 'why'"
-        assert spec.get("learn_more", {}).get("note") in {"24", "25", "26", "27"}
+        assert spec.get("learn_more", {}).get("note") in _notes()
         for action in spec.get("actions", []):
             assert action["when"] and action["title"] and action["verify"]
             assert action.get("kind", "test") in {"server", "test"}, f"{rid}: {action['title']}"

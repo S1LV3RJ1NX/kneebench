@@ -8,7 +8,9 @@ status_line:
   skip: >-
     Not computed: the server didn't report its cache size.
 measured: >-
-  The cache size divided by each shape's final length (prompt plus output).
+  The cache size divided by each shape's final length (prompt plus output){% if block_size %},
+  rounded up to whole {{ num(block_size) }}-token blocks, since the server hands out memory a
+  block at a time{% endif %}.
 meaning: >-
   This is the memory ceiling on how many of these requests can be in flight together. Past it, the
   server either queues new requests or evicts running ones.

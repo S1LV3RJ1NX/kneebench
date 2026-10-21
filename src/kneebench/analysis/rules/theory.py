@@ -64,6 +64,7 @@ def requests_that_fit(ctx: RunContext) -> Finding:
     return info(
         "T03",
         pool_tokens=t.pool_tokens,
+        block_size=t.block_size,
         shapes=[{"name": s.name, "isl": s.isl, "osl": s.osl, "fits": s.fits} for s in t.shapes],
     )
 

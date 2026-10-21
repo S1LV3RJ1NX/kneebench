@@ -128,3 +128,17 @@ def rate_points(points: Sequence[PointView], ttft_offset_ms: float = 0.0) -> lis
 
 def same_rate(a: float, b: float) -> bool:
     return abs(a - b) <= SAME_RATE * max(a, b)
+
+
+def sustained_rps(points: Sequence[RatePoint], capacity: float | None, slo: Slo) -> float | None:
+    """The highest random (Poisson) arrival rate that met the targets.
+
+    Note 25 section 4: above capacity the queue grows without limit, however short runs look,
+    so rates above it never count.
+    """
+    passing = [
+        p.requested
+        for p in points
+        if p.arrival == "poisson" and p.meets(slo) and (capacity is None or p.requested <= capacity)
+    ]
+    return max(passing) if passing else None

@@ -160,6 +160,17 @@ class RunContext:
         return (self.network or {}).get("http_rtt_ms")
 
     @property
+    def prompt_overhead_tokens(self) -> float | None:
+        """Tokens the server adds to every prompt (the chat template), from usage counts."""
+        offsets = [
+            server - client
+            for p in self.points
+            if (client := p.m("input_sequence_length", "avg"))
+            and (server := p.m("usage_prompt_tokens", "avg"))
+        ]
+        return sum(offsets) / len(offsets) if offsets else None
+
+    @property
     def ttft_offset_ms(self) -> float:
         """Network time taken off every first token (see `ttft_offset`)."""
         base = self.theory.shape("baseline")

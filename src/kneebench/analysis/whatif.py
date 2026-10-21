@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from itertools import pairwise
 
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.shape import axis, fit_line, operating_concurrency, prompt_fit
 from kneebench.domain import CONTEXT_MARGIN_TOKENS
+from kneebench.physics.floors import requests_that_fit
 
 
 @dataclass(frozen=True)
@@ -77,7 +79,7 @@ def estimate(ctx: RunContext, isl: int, osl: int) -> Estimate | None:
         e2e_ms=ttft + tpot * (osl - 1) if tpot is not None else None,
         loaded_concurrency=operating_concurrency(ctx) if loaded else None,
         loaded_tpot_ms=loaded_tpot,
-        fits=pool // (isl + osl) if pool else None,
+        fits=math.floor(requests_that_fit(pool, isl, osl, ctx.theory.block_size)) if pool else None,
         fits_context=limit is None or isl + osl + CONTEXT_MARGIN_TOKENS <= limit,
         max_model_len=limit,
         extrapolated=tuple(extrapolated),

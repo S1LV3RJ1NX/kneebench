@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from kneebench.physics.gpus import GIB, GpuSpec
@@ -69,9 +70,15 @@ def exchange_rate(model: ModelSpec, hw: Hardware) -> float:
     return t_out / t_in
 
 
-def requests_that_fit(pool_tokens: int, isl: int, osl: int) -> float:
-    """Sized by final length, not starting length (note 26 section 4)."""
-    return pool_tokens / (isl + osl)
+def requests_that_fit(pool_tokens: int, isl: int, osl: int, block_size: int | None = None) -> float:
+    """Sized by final length, not starting length (note 26 section 4).
+
+    vLLM hands out whole blocks, so each request rounds up to the next block (note 38
+    section 2): up to block_size - 1 tokens of every request are spare.
+    """
+    if not block_size:
+        return pool_tokens / (isl + osl)
+    return (pool_tokens // block_size) / math.ceil((isl + osl) / block_size)
 
 
 def startup_fit(pool_tokens: int, max_model_len: int) -> float:

@@ -64,6 +64,7 @@ class Theory:
     default_max_num_batched_tokens: int
     defaults_verified: bool
     shapes: tuple[ShapeTheory, ...] = field(default=())
+    block_size: int | None = None  # KV cache block, from vllm:cache_config_info
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -83,6 +84,7 @@ def compute_theory(
     pool = cache.kv_cache_size_tokens if cache else None
     util = cache.gpu_memory_utilization if cache else None
     cache_dtype = cache.cache_dtype if cache else "auto"
+    block = cache.block_size if cache else None
 
     shape_rows = []
     for shape in (BASELINE_SHAPE, *shapes):
@@ -100,7 +102,7 @@ def compute_theory(
                 tpot_floor_ms=f.tpot_s * 1e3,
                 ttft_floor_ms=f.ttft_s * 1e3,
                 e2e_floor_ms=f.e2e_s * 1e3,
-                fits=requests_that_fit(pool, s.isl, s.osl) if pool else None,
+                fits=requests_that_fit(pool, s.isl, s.osl, block) if pool else None,
             )
         )
 
@@ -146,6 +148,7 @@ def compute_theory(
         default_max_num_batched_tokens=defaults.max_num_batched_tokens,
         defaults_verified=defaults.verified,
         shapes=tuple(shape_rows),
+        block_size=block,
     )
 
 

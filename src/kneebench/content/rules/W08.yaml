@@ -2,13 +2,23 @@ id: W08
 title: Headroom for bursts
 status_line:
   ok: >-
-    Plan for at most {{ num(run_at) }} users in flight to keep {{ pct(headroom) }} headroom below
-    the {{ num(c_star, 0) }}-user limit.
-measured: The limit (the lowest wall) times {{ pct(1 - headroom) }}.
+    {% if planned_rps %}Plan for about {{ num(planned_rps, 2) }} requests per second, keeping
+    {{ pct(headroom) }} below the {{ num(slo_rps, 2) }} that met your targets with random
+    arrivals.{% else %}Plan for at most {{ num(run_at) }} users in flight to keep
+    {{ pct(headroom) }} headroom below the {{ num(c_star, 0) }}-user limit.{% endif %}
+measured: >-
+  {% if planned_rps %}The highest random-arrival rate that met your targets, times
+  {{ pct(1 - headroom) }}. If one replica may fail, the others must carry its share: with
+  {% for f in failure %}{{ f.replicas }} replicas plan {{ num(f.per_replica_rps, 2) }} per
+  replica{% if not loop.last %}, with {% endif %}{% endfor %}.{% else %}The limit (the lowest
+  wall) times {{ pct(1 - headroom) }}; run the request-rate sweep to plan in requests per
+  second.{% endif %}
 meaning: >-
-  Real traffic arrives in bursts. Running right at the limit means every burst pushes users past
-  your target.
+  Real traffic arrives in bursts, and replicas fail. Planning right at the limit means every
+  burst, or the loss of one replica, pushes users past your target.
 why: >-
-  Capacity is the first wall; staying a margin below it absorbs random bunching of arrivals
-  without breaking the target.
-learn_more: {note: "27", anchor: "5-the-operating-envelope", label: "The operating envelope"}
+  Near capacity, waiting time grows much faster than load: queues that are fine at 80% busy
+  are several times longer at 90%. The margin absorbs bursts; the failure budget keeps the
+  targets when the remaining replicas take over a lost one's traffic. 20% is a starting point;
+  your own peak-to-average traffic is the better number.
+learn_more: {note: "43", anchor: "5-bursts", label: "Bursts"}

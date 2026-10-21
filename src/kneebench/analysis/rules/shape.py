@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, info, ok, rule, warn
 from kneebench.analysis.shape import (
@@ -14,6 +16,7 @@ from kneebench.analysis.shape import (
     shape_map,
 )
 from kneebench.domain import USER_SHAPE_PREFIX
+from kneebench.physics.floors import requests_that_fit
 
 # Note 26 section 2: attention adds ~13% at 8k; well above that means prefill is bending up.
 TTFT_BEND_WARN = 1.3
@@ -138,7 +141,11 @@ def long_outputs_hold_slots(ctx: RunContext) -> Finding | None:
         "preemptions": sum(p.point.preemptions or 0 for p in loaded),
         # Note 26 section 4: how many requests of the longest shape the cache holds at full length.
         "sustain": (
-            ctx.theory.pool_tokens // (loaded[-1].isl + loaded[-1].osl)
+            math.floor(
+                requests_that_fit(
+                    ctx.theory.pool_tokens, loaded[-1].isl, loaded[-1].osl, ctx.theory.block_size
+                )
+            )
             if ctx.theory.pool_tokens
             else None
         ),

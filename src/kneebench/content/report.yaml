@@ -59,7 +59,10 @@ scorecard:
     none: Not measured in this run (needs the concurrency sweep)
   headroom:
     label: Headroom
-    ok: "Run at {{ num(run_at) }} users or fewer to keep {{ pct(headroom) }} for bursts"
+    ok: >-
+      {% if planned_rps %}Plan for {{ num(planned_rps, 2) }} req/s to keep {{ pct(headroom) }}
+      for bursts{% else %}Run at {{ num(run_at) }} users or fewer to keep {{ pct(headroom) }}
+      for bursts{% endif %}
     none: Not measured in this run (needs the concurrency sweep)
   memory:
     label: Memory safety

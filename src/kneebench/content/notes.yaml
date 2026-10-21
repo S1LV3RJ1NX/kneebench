@@ -13,3 +13,37 @@ notes:
   "27":
     slug: 27-find-saturation-slo-oom-boundaries
     title: Find saturation, SLO failure and OOM boundaries
+  "28": {slug: 28-why-plain-pytorch-serving-breaks-down, title: Why plain PyTorch serving breaks down}
+  "29": {slug: 29-openai-compatible-apis-streaming, title: OpenAI-compatible APIs and streaming}
+  "30": {slug: 30-read-engine-metrics-request-state, title: Read engine metrics and request state}
+  "31": {slug: 31-follow-a-request-through-vllm, title: Follow a request through vLLM}
+  "32": {slug: 32-one-by-one-serving-vs-static-batching, title: One-by-one serving vs static batching}
+  "33": {slug: 33-iteration-level-scheduling, title: Iteration-level scheduling}
+  "34": {slug: 34-continuous-batching, title: Continuous batching}
+  "35": {slug: 35-token-budgets-max-seqs-max-batched-tokens, title: "Token budgets, max sequences and max batched tokens"}
+  "36": {slug: 36-queueing-fairness-cancellation-preemption, title: "Queueing, fairness, cancellation and preemption"}
+  "37": {slug: 37-why-contiguous-kv-allocation-breaks, title: Why contiguous KV allocation breaks}
+  "38": {slug: 38-kv-blocks-fragmentation-block-tables, title: "KV blocks, fragmentation and block tables"}
+  "39": {slug: 39-pagedattention, title: PagedAttention}
+  "40": {slug: 40-allocate-share-reclaim-kv-blocks, title: "Allocate, share and reclaim KV blocks"}
+  "41": {slug: 41-preemption-recomputation-kv-pressure, title: "Preemption, recomputation and KV pressure"}
+  "42": {slug: 42-tune-gpu-memory-kv-capacity, title: Tune GPU memory and KV capacity}
+  "43": {slug: 43-find-slo-safe-configuration-headroom, title: Find the SLO-safe configuration and headroom}
+  "44": {slug: 44-reproduce-long-prompt-interference, title: Reproduce the long-prompt interference problem}
+  "45": {slug: 45-chunked-prefill-choosing-chunk-size, title: Chunked prefill and choosing the chunk size}
+  "46": {slug: 46-find-repeated-prefix-computation, title: Find repeated prefix computation}
+  "47": {slug: 47-automatic-prefix-caching, title: Automatic prefix caching}
+  "48": {slug: 48-shared-prompts-rag-multi-turn-reuse, title: "Shared prompts, RAG context and multi-turn reuse"}
+  "49": {slug: 49-radixattention-eviction-cache-churn, title: "RadixAttention, eviction and cache churn"}
+  "50": {slug: 50-precision-memory-hardware-support, title: "Precision, memory and hardware support"}
+  "51": {slug: 51-bf16-fp8-int8-4-bit-inference, title: "BF16, FP8, INT8 and 4-bit inference"}
+  "52": {slug: 52-awq-gptq-smoothquant, title: "AWQ, GPTQ and SmoothQuant"}
+  "53": {slug: 53-quantized-gemm-dequantization-overhead, title: Quantized GEMM and dequantization overhead}
+  "54": {slug: 54-measure-quality-regression, title: Measure quality regression}
+  "55": {slug: 55-build-a-profiling-workflow, title: Build a profiling workflow}
+  "56": {slug: 56-pytorch-profiler-memory-snapshots, title: PyTorch profiler and memory snapshots}
+  "57": {slug: 57-nsight-systems, title: Nsight Systems}
+  "58": {slug: 58-nsight-compute, title: Nsight Compute}
+  "59": {slug: 59-profile-prefill-vs-decode, title: Profile prefill vs decode}
+  "60": {slug: 60-gpu-execution-memory-hierarchy-kernel-launches, title: "GPU execution, memory hierarchy and kernel launches"}
+  "61": {slug: 61-compute-vs-memory-bound-roofline, title: Compute-bound vs memory-bound and the roofline model}

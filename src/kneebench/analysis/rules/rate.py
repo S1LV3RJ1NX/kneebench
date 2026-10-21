@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, info, ok, rule, warn
-from kneebench.analysis.rate import RatePoint, capacity_rps, rate_points, same_rate
+from kneebench.analysis.rate import (
+    RatePoint,
+    capacity_rps,
+    rate_points,
+    same_rate,
+    sustained_rps,
+)
 
 # Note 25 section 4: near capacity, TTFT bends up sharply as random arrivals bunch up.
 KNEE_FACTOR = 2.0
@@ -54,9 +60,7 @@ def rate_capacity(ctx: RunContext) -> Finding | None:
         ),
         None,
     )
-    # Note 25 section 4: above capacity the queue grows without limit, however short runs look.
-    passing = [p for p in poisson if p.meets(slo) and (mu is None or p.requested <= mu)]
-    best = passing[-1].requested if passing else None
+    best = sustained_rps(poisson, mu, slo)
     data = {
         "rows": [_row(p, pct, mu) for p in poisson],
         "capacity_rps": mu,

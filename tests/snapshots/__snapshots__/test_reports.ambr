@@ -37,13 +37,13 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. That is the planned request length; the sweep didn't record enough requests to measure it. Keeping 15% spare leaves 221.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 260`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 221`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ## Try these next
   
@@ -54,7 +54,7 @@
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 260
+     --max-num-seqs 221
      ```
   
   ### Make the test more reliable
@@ -106,7 +106,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -249,13 +249,13 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 7,012 tokens per finished request gives 75. That is the planned request length; the sweep didn't record enough requests to measure it. Keeping 15% spare leaves 63.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 75`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 63`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ## Try these next
   
@@ -266,7 +266,7 @@
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 75
+     --max-num-seqs 63
      ```
   
   ### Make the test more reliable
@@ -340,7 +340,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -449,13 +449,13 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 7,012 tokens per finished request gives 75. That is the planned request length; the sweep didn't record enough requests to measure it. Keeping 15% spare leaves 63.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 75`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 63`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ### [problem] Distance between kneebench and the server (H03)
   
@@ -478,7 +478,7 @@
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 75
+     --max-num-seqs 63
      ```
   
   ### Make the test more reliable
@@ -523,7 +523,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -685,13 +685,13 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. That is the planned request length; the sweep didn't record enough requests to measure it. Keeping 15% spare leaves 221.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
-  **What to do.** Lower the sequence cap. Try `--max-num-seqs 260`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
+  **What to do.** Lower the sequence cap. Try `--max-num-seqs 221`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
   ## Try these next
   
@@ -702,7 +702,7 @@
   1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
-     --max-num-seqs 260
+     --max-num-seqs 221
      ```
   
   ### Make the test more reliable
@@ -755,7 +755,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -1061,11 +1061,11 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. 95 of 100 requests in the sweep finished within 2,048 tokens, including the chat template. Keeping 15% spare leaves 221. Your per-token target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
   **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
@@ -1182,6 +1182,12 @@
   ### [good] Headroom for bursts (W08)
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
+  
+  **What we measured.** The limit (the lowest wall) times 80%; run the request-rate sweep to plan in requests per second.
+  
+  **What it means.** Real traffic arrives in bursts, and replicas fail. Planning right at the limit means every burst, or the loss of one replica, pushes users past your target.
+  
+  **Why it happens.** Near capacity, waiting time grows much faster than load: queues that are fine at 80% busy are several times longer at 90%. The margin absorbs bursts; the failure budget keeps the targets when the remaining replicas take over a lost one's traffic. 20% is a starting point; your own peak-to-average traffic is the better number. [Learn more: Lesson 43: Find the SLO-safe configuration and headroom, Bursts](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/43-find-slo-safe-configuration-headroom.md#5-bursts)
   
   ## How request size changes things
   
@@ -1328,7 +1334,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -1482,20 +1488,20 @@
   | [good] | Baseline vs physics | 71% of memory bandwidth |
   | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
   | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 260 memory sustains |
   | [good] | Test reliability | No problems with the test itself |
   
   ## What needs attention
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 summarization requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. 95 of 100 requests in the sweep finished within 2,048 tokens, including the chat template. Keeping 15% spare leaves 221. Your per-token target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
   **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
@@ -1531,7 +1537,7 @@
   
   Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
   
-  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 summarization requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 42
@@ -1612,6 +1618,12 @@
   ### [good] Headroom for bursts (W08)
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
+  
+  **What we measured.** The limit (the lowest wall) times 80%; run the request-rate sweep to plan in requests per second.
+  
+  **What it means.** Real traffic arrives in bursts, and replicas fail. Planning right at the limit means every burst, or the loss of one replica, pushes users past your target.
+  
+  **Why it happens.** Near capacity, waiting time grows much faster than load: queues that are fine at 80% busy are several times longer at 90%. The margin absorbs bursts; the failure budget keeps the targets when the remaining replicas take over a lost one's traffic. 20% is a starting point; your own peak-to-average traffic is the better number. [Learn more: Lesson 43: Find the SLO-safe configuration and headroom, Bursts](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/43-find-slo-safe-configuration-headroom.md#5-bursts)
   
   ## How request size changes things
   
@@ -1780,7 +1792,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -1921,11 +1933,11 @@
   
   **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 2,048 tokens per finished request gives 260. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. 95 of 100 requests in the sweep finished within 2,048 tokens, including the chat template. Keeping 15% spare leaves 221. Your per-token target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
   **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
@@ -2027,6 +2039,12 @@
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
   
+  **What we measured.** The limit (the lowest wall) times 80%; run the request-rate sweep to plan in requests per second.
+  
+  **What it means.** Real traffic arrives in bursts, and replicas fail. Planning right at the limit means every burst, or the loss of one replica, pushes users past your target.
+  
+  **Why it happens.** Near capacity, waiting time grows much faster than load: queues that are fine at 80% busy are several times longer at 90%. The margin absorbs bursts; the failure budget keeps the targets when the remaining replicas take over a lost one's traffic. 20% is a starting point; your own peak-to-average traffic is the better number. [Learn more: Lesson 43: Find the SLO-safe configuration and headroom, Bursts](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/43-find-slo-safe-configuration-headroom.md#5-bursts)
+  
   ## How request size changes things
   
   ### [context] Test with your own request sizes (S05)
@@ -2094,7 +2112,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|
@@ -2230,20 +2248,20 @@
   | [good] | Baseline vs physics | 71% of memory bandwidth |
   | [good] | Capacity under your SLO | 32 users (3,000 tok/s) within your targets |
   | [good] | Headroom | Run at 25 users or fewer to keep 20% for bursts |
-  | [watch] | Memory safety | max_num_seqs 1,024 is above the 75 memory sustains |
+  | [watch] | Memory safety | max_num_seqs 1,024 is above the 260 memory sustains |
   | [good] | Test reliability | No problems with the test itself |
   
   ## What needs attention
   
   ### [watch] Cap concurrent sequences at what memory sustains (W06)
   
-  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length.**
+  **max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 reasoning requests at full length.**
   
-  **What we measured.** 532,768 tokens of cache divided by 7,012 tokens per finished request gives 75. Your latency target is crossed at about 42 users.
+  **What we measured.** 532,768 tokens of cache, handed out in 16-token blocks, divided by 2,048 tokens per finished request gives 260. 95 of 100 requests in the sweep finished within 2,048 tokens, including the chat template. Keeping 15% spare leaves 221. Your per-token target is crossed at about 42 users.
   
   **What it means.** With the cap above what memory holds, overload turns into silent evictions instead of a visible queue. A lower cap makes extra requests wait their turn, which you can see and plan for.
   
-  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the average final request length keeps every admitted request's cache in memory; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 27: Find saturation, SLO failure and OOM boundaries, Wall 3: memory, three faces](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/27-find-saturation-slo-oom-boundaries.md#4-wall-3-memory-three-faces)
+  **Why it happens.** vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average one, with some spare, keeps every admitted request's cache in memory even when several long ones arrive together; lowering it further to where the latency target breaks keeps admitted users fast. [Learn more: Lesson 42: Tune GPU memory and KV capacity, Knob 3: how many requests you let in](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/42-tune-gpu-memory-kv-capacity.md#5-knob-3-how-many-requests-you-let-in)
   
   **What to do.** Lower the sequence cap. Try `--max-num-seqs 42`. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Verify: Rerun the same sweep; preemptions should stay at 0 and the tail latency should stop spiking.
   
@@ -2263,7 +2281,7 @@
   
   Settings for your vLLM server or deployment, most important first. Change one at a time and rerun, so you can see what each did.
   
-  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
+  1. **Lower the sequence cap** (W06). Why: max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 reasoning requests at full length. Expected: The preemption counter stays at 0 and extra requests wait in the queue (vllm:num_requests_waiting) instead of being evicted. Risk: Peak throughput may dip slightly; queued requests wait longer for their first token.
   
      ```
      --max-num-seqs 42
@@ -2345,6 +2363,12 @@
   
   **Plan for at most 25 users in flight to keep 20% headroom below the 32-user limit.**
   
+  **What we measured.** The limit (the lowest wall) times 80%; run the request-rate sweep to plan in requests per second.
+  
+  **What it means.** Real traffic arrives in bursts, and replicas fail. Planning right at the limit means every burst, or the loss of one replica, pushes users past your target.
+  
+  **Why it happens.** Near capacity, waiting time grows much faster than load: queues that are fine at 80% busy are several times longer at 90%. The margin absorbs bursts; the failure budget keeps the targets when the remaining replicas take over a lost one's traffic. 20% is a starting point; your own peak-to-average traffic is the better number. [Learn more: Lesson 43: Find the SLO-safe configuration and headroom, Bursts](https://github.com/S1LV3RJ1NX/inference-engineering-notes/blob/main/notes/43-find-slo-safe-configuration-headroom.md#5-bursts)
+  
   ## How request size changes things
   
   ### [context] Test with your own request sizes (S05)
@@ -2395,7 +2419,7 @@
   
   **The cache holds 532,768 tokens: baseline about 694 at full length, chat about 260 at full length, reasoning about 76 at full length, summarization about 76 at full length.**
   
-  **What we measured.** The cache size divided by each shape's final length (prompt plus output).
+  **What we measured.** The cache size divided by each shape's final length (prompt plus output), rounded up to whole 16-token blocks, since the server hands out memory a block at a time.
   
   | Shape | Prompt tokens | Output tokens | Requests that fit |
   |---|---|---|---|

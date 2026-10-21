@@ -198,3 +198,30 @@ def test_h09_gateway_codes_held_requests_and_timeouts() -> None:
     held = run_rule("H09", _ctx((sweep_point(64, 3000, 20.0, running_max=16.0, seq=1),)))
     assert held is not None
     assert held.data["held"][0]["concurrency"] == 64
+
+
+def test_w06_sizes_for_the_p95_request_in_whole_blocks() -> None:
+    f = run_rule("W06", _ctx(healthy_sweep()))
+    assert f is not None
+    assert f.data["measured_length"] and f.data["final_len"] == 2048
+    assert f.data["block_size"] == 16
+    assert f.data["sustain"] == (532_768 // 16) // (2048 // 16)
+    assert f.data["admit"] == int(f.data["sustain"] * 0.85)
+
+
+def test_fit_rounds_each_request_up_to_whole_blocks() -> None:
+    from kneebench.physics.floors import requests_that_fit
+
+    assert requests_that_fit(160, 17, 0) == pytest.approx(160 / 17)
+    assert requests_that_fit(160, 17, 0, block_size=16) == 5  # 10 blocks, 2 per request
+
+
+def test_w08_plans_on_request_rate_with_failure_margin() -> None:
+    from tests.builders import rate_sweep
+
+    f = run_rule("W08", ctx(points=(point(), *healthy_sweep(), *rate_sweep())))
+    assert f is not None
+    assert f.data["slo_rps"] == pytest.approx(2.6)
+    assert f.data["planned_rps"] == pytest.approx(2.6 * 0.8)
+    assert f.data["failure"][0] == {"replicas": 2, "per_replica_rps": pytest.approx(2.6 * 0.4)}
+    assert run_rule("W08", _ctx(healthy_sweep())).data["planned_rps"] is None  # type: ignore[union-attr]

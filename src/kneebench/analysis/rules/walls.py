@@ -6,12 +6,16 @@ import math
 
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
+from kneebench.analysis.rate import capacity_rps, rate_points, sustained_rps
 from kneebench.analysis.rules.concurrency import sweep
 from kneebench.analysis.sweep import first_crossing, operating_point, saturation
 from kneebench.phases.theory import ShapeTheory
+from kneebench.physics.floors import requests_that_fit
 
-# Note 27 section 5: run below c* with headroom for bursts.
+# Notes 27 section 5 and 43 section 5: plan a margin below capacity for bursts.
 BURST_HEADROOM = 0.8
+# Note 43 section 6: replica counts to show the "survive one failure" budget for.
+FAILURE_EXAMPLES = (2, 4)
 # Note 27 section 1: errors and timeouts count as failures.
 ERROR_WARN = 0.01
 ERROR_BAD = 0.05
@@ -19,10 +23,32 @@ ERROR_BAD = 0.05
 SEQS_SLACK = 1.2
 # Note 26 section 1 / 27 section 4: prefill at ~50% of peak for re-prefill cost.
 PREFILL_EFFICIENCY = 0.5
+# Note 42 section 5: size admission for a high-percentile request, then keep a margin
+# (its example sustains 187 and uses about 160).
+ADMISSION_PERCENTILE = 95
+ADMISSION_MARGIN = 0.85
 
 
 def _shape(ctx: RunContext) -> ShapeTheory | None:
     return ctx.theory.shape(ctx.primary_shape) or ctx.theory.shape("baseline")
+
+
+def final_length(ctx: RunContext, shape: ShapeTheory) -> tuple[int, bool]:
+    """The final length (prompt + output) that 95 of 100 requests stay under, as served.
+
+    Measured from the concurrency sweep when it ran, including the tokens the server adds
+    for the chat template; otherwise the planned shape. The flag says which.
+    """
+    lengths = sorted(
+        (r.isl or 0) + (r.osl or 0)
+        for p in ctx.points_in("concurrency")
+        for r in p.requests
+        if r.ok and r.isl and r.osl
+    )
+    if len(lengths) < 20:
+        return shape.isl + shape.osl, False
+    rank = math.ceil(len(lengths) * ADMISSION_PERCENTILE / 100) - 1
+    return lengths[rank] + round(ctx.prompt_overhead_tokens or 0), True
 
 
 def _effective_max_num_seqs(ctx: RunContext) -> tuple[int, bool]:
@@ -176,8 +202,9 @@ def late_preemption(ctx: RunContext) -> Finding | None:
     if not hit:
         return None
     c = hit[0].concurrency
-    at_admission = pool / shape.isl
-    at_end = pool / (shape.isl + shape.osl)
+    block = ctx.theory.block_size
+    at_admission = requests_that_fit(pool, shape.isl, 0, block)
+    at_end = requests_that_fit(pool, shape.isl, shape.osl, block)
     if not at_end < c <= at_admission:
         return None
     # Tokens each request may hold before the pool is full, and when that happens.
@@ -203,7 +230,9 @@ def max_num_seqs(ctx: RunContext) -> Finding | None:
     if shape is None or not pool:
         return None
     seqs, is_default = _effective_max_num_seqs(ctx)
-    sustain = math.floor(pool / (shape.isl + shape.osl))
+    length, measured = final_length(ctx, shape)
+    sustain = math.floor(requests_that_fit(pool, length, 0, ctx.theory.block_size))
+    admit = max(1, math.floor(sustain * ADMISSION_MARGIN))
     cap = capacity(ctx)
     slo_c = None
     if cap:
@@ -212,17 +241,22 @@ def max_num_seqs(ctx: RunContext) -> Finding | None:
         # Only the per-token wall: capping sequences keeps admitted users fast, but it makes a
         # first-token problem worse, since the extra requests wait in the queue instead.
         slo_c = walls.get("slo_tpot")
-    recommend = max(1, min(sustain, math.floor(slo_c) if slo_c else sustain))
+    recommend = max(1, min(admit, math.floor(slo_c) if slo_c else admit))
     preempted = any((p.preemptions or 0) > 0 for p in sweep(ctx))
     data = {
         "current": seqs,
         "is_default": is_default,
         "sustain": sustain,
+        "admit": admit,
+        "margin": 1 - ADMISSION_MARGIN,
         "recommend": recommend,
+        "measured_length": measured,
+        "percentile": ADMISSION_PERCENTILE,
+        "block_size": ctx.theory.block_size,
         "slo_c": slo_c,
         "preempted": preempted,
         "shape_name": ctx.primary_shape,
-        "final_len": shape.isl + shape.osl,
+        "final_len": length,
         "pool_tokens": pool,
         "vllm_version": ctx.vllm_version,
     }
@@ -252,16 +286,38 @@ def errors(ctx: RunContext) -> Finding | None:
     return verdict("W07", points=failing, worst=worst, first=over[0].concurrency)
 
 
-@rule("W08", tags={"capacity"}, source="27#5")
+@rule("W08", tags={"capacity"}, source="43#5")
 def headroom(ctx: RunContext) -> Finding | None:
+    """Plan on the request rate that meets the targets, less a burst and a failure margin.
+
+    Note 43: the margin goes on open-loop capacity (requests per second); users in flight is
+    the fallback when the rate sweep didn't run.
+    """
     cap = capacity(ctx)
     if cap is None:
         return None
     c_star = cap["c_star"]
     assert isinstance(c_star, float)
-    run_at = max(1, math.floor(c_star * BURST_HEADROOM))
+    offset = ctx.ttft_offset_ms
+    rps = sustained_rps(
+        rate_points(ctx.points_in("rate"), offset),
+        capacity_rps(ctx.points_in("concurrency"), offset),
+        ctx.workload.slo,
+    )
+    planned = rps * BURST_HEADROOM if rps else None
     return ok(
-        "W08", c_star=c_star, run_at=run_at, limiter=cap["limiter"], headroom=1 - BURST_HEADROOM
+        "W08",
+        c_star=c_star,
+        run_at=max(1, math.floor(c_star * BURST_HEADROOM)),
+        limiter=cap["limiter"],
+        headroom=1 - BURST_HEADROOM,
+        slo_rps=rps,
+        planned_rps=planned,
+        failure=[
+            {"replicas": n, "per_replica_rps": planned * (n - 1) / n} for n in FAILURE_EXAMPLES
+        ]
+        if planned
+        else [],
     )
 
 

@@ -12,18 +12,23 @@ status_line:
     sustains about {{ num(sustain) }} {{ shape_name }} requests, and the server is already evicting
     requests.
 measured: >-
-  {{ num(pool_tokens) }} tokens of cache divided by {{ num(final_len) }} tokens per finished
-  request gives {{ num(sustain) }}.{% if slo_c %} Your latency target is crossed at about
-  {{ num(slo_c, 0) }} users.{% endif %}
+  {{ num(pool_tokens) }} tokens of cache{% if block_size %}, handed out in {{ num(block_size) }}-token
+  blocks,{% endif %} divided by {{ num(final_len) }} tokens per finished request gives
+  {{ num(sustain) }}. {% if measured_length %}{{ num(percentile) }} of 100 requests in the sweep
+  finished within {{ num(final_len) }} tokens, including the chat template.{% else %}That is the
+  planned request length; the sweep didn't record enough requests to measure it.{% endif %}
+  Keeping {{ pct(margin) }} spare leaves {{ num(admit) }}.{% if slo_c %} Your per-token target
+  is crossed at about {{ num(slo_c, 0) }} users.{% endif %}
 meaning: >-
   With the cap above what memory holds, overload turns into silent evictions instead of a
   visible queue. A lower cap makes extra requests wait their turn, which you can see and plan
   for.
 why: >-
-  vLLM admits up to max_num_seqs requests at once. Setting it to the cache size divided by the
-  average final request length keeps every admitted request's cache in memory; lowering it
-  further to where the latency target breaks keeps admitted users fast.
-learn_more: {note: "27", anchor: "4-wall-3-memory-three-faces", label: "Wall 3: memory, three faces"}
+  vLLM admits up to max_num_seqs requests at once. Sizing it for a long request, not an average
+  one, with some spare, keeps every admitted request's cache in memory even when several long
+  ones arrive together; lowering it further to where the latency target breaks keeps admitted
+  users fast.
+learn_more: {note: "42", anchor: "5-knob-3-how-many-requests-you-let-in", label: "Knob 3: how many requests you let in"}
 actions:
   - when: [warn, bad]
     title: Lower the sequence cap
