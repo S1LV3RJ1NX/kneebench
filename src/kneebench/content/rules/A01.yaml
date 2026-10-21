@@ -1,0 +1,46 @@
+id: A01
+title: Does the server stop when a user leaves?
+status_line:
+  ok: >-
+    kneebench hung up on {{ num(requests) }} requests {{ num(cancel_after_s, 0) }} s after
+    sending them and the server stopped: {{ num(per_request, 0) }} tokens each instead of
+    {{ num(osl) }}.
+  warn: >-
+    kneebench hung up on {{ num(requests) }} requests {{ num(cancel_after_s, 0) }} s after
+    sending them, but the server finished them anyway: {{ num(wasted, 0) }} tokens generated
+    for nobody.
+  skip: >-
+    {% if reason == "other_traffic" %}Not judged: other requests finished on the server during
+    the test, so its counters can't be tied to kneebench's.{% else %}Not judged: the server
+    generated {{ num(per_request, 0) }} tokens per abandoned request, between stopping and
+    finishing.{% endif %}
+measured: >-
+  {{ num(concurrency) }} users each asked for {{ num(osl) }}-token answers and disconnected
+  {{ num(cancel_after_s, 0) }} s after sending. kneebench read the server's token and request
+  counters before, and again {{ num(linger_s, 0) }} s after, long enough for any answer it
+  kept generating to finish.{% if aborted %} The server counted {{ num(aborted, 0) }} of them
+  as aborted.{% endif %}
+meaning:
+  ok: >-
+    Users who close the tab free their slot and memory right away, so the answers still being
+    read get the GPU.
+  warn: >-
+    Every abandoned answer keeps a slot and its cache memory until it finishes, and takes GPU
+    time from users still reading. vLLM stops a request when its connection closes, so
+    something in between, usually a proxy or gateway, is not passing the disconnect on.
+  skip: >-
+    Rerun when nothing else is using the server.
+why: >-
+  An engine that doesn't notice a closed connection keeps generating for nobody. A good one
+  watches the connection and aborts on the next step, which frees the request's memory.
+learn_more: {note: "36", anchor: "3-cancellation-stop-work-nobody-is-reading", label: "Cancellation"}
+actions:
+  - when: [warn]
+    title: Make the gateway pass client disconnects to vLLM
+    expected: >-
+      Abandoned answers stop within a step of the user leaving; their slots and memory go to
+      requests still being read.
+    risk: >-
+      None for users. In nginx, `proxy_ignore_client_abort off` (the default) and streaming
+      without buffering; other gateways have a similar setting.
+    verify: Rerun the abandoned-request test; this check turns green.

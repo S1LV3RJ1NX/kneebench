@@ -8,6 +8,7 @@ from kneebench.analysis.context import UNRELIABLE_NETWORK_SHARE, RunContext
 from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
 from kneebench.analysis.rules.concurrency import sweep
 from kneebench.analysis.sweep import GATEWAY_CODES
+from kneebench.phases.plan import CANCEL_PHASE
 from kneebench.servers.vllm import version_status
 
 # Note 25 section 6: the client must actually hold the requested load.
@@ -69,7 +70,8 @@ def client_distance(ctx: RunContext) -> Finding | None:
 
 @rule("H04", tags={"reliability", "shape"}, source="26#5")
 def output_length(ctx: RunContext) -> Finding | None:
-    checked = [p for p in ctx.points if p.status == "done"]
+    # Answers kneebench abandons on purpose are short by design.
+    checked = [p for p in ctx.points if p.status == "done" and p.phase != CANCEL_PHASE]
     if not checked:
         return None
     short = []
@@ -225,7 +227,13 @@ def gateway(ctx: RunContext) -> Finding | None:
 
 
 def _timeout_cluster(ctx: RunContext) -> float | None:
-    failed = [r.e2e_ms for p in ctx.points for r in p.requests if not r.ok and r.e2e_ms]
+    failed = [
+        r.e2e_ms
+        for p in ctx.points
+        if p.phase != CANCEL_PHASE
+        for r in p.requests
+        if not r.ok and r.e2e_ms
+    ]
     if len(failed) < 3:
         return None
     median = statistics.median(failed)

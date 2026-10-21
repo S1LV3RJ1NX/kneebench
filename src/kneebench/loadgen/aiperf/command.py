@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from kneebench.loadgen.base import Arrival, Endpoint, LoadMode, PointSpec
+from kneebench.loadgen.texts import rag_prompts
 
 API_KEY_ENV = "KNEEBENCH_AIPERF_API_KEY"
 CONFIG_FILENAME = "aiperf_config.yaml"
@@ -41,7 +42,7 @@ def build_config(endpoint: Endpoint, spec: PointSpec, artifact_dir: Path) -> dic
         "model": endpoint.model,
         "tokenizer": {"name": endpoint.tokenizer},
         "endpoint": endpoint_cfg,
-        "dataset": _schedule_dataset(spec) if spec.schedule else _synthetic_dataset(spec),
+        "dataset": _dataset(spec),
         "phases": _phases(spec),
         "networkLatency": {"enabled": True},
         "artifacts": _artifacts(spec, artifact_dir),
@@ -57,6 +58,27 @@ def build_env(endpoint: Endpoint, base_env: dict[str, str]) -> dict[str, str]:
     if endpoint.api_key:
         env[API_KEY_ENV] = endpoint.api_key
     return env
+
+
+def _dataset(spec: PointSpec) -> dict[str, Any]:
+    if spec.schedule:
+        return _schedule_dataset(spec)
+    if spec.rag_order:
+        return _rag_dataset(spec)
+    return _synthetic_dataset(spec)
+
+
+def _rag_dataset(spec: PointSpec) -> dict[str, Any]:
+    count = (spec.request_count or 0) + (spec.warmup_count or 0)
+    return {
+        "type": "file",
+        "format": "single_turn",
+        "sampling": "sequential",
+        "records": [
+            {"text": text, "output_length": spec.osl}
+            for text in rag_prompts(spec.rag_order or "sorted", max(count, 1), spec.random_seed)
+        ],
+    }
 
 
 def _synthetic_dataset(spec: PointSpec) -> dict[str, Any]:
@@ -118,6 +140,8 @@ def _phases(spec: PointSpec) -> list[dict[str, Any]]:
             profiling["requests"] = spec.request_count
         if spec.duration_s:
             profiling["duration"] = spec.duration_s
+        if spec.cancel_after_s is not None:
+            profiling["cancellation"] = {"rate": 100.0, "delay": spec.cancel_after_s}
     else:
         profiling.update(type=spec.arrival.value, rate=spec.request_rate)
         if spec.arrival is Arrival.GAMMA and spec.burstiness is not None:

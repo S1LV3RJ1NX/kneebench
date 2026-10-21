@@ -5,10 +5,12 @@ from __future__ import annotations
 import platform
 import sys
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from sqlite3 import Connection
+from typing import Any
 
 from kneebench import __version__
 from kneebench.analysis.context import point_from_dict, ttft_offset
@@ -21,12 +23,15 @@ from kneebench.analysis.sweep import (
     steps,
     summarize,
 )
+from kneebench.detect.counters import read_counters
 from kneebench.detect.server import ModelMetadata, ServedModel, ServerSnapshot
 from kneebench.domain import ServerSetup, Slo, Workload
 from kneebench.loadgen.aiperf.overhead import point_overhead_s
-from kneebench.loadgen.aiperf.parse import parse_point
+from kneebench.loadgen.aiperf.parse import all_cancelled, parse_point
 from kneebench.loadgen.base import Endpoint, LoadGenerator, PointResult
 from kneebench.phases.plan import (
+    CANCEL_LINGER_MAX_S,
+    CANCEL_PHASE,
     INTERFERENCE_PHASES,
     REUSE_PHASES,
     SHAPE_MIN_ROUNDS,
@@ -120,13 +125,48 @@ def _resolve_operating_point(
     if planned.spec.turns and planned.spec.turns > 1:
         # Whole conversations: each of c users runs a couple of them back to back.
         requests = max(2 * c, SWEEP_MIN_REQUESTS) * planned.spec.turns
+    if planned.phase == CANCEL_PHASE:
+        requests = max(2 * c, SWEEP_MIN_REQUESTS)
+    cold = planned.phase in REUSE_PHASES or planned.phase == CANCEL_PHASE
     spec = replace(
         planned.spec,
         concurrency=c,
         request_count=requests,
-        warmup_count=0 if planned.phase in REUSE_PHASES else min(c, SWEEP_MAX_WARMUP),
+        warmup_count=0 if cold else min(c, SWEEP_MAX_WARMUP),
     )
     return replace(planned, spec=spec), None
+
+
+def _after_cancel(
+    planned: PlannedPoint,
+    before: dict[str, float],
+    curve: list[SweepPoint],
+    inputs: RunInputs,
+    read: Callable[[Endpoint], dict[str, float] | None],
+    cancel: threading.Event | None,
+    sleep: Callable[[float], None],
+) -> dict[str, Any] | None:
+    """Wait as long as the abandoned answers would take to finish, then read the counters."""
+    spec = planned.spec
+    op = comparison_load(curve, inputs.workload.slo)
+    tpot_ms = (op.tpot.get("p50") if op else None) or 10.0
+    linger_s = min(CANCEL_LINGER_MAX_S, spec.osl * tpot_ms / 1000 + 2.0)
+    if cancel is not None:
+        cancel.wait(linger_s)
+    else:
+        sleep(linger_s)
+    after = read(inputs.endpoint)
+    if after is None:
+        return None
+    return {
+        "before": before,
+        "after": after,
+        "requests": spec.request_count,
+        "cancel_after_s": spec.cancel_after_s,
+        "osl": spec.osl,
+        "tpot_ms": tpot_ms,
+        "linger_s": linger_s,
+    }
 
 
 def _resolve_rate(
@@ -151,6 +191,8 @@ def execute_run(
     on_event: Callable[[PointEvent], None] | None = None,
     on_created: Callable[[int], None] | None = None,
     cancel: threading.Event | None = None,
+    read_counters: Callable[[Endpoint], dict[str, float] | None] = read_counters,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     endpoint_id = repo.upsert_endpoint(conn, inputs.snapshot.base_url)
     snapshot_id = repo.insert_snapshot(
@@ -217,6 +259,13 @@ def execute_run(
                     if on_event:
                         on_event(PointEvent(i, total, planned, skipped=rate_skip))
                     continue
+            before = None
+            if planned.phase == CANCEL_PHASE:
+                before = read_counters(inputs.endpoint)
+                if before is None:
+                    if on_event:
+                        on_event(PointEvent(i, total, planned, skipped="no_metrics"))
+                    continue
             if on_event:
                 on_event(PointEvent(i, total, planned))
             point_id = repo.create_point(conn, run_id, i, planned.phase, planned.spec)
@@ -226,9 +275,18 @@ def execute_run(
                 repo.finish_point(conn, point_id, result, None, None, stop_reason="cancelled")
                 status = "cancelled"
                 break
-            parsed = parse_point(result.artifact_dir) if result.ok else None
+            abandoned = planned.phase == CANCEL_PHASE and all_cancelled(result.artifact_dir)
+            if abandoned:
+                result = replace(result, exit_code=0)
+            parsed = parse_point(result.artifact_dir) if result.ok and not abandoned else None
             overhead = point_overhead_s(result.wall_time_s, result.artifact_dir)
             repo.finish_point(conn, point_id, result, parsed, overhead)
+            if before is not None and result.ok:
+                probe = _after_cancel(
+                    planned, before, curve, inputs, read_counters, cancel, sleep=sleep
+                )
+                if probe is not None:
+                    repo.add_series(conn, point_id, "cancel", probe)
 
             summary = None
             if planned.phase == "baseline" and result.ok:
@@ -262,6 +320,7 @@ def execute_run(
                 *SHAPE_PHASES,
                 *INTERFERENCE_PHASES,
                 *REUSE_PHASES,
+                CANCEL_PHASE,
             ):
                 repo.set_stop_reason(conn, point_id, "point_failed")
                 continue

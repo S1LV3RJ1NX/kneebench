@@ -15,6 +15,7 @@ from kneebench.domain import (
 )
 from kneebench.loadgen.aiperf.overhead import estimate_point_overhead_s
 from kneebench.loadgen.base import Arrival, LoadMode, PointSpec
+from kneebench.loadgen.texts import RAG_PROMPT_LEN
 from kneebench.phases.theory import ShapeTheory, Theory
 from kneebench.physics.floors import requests_that_fit
 
@@ -75,13 +76,22 @@ INTERFERENCE_WINDOW_S = 45.0
 # Lessons 47-48: the same load with prompts that never repeat, one shared system prompt, and
 # six-turn conversations that resend their history. Cache churn (lesson 49) is estimated, not
 # run: proving it needs every prompt to come back after the cache filled, over 1,000 requests.
-REUSE_PHASES = ("reuse_control", "reuse_shared", "reuse_turns")
+REUSE_PHASES = ("reuse_control", "reuse_shared", "reuse_turns", "rag_ranked", "rag_sorted")
 REUSE_PREFIX = 1500  # lesson 47 section 4: 1,500 shared tokens
 REUSE_QUESTION = 100
 REUSE_OSL = 128
 REUSE_SYSTEM = 1000  # lesson 48 section 3: 1,000 system, 100 question, 300 answer, 6 turns
 REUSE_TURN_OSL = 300
 REUSE_TURNS = 6
+# Lesson 36 section 3: users who leave mid-answer. Each answer could run 1,000 tokens; the
+# client hangs up a second after sending, and the server should stop on its next step.
+CANCEL_PHASE = "cancel"
+CANCEL_ISL = 500
+CANCEL_OSL = 1000
+CANCEL_MIN_OSL = 400
+CANCEL_AFTER_S = 1.0
+# After the point, wait for any answers the server kept generating, so the counters see them.
+CANCEL_LINGER_MAX_S = 60.0
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -285,7 +295,7 @@ def plan_run(
         add("baseline", baseline_spec(theory), base_shape)
 
     dropped: list[int] = []
-    for needs_sweep in ("rate", "shape", "interference", "reuse"):
+    for needs_sweep in ("rate", "shape", "interference", "reuse", "cancel"):
         if needs_sweep in phases and "concurrency" not in phases:
             raise ValueError(
                 f"the {needs_sweep} sweep needs the concurrency sweep to find capacity first"
@@ -330,6 +340,8 @@ def plan_run(
             points.extend(_interference_points(theory, slowdown))
         if "reuse" in phases:
             points.extend(_reuse_points(theory, slo or Slo(None, None), slowdown))
+        if "cancel" in phases:
+            points.extend(_cancel_points(theory))
         # Re-measuring the baseline at the end catches a GPU that changed mid-run (B06).
         add("baseline_end", replace(baseline_spec(theory), warmup_count=2), base_shape)
         if budget_s is not None:
@@ -464,6 +476,18 @@ def _reuse_points(theory: Theory, slo: Slo, slowdown: float) -> list[PlannedPoin
                 ),
             )
         )
+    if budget >= RAG_PROMPT_LEN + REUSE_OSL:
+        # Different seeds, so the sorted test can't reuse what the ranked one cached.
+        for phase, order, seed in (("rag_ranked", "ranked", 46), ("rag_sorted", "sorted", 47)):
+            spec = PointSpec(
+                isl=RAG_PROMPT_LEN,
+                osl=REUSE_OSL,
+                cache_bust=False,
+                rag_order=order,
+                random_seed=seed,
+                **common,
+            )
+            specs.append((phase, spec))
     # Each user runs a few requests back to back at the operating point (assume 32 users),
     # with the answer time stretched by load.
     out = []
@@ -473,6 +497,28 @@ def _reuse_points(theory: Theory, slo: Slo, slowdown: float) -> list[PlannedPoin
         eta = rounds * answer_s + estimate_point_overhead_s([], first_launch=False)
         out.append(PlannedPoint(phase, spec, eta, at_operating_point=True))
     return out
+
+
+def _cancel_points(theory: Theory) -> list[PlannedPoint]:
+    """Long answers every user abandons after a second; see CANCEL_PHASE."""
+    budget = context_budget(theory.max_model_len or 32_768)
+    osl = min(CANCEL_OSL, budget - CANCEL_ISL)
+    if osl < CANCEL_MIN_OSL:
+        return []
+    spec = PointSpec(
+        isl=CANCEL_ISL,
+        osl=osl,
+        mode=LoadMode.CONCURRENCY,
+        concurrency=1,
+        request_count=SWEEP_MIN_REQUESTS,
+        duration_s=POINT_DURATION_CAP_S,
+        slice_duration_s=None,
+        cancel_after_s=CANCEL_AFTER_S,
+        random_seed=48,
+    )
+    eta = SWEEP_MIN_REQUESTS * CANCEL_AFTER_S + CANCEL_LINGER_MAX_S
+    eta += estimate_point_overhead_s([], first_launch=False)
+    return [PlannedPoint(CANCEL_PHASE, spec, eta, at_operating_point=True)]
 
 
 def _interference_points(theory: Theory, slowdown: float) -> list[PlannedPoint]:

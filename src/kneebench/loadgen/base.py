@@ -64,6 +64,9 @@ class PointSpec:
     prefix_len: int | None = None  # tokens in each shared prefix
     system_len: int | None = None  # one system prompt shared by every conversation
     turns: int | None = None  # conversation turns; history is resent with real answers
+    rag_order: str | None = None  # "ranked" or "sorted" retrieved passages (loadgen.texts)
+    # Every request is abandoned this long after it is sent (lesson 36 section 3).
+    cancel_after_s: float | None = None
 
     def __post_init__(self) -> None:
         if self.mode is LoadMode.SCHEDULE and not self.schedule:

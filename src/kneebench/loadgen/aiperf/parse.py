@@ -17,6 +17,7 @@ from kneebench.loadgen.aiperf.runner import STDOUT_LOG
 
 SUMMARY_FILE = "profile_export_aiperf.json"
 RECORDS_FILE = "profile_export.jsonl"
+CANCELLED_ERROR = "RequestCancellationError"
 TIMESLICES_FILE = "profile_export_aiperf_timeslices.json"
 SERVER_METRICS_FILE = "server_metrics_export.json"
 
@@ -145,6 +146,19 @@ def _aggregates(summary: dict[str, Any]) -> tuple[dict[str, dict[str, float]], d
             k: float(v) for k, v in value.items() if k != "unit" and isinstance(v, int | float)
         }
     return aggregates, units
+
+
+def all_cancelled(artifact_dir: Path) -> bool:
+    """Every request was abandoned on purpose. AIPerf then exits 1 and writes no summary."""
+    path = artifact_dir / RECORDS_FILE
+    if not path.exists():
+        return False
+    types = [
+        ((json.loads(line).get("error") or {}).get("type"))
+        for line in path.read_text().splitlines()
+        if line.strip()
+    ]
+    return bool(types) and all(t == CANCELLED_ERROR for t in types)
 
 
 def _records(path: Path) -> list[RequestRecord]:

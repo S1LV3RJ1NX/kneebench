@@ -319,6 +319,12 @@ def finish_point(
         raise
 
 
+def add_series(conn: Connection, point_id: int, name: str, data: dict[str, Any]) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO point_series VALUES (?, ?, ?)", (point_id, name, _dumps(data))
+    )
+
+
 def _store_parsed(conn: Connection, point_id: int, parsed: ParsedPoint) -> None:
     conn.executemany(
         "INSERT INTO point_metrics (point_id, metric, stat, value, unit) VALUES (?, ?, ?, ?, ?)",

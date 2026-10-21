@@ -76,6 +76,23 @@ SPECS = {
         system_len=1000,
         turns=6,
     ),
+    "rag": PointSpec(
+        isl=2350,
+        osl=128,
+        mode=LoadMode.CONCURRENCY,
+        concurrency=4,
+        request_count=16,
+        cache_bust=False,
+        rag_order="ranked",
+    ),
+    "cancel": PointSpec(
+        isl=500,
+        osl=1000,
+        mode=LoadMode.CONCURRENCY,
+        concurrency=4,
+        request_count=16,
+        cancel_after_s=1.0,
+    ),
     "gamma": PointSpec(
         isl=1024,
         osl=256,

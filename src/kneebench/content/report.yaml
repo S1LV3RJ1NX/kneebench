@@ -121,6 +121,9 @@ phase_labels:
   reuse_control: the no-reuse control
   reuse_shared: the shared system prompt
   reuse_turns: the multi-turn chats
+  rag_ranked: the passages in ranked order
+  rag_sorted: the passages in document order
+  cancel: the abandoned-request test
 sections:
   verdict: Verdict
   scorecard: Scorecard

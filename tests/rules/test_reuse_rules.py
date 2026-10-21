@@ -57,6 +57,16 @@ def test_p02_turns_stay_flat_with_reuse() -> None:
     assert bad is not None and bad.status is Status.WARN
 
 
+def test_p04_sorted_passages_reuse_more() -> None:
+    ranked = _reuse("rag_ranked", 0.090, 900, 2400)
+    ordered = _reuse("rag_sorted", 0.030, 2300, 2400)
+    f = run_rule("P04", _ctx(ranked, ordered))
+    assert f is not None and f.status is Status.INFO
+    assert f.data["saving"] == 1 - 30 / 90
+    assert f.data["sorted"]["hit_rate"] == 2300 / 2400
+    assert run_rule("P04", _ctx(ranked, ordered, caching=False)) is None
+
+
 def test_p03_counts_prompts_the_cache_holds_in_whole_blocks() -> None:
     c = _ctx(SHARED)
     c = replace(c, theory=replace(c.theory, pool_tokens=160_000, block_size=16))

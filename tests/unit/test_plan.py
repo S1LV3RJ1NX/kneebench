@@ -164,6 +164,12 @@ def test_reuse_points_follow_lessons_47_and_48() -> None:
     plan = plan_run(theory_for(), ("baseline", "concurrency", "reuse"), slo=SLO)
     reuse = {p.phase: p for p in plan.points if p.phase.startswith("reuse")}
     assert set(reuse) == {"reuse_control", "reuse_shared", "reuse_turns"}
+    rag = {p.phase: p.spec for p in plan.points if p.phase.startswith("rag")}
+    assert (rag["rag_ranked"].rag_order, rag["rag_sorted"].rag_order) == ("ranked", "sorted")
+    assert rag["rag_ranked"].random_seed != rag["rag_sorted"].random_seed
+    cancel = plan_run(theory_for(), ("baseline", "concurrency", "cancel"))
+    [abandon] = [p for p in cancel.points if p.phase == "cancel"]
+    assert abandon.at_operating_point and abandon.spec.cancel_after_s == 1.0
     assert all(p.at_operating_point for p in reuse.values())
     assert reuse["reuse_control"].spec.cache_bust and reuse["reuse_control"].spec.isl == 1600
     shared = reuse["reuse_shared"].spec

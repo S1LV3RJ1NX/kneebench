@@ -176,9 +176,9 @@ def run(
     phases: Annotated[
         str,
         typer.Option(
-            help="Comma-separated: baseline, concurrency, rate, shape, interference, reuse"
+            help="Comma-separated: baseline, concurrency, rate, shape, interference, reuse, cancel"
         ),
-    ] = "baseline,concurrency,rate,shape,interference,reuse",
+    ] = "baseline,concurrency,rate,shape,interference,reuse,cancel",
     shapes: Annotated[
         str | None,
         typer.Option(

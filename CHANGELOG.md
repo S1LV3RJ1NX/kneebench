@@ -14,6 +14,12 @@ All notable changes to this project are documented here. The format follows
   hit rate, and suggests `--enable-prefix-caching` when it is off. P02 shows first-token time
   per turn as the history grows. P03 estimates how many distinct system prompts the cache
   holds before reuse collapses (lesson 49).
+- P04: the same retrieved passages in ranked order and sorted by document id, with the
+  reuse and first-token time each gets (lesson 48 section 5).
+- New phase: abandoned requests. Every request asks for a long answer and hangs up after a
+  second; kneebench reads the server's token counters before and after. A01 warns when the
+  server finishes answers nobody is reading, usually a gateway not passing disconnects on
+  (lesson 36 section 3).
 
 ### Added (long-prompt interference)
 - New phase: 32 streaming chats, once alone and once with a long prompt arriving every 10 s

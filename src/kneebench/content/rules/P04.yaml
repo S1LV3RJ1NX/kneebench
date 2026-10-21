@@ -1,0 +1,22 @@
+id: P04
+title: Retrieved passages in a fixed order
+status_line:
+  info: >-
+    The same {{ num(passages) }} retrieved passages reused {{ pct(ranked.hit_rate) }} of the
+    prompt in ranked order and {{ pct(sorted.hit_rate) }} sorted by document
+    {%- if saving is not none and saving > 0 %}, cutting first-token time
+    {{ pct(saving) }} ({{ ms(ranked.ttft_ms) }} to {{ ms(sorted.ttft_ms) }}){% endif %}.
+measured: >-
+  {{ num(concurrency) }} users sent retrieval prompts: {{ num(instructions) }} tokens of
+  instructions, the same {{ num(passages) }} passages of {{ num(passage_len) }} tokens, then a
+  new question each time. Once with the passages shuffled per request, as a retriever's scores
+  would order them, once sorted by document number.
+meaning: >-
+  The cache only reuses a prompt up to the first token that differs. Ordered by score, two
+  requests with the same passages match only until their first passages differ. Sorting
+  retrieved passages by document id before building the prompt lets the server reuse them.
+  Keep the question last for the same reason.
+why: >-
+  A passage's cached state was computed while reading everything before it, so it is only
+  valid after exactly the same text. Changing the order changes what comes before.
+learn_more: {note: "48", anchor: "5-shape-3-retrieval-the-hard-case", label: "Shape 3: retrieval, the hard case"}

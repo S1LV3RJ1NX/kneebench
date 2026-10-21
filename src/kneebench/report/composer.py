@@ -45,7 +45,7 @@ CAPACITY_RULES = (
 )
 # Note 26: the shape map leads; the rest explain why shapes differ.
 # Notes 46-49: what prompt reuse buys.
-REUSE_RULES = ("P01", "P02", "P03")
+REUSE_RULES = ("P01", "P02", "P04", "P03")
 SHAPE_RULES = ("S06", "S01", "S02", "I01", "S03", "S04", "S07", "S05")
 CAVEAT_RULES = ("H06",)
 LIMITER_TEXT = {

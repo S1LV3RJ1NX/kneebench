@@ -83,6 +83,7 @@ def evaluate(ctx: RunContext) -> list[Finding]:
 def _load_rules() -> None:
     from kneebench.analysis.rules import (  # noqa: F401
         baseline,
+        cancel,
         concurrency,
         hygiene,
         interference,
