@@ -16,6 +16,7 @@ OK = "#2e7d32"
 BAD = "#c0392b"
 SECOND = "#6f6b61"
 _GRID = "#ece7db"
+TITLE = "#8a857a"
 _LAYOUT: dict[str, Any] = {
     "template": "simple_white",
     "paper_bgcolor": "rgba(0,0,0,0)",
@@ -94,7 +95,9 @@ def _fig(fig: go.Figure, title: str, **layout: Any) -> dict[str, Any]:
         merged[key] = (
             {**merged[key], **value} if isinstance(value, dict) and key in merged else value
         )
-    fig.update_layout(title={"text": title, "x": 0, "font": {"size": 14, "color": INK}}, **merged)
+    # Charts sit on light and dark cards alike, so titles use a mid tone rather than ink.
+    title_font = {"size": 14, "color": TITLE}
+    fig.update_layout(title={"text": title, "x": 0, "font": title_font}, **merged)
     result: dict[str, Any] = fig.to_plotly_json()
     return result
 

@@ -297,3 +297,4 @@ ul.checks li { padding: 8px 12px; border-radius: var(--radius-sm); margin: 6px 0
 ul.checks li.ok { background: var(--ok-soft); color: var(--ok); }
 ul.checks li.warn { background: var(--warn-soft); color: var(--warn); }
 ul.checks li.bad { background: var(--bad-soft); color: var(--bad); }
+.whatif-form input[type="radio"], .whatif-form input[type="checkbox"] { width: auto; }
