@@ -143,15 +143,12 @@
   
   ## Checks that passed
   
+  - [good] **Time to first token versus its floor** (B03): The server's own metrics put time to first token at about 24.9 ms for a 512-token prompt (2.5× its 9.9 ms floor): normal for a short prompt.
   - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (1 checked).
   - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
   - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
   - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.9 ms per token is consistent with NVIDIA H100 NVL 94GB.
   - [good] **Memory the server reports versus the claimed GPU** (T07): Weights (15.0 GiB) plus the reported cache (65.0 GiB) fit in NVIDIA H100 NVL 94GB at 90% utilization.
-  
-  ## Not checked
-  
-  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -355,15 +352,12 @@
   
   ## Checks that passed
   
+  - [good] **Time to first token versus its floor** (B03): The server's own metrics put time to first token at about 24.9 ms for a 512-token prompt (2.5× its 9.9 ms floor): normal for a short prompt.
   - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (1 checked).
   - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
   - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
   - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.9 ms per token is consistent with NVIDIA H100 NVL 94GB.
   - [good] **Memory the server reports versus the claimed GPU** (T07): Weights (15.0 GiB) plus the reported cache (65.0 GiB) fit in NVIDIA H100 NVL 94GB at 90% utilization.
-  
-  ## Not checked
-  
-  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -567,15 +561,12 @@
   
   ## Checks that passed
   
+  - [good] **Time to first token versus its floor** (B03): The server's own metrics put time to first token at about 24.9 ms for a 512-token prompt (2.5× its 9.9 ms floor): normal for a short prompt.
   - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (1 checked).
   - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
   - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
   - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.9 ms per token is consistent with NVIDIA H100 NVL 94GB.
   - [good] **Memory the server reports versus the claimed GPU** (T07): Weights (15.0 GiB) plus the reported cache (65.0 GiB) fit in NVIDIA H100 NVL 94GB at 90% utilization.
-  
-  ## Not checked
-  
-  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -792,14 +783,11 @@
   
   ## Checks that passed
   
+  - [good] **Time to first token versus its floor** (B03): The server's own metrics put time to first token at about 24.9 ms for a 512-token prompt (3.0× its 8.4 ms floor): normal for a short prompt.
   - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (1 checked).
   - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
   - [good] **Room for a full-length request** (T04): The cache holds 65× full-length (8,192-token) requests: room to spare.
   - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.9 ms per token is consistent with NVIDIA H100 SXM 80GB.
-  
-  ## Not checked
-  
-  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   
   ## What this test can't see
   
@@ -967,13 +955,13 @@
   
   ## Checks that passed
   
+  - [good] **Time to first token versus its floor** (B03): The server's own metrics put time to first token at about 24.9 ms for a 512-token prompt (2.5× its 9.9 ms floor): normal for a short prompt.
   - [good] **Did every answer reach the requested length?** (H04): Every point generated the full requested output length (1 checked).
   - [good] **Versions under test** (H07): vLLM 0.29.0 is within the tested range (0.29.0 up to 0.33.0). Recorded: kneebench 0.0.test, AIPerf 0.13.0.
   - [good] **Measured speed versus the claimed GPU** (T06): Measured 5.9 ms per token is consistent with NVIDIA H100 NVL 94GB.
   
   ## Not checked
   
-  - **Time to first token versus its floor** (B03): The server's time to first token can't be separated from network time from this location (see "Distance between kneebench and the server").
   - **How much memory each token of context takes** (T02): The server didn't report its cache size, so memory limits are estimated rather than measured.
   - **How many requests fit in memory at once** (T03): Not computed: the server didn't report its cache size.
   - **Room for a full-length request** (T04): Not checked: the server didn't report its cache size.

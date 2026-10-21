@@ -1,0 +1,32 @@
+id: E01
+title: Where the first-token time goes
+status_line:
+  info: >-
+    At {{ num(first.concurrency) }} {{ "user" if first.concurrency == 1 else "users" }}, the server
+    itself takes {{ ms(first.engine_ms) }} of the {{ ms(first.client_ms) }} to the first token;
+    {% if queued_from %}from {{ num(queued_from) }} users, waiting in its queue takes longer than
+    reading the prompt{% else %}requests never waited long in its queue{% endif %}.
+measured: >-
+  Two stopwatches on the same requests: kneebench's, from sending to the first token, and vLLM's
+  own, from when the request reached the engine. The gap is the network plus the server's
+  front end (HTTP and tokenization). vLLM also splits its part into time waiting in the queue
+  and time reading the prompt. Its percentiles are estimates from histogram buckets.
+meaning: >-
+  This says which part to fix: a large gap means distance or the front end, a growing queue
+  means the server is admitting requests slower than they arrive, and a long prompt read means
+  {{ term("prefill") }} itself.
+why: >-
+  Time to first token is a sum. The client sees all of it; the engine only sees what happens
+  after the request reaches it. Comparing the two is the only way to tell from outside whether
+  a slow first token is the server's fault.
+learn_more: {note: "30", anchor: "6-two-stopwatches-on-the-same-request", label: "Two stopwatches on the same request"}
+table:
+  rows: rows
+  columns:
+    - {key: concurrency, label: Users, fmt: num}
+    - {key: client_ms, label: TTFT (client), fmt: ms}
+    - {key: engine_ms, label: TTFT (engine), fmt: ms}
+    - {key: outside_ms, label: Network and front end, fmt: ms}
+    - {key: queue_ms, label: Queue P50, fmt: ms}
+    - {key: queue_tail_ms, label: Queue P99, fmt: ms}
+    - {key: prefill_ms, label: Prompt read P50, fmt: ms}

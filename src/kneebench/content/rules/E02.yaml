@@ -1,0 +1,47 @@
+id: E02
+title: Which limit makes requests wait
+status_line:
+  ok: >-
+    Requests didn't queue inside the server up to {{ num(max_tested) }} users: none of its
+    admission limits was reached.
+  info: >-
+    From {{ num(first.concurrency) }} users requests queue inside the server
+    {%- if known %}; {% if known.concurrency != first.concurrency %}by {{ num(known.concurrency) }}
+    users {% endif %}the limit is {% if gate == "max_num_seqs" %}max_num_seqs
+    ({{ num(max_num_seqs) }}): every slot is busy{% elif gate == "kv_cache" %}the KV cache,
+    {{ pct(known.kv_max) }} full{% else %}the token budget per step: the largest steps hold about
+    {{ num(known.step_tokens, 0) }} of about {{ num(budget) }} tokens{% endif %}{% else %}, before
+    any of its three limits is full{% endif %}.
+measured: >-
+  vLLM admits a request only if all three allow it: a free slot under max_num_seqs
+  ({{ num(max_num_seqs) }}{% if seqs_default %}, the default{% endif %}), room in the per-step
+  token budget (about {{ num(budget) }}, the default for your vLLM and GPU), and free cache
+  blocks. The table shows, for each level where requests queued, what the server reported.
+  Percentiles of step size are estimates from its histogram buckets.
+meaning: >-
+  {% if gate == "token_budget" %}Long prompts fill the step budget, so new requests wait for
+  their turn to be read. A bigger budget starts them sooner but makes each step longer, which
+  slows every answer streaming at the time.{% if safe_budget %} At your
+  {{ ms(tpot_target_ms) }} per-token target, a step should carry at most about
+  {{ num(safe_budget) }} prompt tokens; the long-prompt interference test shows whether the
+  current budget breaks that.{% endif %}{% elif gate == "max_num_seqs" %}Every slot is taken; more
+  users only queue. That is the cap doing its job if memory and per-token speed are fine.
+  {%- elif gate == "kv_cache" %}Memory is the limit: see the cache and eviction findings.
+  {%- else %}The wait is inside the engine but no limit is full, so it comes from how the
+  scheduler orders work, for example reading long prompts a few at a time. It grows with
+  load; the first-token findings show whether it matters for your targets.{% endif %}
+why: >-
+  Each engine step, the scheduler fills a budget of tokens: first one token for every request
+  already writing, then chunks of new prompts, while it has slots and cache to give. Whichever
+  runs out first decides who waits.
+learn_more: {note: "35", anchor: "3-how-big-should-the-budget-be", label: "How big should the budget be?"}
+table:
+  rows: rows
+  columns:
+    - {key: concurrency, label: Users, fmt: num}
+    - {key: gate_label, label: Limit}
+    - {key: running_max, label: Running (max), fmt: num0}
+    - {key: waiting_max, label: Waiting (max), fmt: num0}
+    - {key: step_tokens, label: Step tokens P99, fmt: num0}
+    - {key: kv_max, label: Cache peak, fmt: pct}
+    - {key: queue_tail_ms, label: Queue P99, fmt: ms}

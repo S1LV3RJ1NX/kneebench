@@ -93,6 +93,12 @@ class PointView:
             "avg": sum(values) / len(values),
         }
 
+    def engine_ms(self, signal: str, stat: str = "p50") -> float | None:
+        """A vLLM engine histogram in milliseconds; percentiles are bucket estimates."""
+        key = f"{stat}_estimate" if stat.startswith("p") else stat
+        value = self.server_stat(signal, key)
+        return value * 1000 if value is not None else None
+
     def server_stat(self, signal: str, stat: str) -> float | None:
         for name in metric_names(signal):
             if name in self.server and stat in self.server[name]:
@@ -174,7 +180,14 @@ class RunContext:
     def ttft_offset_ms(self) -> float:
         """Network time taken off every first token (see `ttft_offset`)."""
         base = self.theory.shape("baseline")
-        return ttft_offset(self.http_rtt_ms, self.baseline, base.ttft_floor_ms if base else None)
+        offset = ttft_offset(self.http_rtt_ms, self.baseline, base.ttft_floor_ms if base else None)
+        # The engine's own first-token time is a floor for what the network can have hidden.
+        b = self.baseline
+        client = b.m("time_to_first_token", "p50") if b else None
+        engine = b.engine_ms("engine_ttft") if b else None
+        if client is not None and engine is not None:
+            offset = min(offset, max(0.0, client - engine))
+        return offset
 
     def server_ttft_ms(self, point: PointView, stat: str = "p50") -> float | None:
         """TTFT with the network round trip removed, or None when the network dominates."""

@@ -158,6 +158,7 @@ def sweep_point(
     stop_reason: str | None = None,
     phase: str = "concurrency",
     ttft_p50: float | None = None,
+    engine: dict[str, dict[str, float]] | None = None,
 ) -> PointView:
     """A concurrency point whose steady-state throughput works out to about `tok_s`."""
     e2e_s = concurrency * osl / tok_s
@@ -181,6 +182,7 @@ def sweep_point(
     server["vllm:num_requests_running"] = {
         "max": running_max if running_max is not None else float(concurrency)
     }
+    server.update(engine or {})
     metrics = {
         "inter_token_latency": {
             "p50": tpot_p50,
@@ -525,3 +527,18 @@ def shape_sweep(bend: float = 1.0, op: int = 32) -> tuple[PointView, ...]:
             )
         )
     return tuple(pts)
+
+
+def engine_metrics(
+    ttft_s: float, queue_p50_s: float, queue_p99_s: float, prefill_s: float, step_p99: float
+) -> dict[str, dict[str, float]]:
+    """vLLM's own histograms as AIPerf summarizes them (seconds; bucket-estimated percentiles)."""
+    return {
+        "vllm:time_to_first_token_seconds": {"p50_estimate": ttft_s},
+        "vllm:request_queue_time_seconds": {
+            "p50_estimate": queue_p50_s,
+            "p99_estimate": queue_p99_s,
+        },
+        "vllm:request_prefill_time_seconds": {"p50_estimate": prefill_s},
+        "vllm:iteration_tokens_total": {"p99_estimate": step_p99},
+    }

@@ -85,6 +85,11 @@ def ttft_odd_one_out(ctx: RunContext) -> Finding | None:
     if base is None or shape is None:
         return None
     server_ttft = ctx.server_ttft_ms(base)
+    from_engine = False
+    if server_ttft is None:
+        # Too far away to subtract the network reliably; the server's own metrics still know.
+        server_ttft = base.engine_ms("engine_ttft")
+        from_engine = server_ttft is not None
     if server_ttft is None:
         return skip(
             "B03",
@@ -94,6 +99,7 @@ def ttft_odd_one_out(ctx: RunContext) -> Finding | None:
         )
     ratio = server_ttft / shape.ttft_floor_ms
     data = {
+        "from_engine": from_engine,
         "server_ttft_ms": server_ttft,
         "floor_ms": shape.ttft_floor_ms,
         "ratio": ratio,

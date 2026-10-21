@@ -36,3 +36,10 @@ metric_names:
   prefix_cache_queries: ["vllm:prefix_cache_queries", "vllm:prefix_cache_queries_total",
                          "vllm:gpu_prefix_cache_queries"]
   cache_config: ["vllm:cache_config_info"]
+  # Engine-side histograms (seconds) and step sizes, read for where time goes (lesson 30).
+  engine_ttft: ["vllm:time_to_first_token_seconds"]
+  queue_time: ["vllm:request_queue_time_seconds"]
+  prefill_time: ["vllm:request_prefill_time_seconds"]
+  decode_time: ["vllm:request_decode_time_seconds"]
+  engine_itl: ["vllm:inter_token_latency_seconds", "vllm:time_per_output_token_seconds"]
+  iteration_tokens: ["vllm:iteration_tokens_total", "vllm:iteration_tokens"]

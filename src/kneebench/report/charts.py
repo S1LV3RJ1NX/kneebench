@@ -56,6 +56,7 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         ("S03", _output_e2e),
         ("S04", _output_slots),
         ("S06", _shape_map),
+        ("E01", _ttft_split),
     )
     for rule_id, build in builders:
         data = _data(report, rule_id)
@@ -705,4 +706,43 @@ def _shape_map(d: dict[str, Any]) -> dict[str, Any] | None:
         xaxis={"title": "Shape (prompt/output tokens)", "type": "category"},
         yaxis={"title": "Time per output token (ms)", "rangemode": "tozero"},
         showlegend=False,
+    )
+
+
+# ---- engine view ----
+
+
+def _ttft_split(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if len(rows) < 2:
+        return None
+    labels = [f"{r['concurrency']}" for r in rows]
+    parts = (
+        ("Network and front end", [r["outside_ms"] for r in rows], MUTED),
+        ("Waiting in the queue", [r["queue_ms"] for r in rows], BAD),
+        ("Reading the prompt", [r["prefill_ms"] or 0 for r in rows], ACCENT),
+        (
+            "Other engine time",
+            [
+                max(0.0, r["engine_ms"] - (r["queue_ms"] or 0) - (r["prefill_ms"] or 0))
+                for r in rows
+            ],
+            SECOND,
+        ),
+    )
+    fig = go.Figure()
+    for name, ys, color in parts:
+        fig.add_bar(
+            x=labels,
+            y=ys,
+            name=name,
+            marker_color=color,
+            hovertemplate="%{x} users: %{y:,.0f} ms<extra>" + name + "</extra>",
+        )
+    return _fig(
+        fig,
+        "Median time to first token, split by where it is spent",
+        barmode="stack",
+        xaxis={"title": "Users in flight", "type": "category"},
+        yaxis={"title": "Milliseconds", "rangemode": "tozero"},
     )

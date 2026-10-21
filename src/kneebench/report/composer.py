@@ -29,6 +29,7 @@ CHARTED_OK_IN_CONTEXT = ("B01", "B04")
 # Findings that describe the load curve and its walls get their own section.
 CAPACITY_RULES = (
     "W03",
+    "E02",
     "C02",
     "R01",
     "W02",
@@ -40,6 +41,7 @@ CAPACITY_RULES = (
     "W05",
     "W09",
     "W08",
+    "E01",
 )
 # Note 26: the shape map leads; the rest explain why shapes differ.
 SHAPE_RULES = ("S06", "S01", "S02", "S03", "S04", "S07", "S05")

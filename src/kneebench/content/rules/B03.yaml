@@ -2,17 +2,21 @@ id: B03
 title: Time to first token versus its floor
 status_line:
   ok: >-
-    Time to first token without the network is about {{ ms(server_ttft_ms) }} for a {{ num(isl) }}-token
+    {% if from_engine %}The server's own metrics put time to first token at{% else %}Time to first
+    token without the network is{% endif %} about {{ ms(server_ttft_ms) }} for a {{ num(isl) }}-token
     prompt ({{ times(ratio) }} its {{ ms(floor_ms) }} floor): normal for a short prompt.
   warn: >-
-    Time to first token without the network is {{ ms(server_ttft_ms) }}, {{ times(ratio) }} its floor,
+    {% if from_engine %}The server's own metrics put time to first token at{% else %}Time to first
+    token without the network is{% endif %} {{ ms(server_ttft_ms) }}, {{ times(ratio) }} its floor,
     while per-token speed is fine.
   skip: >-
     The server's time to first token can't be separated from network time from this location (see
     "Distance between kneebench and the server").
 measured: >-
-  Median {{ term("TTFT") }} with the network round trip removed: {{ ms(server_ttft_ms) }}.
-  Floor: {{ ms(floor_ms) }}.
+  {% if from_engine %}Median {{ term("TTFT") }} from vLLM's own first-token histogram (an estimate
+  from its buckets), because the network from here is too large to subtract:
+  {{ ms(server_ttft_ms) }}.{% else %}Median {{ term("TTFT") }} with the network round trip
+  removed: {{ ms(server_ttft_ms) }}.{% endif %} Floor: {{ ms(floor_ms) }}.
 meaning:
   ok: Prefill is behaving normally.
   warn: >-
