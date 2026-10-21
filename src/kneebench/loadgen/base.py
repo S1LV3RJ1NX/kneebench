@@ -58,6 +58,12 @@ class PointSpec:
     random_seed: int = 42
     # (send at ms, prompt tokens, output tokens) per request, for LoadMode.SCHEDULE.
     schedule: tuple[tuple[int, int, int], ...] = ()
+    # Prompt reuse (lessons 46-49). By default every prompt starts uniquely (cache_bust).
+    cache_bust: bool = True
+    prefix_pool: int | None = None  # this many shared prefixes, one picked per request
+    prefix_len: int | None = None  # tokens in each shared prefix
+    system_len: int | None = None  # one system prompt shared by every conversation
+    turns: int | None = None  # conversation turns; history is resent with real answers
 
     def __post_init__(self) -> None:
         if self.mode is LoadMode.SCHEDULE and not self.schedule:

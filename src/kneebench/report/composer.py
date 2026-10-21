@@ -44,6 +44,8 @@ CAPACITY_RULES = (
     "E01",
 )
 # Note 26: the shape map leads; the rest explain why shapes differ.
+# Notes 46-49: what prompt reuse buys.
+REUSE_RULES = ("P01", "P02", "P03")
 SHAPE_RULES = ("S06", "S01", "S02", "I01", "S03", "S04", "S07", "S05")
 CAVEAT_RULES = ("H06",)
 LIMITER_TEXT = {
@@ -90,6 +92,7 @@ class Report:
     problems: list[RenderedFinding]
     capacity: list[RenderedFinding]
     shapes: list[RenderedFinding]
+    reuse: list[RenderedFinding]
     context: list[RenderedFinding]
     passed: list[RenderedFinding]
     skipped: list[RenderedFinding]
@@ -206,16 +209,24 @@ def compose(
         # The map is the overview, so it stays on top whatever the profile.
         key=lambda f: (f.rule_id != "S06", -_weight(f, product), SHAPE_RULES.index(f.rule_id)),
     )
+    reuse_f = [
+        f
+        for rid in REUSE_RULES
+        for f in findings
+        if f.rule_id == rid and f.status in (Status.INFO, Status.OK)
+    ]
     problem_ids = {f.rule_id for f in problems_f}
     # Render in reading order so each term is defined where it first appears.
     problems = [render_finding(f, common, env) for f in problems_f]
     capacity_r = [render_finding(f, common, env) for f in capacity_f]
     shapes_r = [render_finding(f, common, env) for f in shapes_f]
+    reuse_r = [render_finding(f, common, env) for f in reuse_f]
     context_r = [render_finding(f, common, env) for f in context_f]
     shown = (
         problem_ids
         | {f.rule_id for f in capacity_f}
         | {f.rule_id for f in shapes_f}
+        | {f.rule_id for f in reuse_f}
         | {f.rule_id for f in charted_ok}
     )
     passed = [
@@ -266,6 +277,7 @@ def compose(
         problems=problems,
         capacity=capacity_r,
         shapes=shapes_r,
+        reuse=reuse_r,
         context=context_r,
         passed=passed,
         skipped=skipped,

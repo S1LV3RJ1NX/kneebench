@@ -43,3 +43,5 @@ metric_names:
   decode_time: ["vllm:request_decode_time_seconds"]
   engine_itl: ["vllm:inter_token_latency_seconds", "vllm:time_per_output_token_seconds"]
   iteration_tokens: ["vllm:iteration_tokens_total", "vllm:iteration_tokens"]
+  prompt_tokens: ["vllm:prompt_tokens", "vllm:prompt_tokens_total"]
+  prompt_tokens_cached: ["vllm:prompt_tokens_cached", "vllm:prompt_tokens_cached_total"]

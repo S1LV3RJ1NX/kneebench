@@ -98,6 +98,10 @@ def render_markdown(report: Report) -> str:
         out += [f"## {s['shapes']}", ""]
         for f in report.shapes:
             out += _finding(f)
+    if report.reuse:
+        out += [f"## {s['reuse']}", ""]
+        for f in report.reuse:
+            out += _finding(f)
     if report.context:
         out += [f"## {s['context']}", ""]
         for f in report.context:

@@ -1,0 +1,43 @@
+id: P01
+title: What a shared system prompt saves
+status_line:
+  ok: >-
+    With a shared {{ num(prefix_len) }}-token system prompt, first-token time
+    {% if saving and saving > 0 %}drops {{ pct(saving) }} ({{ ms(control.ttft_ms) }} to
+    {{ ms(shared.ttft_ms) }}){% else %}stays about the same ({{ ms(shared.ttft_ms) }}){% endif %};
+    the server reused {{ pct(shared.hit_rate) }} of prompt blocks.
+  warn: >-
+    {% if case == "off" %}Prefix caching is off: a shared {{ num(prefix_len) }}-token system
+    prompt is read again for every request ({{ ms(shared.ttft_ms) }} to the first token, against
+    {{ ms(control.ttft_ms) }} with nothing shared).{% else %}The server reused only
+    {{ pct(shared.hit_rate) }} of prompt blocks even though every request started with the same
+    {{ num(prefix_len) }} tokens.{% endif %}
+measured: >-
+  The same load ({{ num(control.concurrency) }} users) twice: once with prompts that never
+  repeat, once where every prompt starts with one {{ num(prefix_len) }}-token system prompt
+  followed by a different {{ num(question_len) }}-token question. First-token times are
+  {% if shared.from_engine %}the server's own (from vLLM's histogram){% else %}with the network
+  removed{% endif %}; the hit rate is the share of prompt blocks the server found already
+  cached.
+meaning:
+  ok: >-
+    If your product sends the same instructions or tools with every request, keep them at the
+    very start and byte-for-byte identical: the server skips reading them again.
+  warn: >-
+    {% if case == "off" %}Every request pays to read text the server has already read. Turning
+    on prefix caching lets it reuse that work.{% else %}Something breaks the match: a value that
+    changes near the start of the prompt, different replicas behind a load balancer, or a cache
+    too small for the load.{% endif %}
+why: >-
+  The server keeps the attention state of whole blocks of identical tokens from the start of a
+  prompt and reuses them for the next request that starts the same way. It still reads the
+  rest and writes every answer token, so first-token time falls by less than the hit rate.
+learn_more: {note: "47", anchor: "4-what-it-buys-and-what-it-doesnt", label: "What it buys, and what it doesn't"}
+actions:
+  - when: [warn]
+    kind: server
+    title: Turn on prefix caching
+    flag: "{% if case == 'off' %}--enable-prefix-caching{% endif %}"
+    expected: First-token time for requests that share a long start drops; answers stream as before.
+    risk: A little memory goes to keeping finished prompts around; it is reclaimed under load.
+    verify: Rerun the prompt-reuse test and check the hit rate.

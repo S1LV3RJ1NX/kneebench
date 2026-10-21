@@ -10,6 +10,7 @@
     {% if report.next_steps %}<a href="#next">{{ s.next }}</a>{% endif %}
     {% if report.capacity %}<a href="#capacity">{{ s.capacity }}</a>{% endif %}
     {% if report.shapes %}<a href="#shapes">{{ s.shapes }}</a>{% endif %}
+    {% if report.reuse %}<a href="#reuse">{{ s.reuse }}</a>{% endif %}
     {% if report.context %}<a href="#context">{{ s.context }}</a>{% endif %}
     {% if report.passed %}<a href="#passed">{{ s.passed }} <span class="count">{{ report.passed | length }}</span></a>{% endif %}
     {% if report.skipped %}<a href="#skipped">{{ s.skipped }}</a>{% endif %}
@@ -85,6 +86,10 @@
 {% if report.shapes %}
 <h2 id="shapes">{{ s.shapes }}</h2>
 {% for f in report.shapes %}{% with open = f.rule_id == "S06" %}{% include "_finding.html" %}{% endwith %}{% endfor %}
+{% endif %}
+{% if report.reuse %}
+<h2 id="reuse">{{ s.reuse }}</h2>
+{% for f in report.reuse %}{% with open = f.rule_id == "P01" %}{% include "_finding.html" %}{% endwith %}{% endfor %}
 {% endif %}
 
 {% if report.context %}

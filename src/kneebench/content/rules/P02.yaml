@@ -1,0 +1,33 @@
+id: P02
+title: Multi-turn chats reuse their history
+status_line:
+  ok: >-
+    Over {{ num(turns) }} turns the prompt grows {{ times(prompt_growth) }} (to
+    {{ num(last_isl, 0) }} tokens) but first-token time does not ({{ ms(first_ttft_ms) }} on
+    the first turn, {{ ms(last_ttft_ms) }} on the last): the server reads only each new
+    message.
+  warn: >-
+    Over {{ num(turns) }} turns first-token time grows {{ times(ttft_growth) }}
+    ({{ ms(first_ttft_ms) }} to {{ ms(last_ttft_ms) }}) along with the prompt: the server reads
+    the whole history again every turn.
+measured: >-
+  {{ num(concurrency) }} users each held {{ num(turns) }}-turn conversations: a shared system
+  prompt, a short question per turn, and the model's real answer added to the history before
+  the next turn, exactly as a chat app resends it. First-token times have the network removed.
+meaning:
+  ok: >-
+    Long conversations stay responsive as long as each turn resends the history unchanged.
+    Trimming or rewriting earlier turns breaks the match from that point on.
+  warn: >-
+    Long conversations get slower every turn. Check that prefix caching is on and that
+    requests from one conversation reach the same server.
+why: >-
+  Without reuse, turn six reads the system prompt and all five earlier exchanges again; with
+  it, the server already holds their attention state and reads only the new question.
+learn_more: {note: "48", anchor: "3-shape-2-the-conversation", label: "Shape 2: the conversation"}
+table:
+  rows: rows
+  columns:
+    - {key: turn, label: Turn, fmt: num}
+    - {key: isl, label: Prompt tokens, fmt: num0}
+    - {key: ttft_ms, label: TTFT P50, fmt: ms}

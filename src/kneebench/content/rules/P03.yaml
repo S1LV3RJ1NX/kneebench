@@ -1,0 +1,21 @@
+id: P03
+title: How many different prompts the cache holds
+status_line:
+  info: >-
+    At {{ num(concurrency) }} users the cache has room for about {{ num(held) }} different
+    {{ num(prefix_len) }}-token system prompts; rotate through more and reuse drops to almost
+    nothing.
+measured: >-
+  Not a test: a kneebench estimate. The server's {{ num(pool_tokens) }}-token cache, minus what
+  {{ num(concurrency) }} running requests need, divided by one
+  {{ num(prefix_len) }}-token prompt in whole cache blocks.
+meaning:
+  info: >-
+    Every prompt version, tenant variant or A/B arm is its own cache entry. Below this count
+    they all stay cached; above it the server keeps evicting the one it needs next. Fewer
+    variants, or routing each variant to the same replica, keeps reuse high.
+why: >-
+  The cache evicts the least recently used blocks when it fills. When prompts come back in a
+  cycle, that is always the one needed next, so reuse falls to near zero as soon as the set no
+  longer fits, not gradually.
+learn_more: {note: "49", anchor: "6-cache-churn", label: "Cache churn"}

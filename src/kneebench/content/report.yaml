@@ -118,12 +118,16 @@ phase_labels:
   shape_map: the shape map
   interference_base: the streams alone
   interference: the long-prompt interference test
+  reuse_control: the no-reuse control
+  reuse_shared: the shared system prompt
+  reuse_turns: the multi-turn chats
 sections:
   verdict: Verdict
   scorecard: Scorecard
   problems: What needs attention
   capacity: How much load it takes
   shapes: How request size changes things
+  reuse: What prompt reuse buys
   context: What the hardware allows
   passed: Checks that passed
   skipped: Not checked

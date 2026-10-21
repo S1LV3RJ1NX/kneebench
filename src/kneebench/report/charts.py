@@ -59,6 +59,8 @@ def charts(report: Report) -> dict[str, list[dict[str, Any]]]:
         ("S06", _shape_map),
         ("E01", _ttft_split),
         ("I01", _interference),
+        ("P01", _shared_prompt),
+        ("P02", _turns),
     )
     for rule_id, build in builders:
         data = _data(report, rule_id)
@@ -777,4 +779,70 @@ def _interference(d: dict[str, Any]) -> dict[str, Any] | None:
         "Longest gap between streamed chunks; dotted lines are long prompts arriving",
         xaxis={"title": "Seconds into the test"},
         yaxis={"title": "Milliseconds", "rangemode": "tozero"},
+    )
+
+
+# ---- prompt reuse ----
+
+
+def _shared_prompt(d: dict[str, Any]) -> dict[str, Any] | None:
+    a, b = d.get("control"), d.get("shared")
+    if not a or not b or a.get("ttft_ms") is None or b.get("ttft_ms") is None:
+        return None
+    fig = go.Figure()
+    fig.add_bar(
+        x=["Nothing shared", f"Shared {d.get('prefix_len') or ''}-token system prompt"],
+        y=[a["ttft_ms"], b["ttft_ms"]],
+        marker_color=[MUTED, ACCENT],
+        text=[
+            "",
+            f"{b['hit_rate']:.0%} of blocks reused" if b.get("hit_rate") is not None else "",
+        ],
+        textposition="outside",
+        hovertemplate="%{x}: %{y:,.0f} ms<extra></extra>",
+    )
+    return _fig(
+        fig,
+        f"Median time to first token at {a.get('concurrency')} users",
+        xaxis={"type": "category"},
+        yaxis={"title": "Milliseconds", "rangemode": "tozero"},
+        showlegend=False,
+    )
+
+
+def _turns(d: dict[str, Any]) -> dict[str, Any] | None:
+    rows = d.get("rows") or []
+    if len(rows) < 2:
+        return None
+    turns = [r["turn"] for r in rows]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=turns,
+        y=[r["ttft_ms"] for r in rows],
+        mode="lines+markers",
+        name="Time to first token",
+        line={"color": ACCENT, "width": 2.5},
+        hovertemplate="turn %{x}: %{y:,.0f} ms<extra></extra>",
+    )
+    fig.add_bar(
+        x=turns,
+        y=[r["isl"] for r in rows],
+        name="Prompt tokens",
+        marker_color=MUTED,
+        opacity=0.5,
+        yaxis="y2",
+        hovertemplate="turn %{x}: %{y:,.0f} tokens<extra></extra>",
+    )
+    return _fig(
+        fig,
+        "Each turn resends the history: prompt grows, first-token time should not",
+        xaxis={"title": "Turn", "dtick": 1},
+        yaxis={"title": "Median time to first token (ms)", "rangemode": "tozero"},
+        yaxis2={
+            "title": "Prompt tokens",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+            "showgrid": False,
+        },
     )

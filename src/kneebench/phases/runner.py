@@ -28,6 +28,7 @@ from kneebench.loadgen.aiperf.parse import parse_point
 from kneebench.loadgen.base import Endpoint, LoadGenerator, PointResult
 from kneebench.phases.plan import (
     INTERFERENCE_PHASES,
+    REUSE_PHASES,
     SHAPE_MIN_ROUNDS,
     SHAPE_PHASES,
     SHAPE_POINT_TARGET_S,
@@ -115,11 +116,15 @@ def _resolve_operating_point(
     # at least two rounds so there is a steady-state window.
     e2e_s = ((op.tpot.get("p50") or 10.0) * planned.spec.osl) / 1000
     rounds = max(SHAPE_MIN_ROUNDS, min(SWEEP_ROUNDS, int(SHAPE_POINT_TARGET_S / e2e_s)))
+    requests = max(rounds * c, SWEEP_MIN_REQUESTS)
+    if planned.spec.turns and planned.spec.turns > 1:
+        # Whole conversations: each of c users runs a couple of them back to back.
+        requests = max(2 * c, SWEEP_MIN_REQUESTS) * planned.spec.turns
     spec = replace(
         planned.spec,
         concurrency=c,
-        request_count=max(rounds * c, SWEEP_MIN_REQUESTS),
-        warmup_count=min(c, SWEEP_MAX_WARMUP),
+        request_count=requests,
+        warmup_count=0 if planned.phase in REUSE_PHASES else min(c, SWEEP_MAX_WARMUP),
     )
     return replace(planned, spec=spec), None
 
@@ -253,7 +258,11 @@ def execute_run(
                 rate_stopped = "point_failed"
                 repo.set_stop_reason(conn, point_id, rate_stopped)
                 continue
-            if not result.ok and planned.phase in (*SHAPE_PHASES, *INTERFERENCE_PHASES):
+            if not result.ok and planned.phase in (
+                *SHAPE_PHASES,
+                *INTERFERENCE_PHASES,
+                *REUSE_PHASES,
+            ):
                 repo.set_stop_reason(conn, point_id, "point_failed")
                 continue
             if not result.ok:

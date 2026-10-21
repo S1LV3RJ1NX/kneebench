@@ -87,6 +87,7 @@ def _load_rules() -> None:
         hygiene,
         interference,
         rate,
+        reuse,
         scheduler,
         shape,
         theory,

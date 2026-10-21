@@ -50,3 +50,21 @@ def test_bundled_chunks_dont_count_as_gaps() -> None:
     s = stream_summary([_stream(0.0, gaps)])
     assert s is not None
     assert s["p50_ms"] == 20.0 and s["stalls"] == 0
+
+
+def test_turn_summary_medians_per_turn() -> None:
+    from kneebench.loadgen.aiperf.parse import turn_summary
+
+    records = [
+        RequestRecord("profiling", 0, NS, 50.0 + t, 10.0, 1000.0, 1100 + 400 * t, 300, turn=t)
+        for t in range(3)
+        for _ in range(4)
+    ]
+    s = turn_summary(records)
+    assert s is not None
+    assert [(t["turn"], t["isl"], t["ttft_ms"]) for t in s["turns"]] == [
+        (1, 1100.0, 50.0),
+        (2, 1500.0, 51.0),
+        (3, 1900.0, 52.0),
+    ]
+    assert turn_summary(records[:4]) is None  # one turn: nothing to compare

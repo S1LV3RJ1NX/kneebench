@@ -175,8 +175,10 @@ def run(
     label: Annotated[str | None, typer.Option(help="A note to tell runs apart")] = None,
     phases: Annotated[
         str,
-        typer.Option(help="Comma-separated: baseline, concurrency, rate, shape, interference"),
-    ] = "baseline,concurrency,rate,shape,interference",
+        typer.Option(
+            help="Comma-separated: baseline, concurrency, rate, shape, interference, reuse"
+        ),
+    ] = "baseline,concurrency,rate,shape,interference,reuse",
     shapes: Annotated[
         str | None,
         typer.Option(
@@ -261,7 +263,8 @@ def run(
             )
         elif ev.result is None:
             console.print(
-                f"[{ev.index + 1}/{ev.total}] {ev.planned.phase}: {spec.isl} in / "
+                f"[{ev.index + 1}/{ev.total}] {ev.planned.phase}: "
+                f"{spec.isl + (spec.prefix_len or spec.system_len or 0)} in / "
                 f"{spec.osl} out, concurrency {spec.concurrency}, "
                 f"~{ev.planned.eta_s:.0f} s…"
             )

@@ -41,6 +41,7 @@ class RequestRecord:
     connect_ms: float | None = None
     # Time between consecutive streamed chunks after the first token (ms).
     chunk_gaps_ms: tuple[float, ...] = ()
+    turn: int = 0  # 0-based turn within a multi-turn conversation
 
     @property
     def ok(self) -> bool:
@@ -172,6 +173,7 @@ def _records(path: Path) -> list[RequestRecord]:
                     error_code=_error_code(error),
                     connect_ms=_connect_ms(metrics),
                     chunk_gaps_ms=_gaps(metrics),
+                    turn=int(meta.get("turn_index") or 0),
                 )
             )
     return out
@@ -358,4 +360,34 @@ def stream_summary(requests: list[RequestRecord]) -> dict[str, Any] | None:
             }
             for r in sorted(injected, key=lambda r: r.start_ns)
         ],
+    }
+
+
+def turn_summary(requests: list[RequestRecord]) -> dict[str, Any] | None:
+    """Median prompt length and first-token time for each turn of the conversations.
+
+    With prefix caching, each turn only reads its new message: first-token time stays flat
+    while the prompt grows (lesson 48 section 3).
+    """
+    by_turn: dict[int, list[RequestRecord]] = {}
+    for r in requests:
+        if r.ok and r.ttft_ms is not None:
+            by_turn.setdefault(r.turn, []).append(r)
+    if len(by_turn) < 2:
+        return None
+
+    def median(values: list[float]) -> float:
+        ordered = sorted(values)
+        return ordered[len(ordered) // 2]
+
+    return {
+        "turns": [
+            {
+                "turn": t + 1,
+                "requests": len(rs),
+                "isl": median([float(r.isl or 0) for r in rs]),
+                "ttft_ms": median([r.ttft_ms or 0.0 for r in rs]),
+            }
+            for t, rs in sorted(by_turn.items())
+        ]
     }

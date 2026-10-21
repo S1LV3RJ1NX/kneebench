@@ -158,3 +158,15 @@ def test_refine_rate_bisects_the_pass_fail_gap() -> None:
     assert refine_rate([*results, (3.3, True), (3.45, False)], 4.0) is None  # gap under 5%
     assert refine_rate([(1.0, True), (2.0, True)], 4.0) is None  # nothing failed
     assert refine_rate([(1.0, False)], 4.0) == 0.5  # even the lowest rate failed
+
+
+def test_reuse_points_follow_lessons_47_and_48() -> None:
+    plan = plan_run(theory_for(), ("baseline", "concurrency", "reuse"), slo=SLO)
+    reuse = {p.phase: p for p in plan.points if p.phase.startswith("reuse")}
+    assert set(reuse) == {"reuse_control", "reuse_shared", "reuse_turns"}
+    assert all(p.at_operating_point for p in reuse.values())
+    assert reuse["reuse_control"].spec.cache_bust and reuse["reuse_control"].spec.isl == 1600
+    shared = reuse["reuse_shared"].spec
+    assert not shared.cache_bust and (shared.prefix_pool, shared.prefix_len) == (1, 1500)
+    turns = reuse["reuse_turns"].spec
+    assert (turns.system_len, turns.turns, turns.osl) == (1000, 6, 300)

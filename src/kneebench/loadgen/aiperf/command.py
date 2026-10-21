@@ -41,18 +41,7 @@ def build_config(endpoint: Endpoint, spec: PointSpec, artifact_dir: Path) -> dic
         "model": endpoint.model,
         "tokenizer": {"name": endpoint.tokenizer},
         "endpoint": endpoint_cfg,
-        "dataset": _schedule_dataset(spec)
-        if spec.schedule
-        else {
-            "type": "synthetic",
-            "entries": _dataset_entries(spec),
-            "prompts": {
-                "isl": {"mean": spec.isl, "stddev": spec.isl_stddev},
-                "osl": {"mean": spec.osl, "stddev": spec.osl_stddev},
-                # Unique prefix per request so prefix caching can't flatter TTFT (note 25).
-                "cacheBust": {"target": "first_turn_prefix"},
-            },
-        },
+        "dataset": _schedule_dataset(spec) if spec.schedule else _synthetic_dataset(spec),
         "phases": _phases(spec),
         "networkLatency": {"enabled": True},
         "artifacts": _artifacts(spec, artifact_dir),
@@ -68,6 +57,29 @@ def build_env(endpoint: Endpoint, base_env: dict[str, str]) -> dict[str, str]:
     if endpoint.api_key:
         env[API_KEY_ENV] = endpoint.api_key
     return env
+
+
+def _synthetic_dataset(spec: PointSpec) -> dict[str, Any]:
+    prompts: dict[str, Any] = {
+        "isl": {"mean": spec.isl, "stddev": spec.isl_stddev},
+        "osl": {"mean": spec.osl, "stddev": spec.osl_stddev},
+    }
+    if spec.cache_bust:
+        # Unique prefix per request so prefix caching can't flatter TTFT (note 25).
+        prompts["cacheBust"] = {"target": "first_turn_prefix"}
+    dataset: dict[str, Any] = {
+        "type": "synthetic",
+        "entries": _dataset_entries(spec),
+        "prompts": prompts,
+    }
+    if spec.prefix_pool and spec.prefix_len:
+        dataset["prefixPrompts"] = {"poolSize": spec.prefix_pool, "length": spec.prefix_len}
+    elif spec.system_len:
+        dataset["prefixPrompts"] = {"sharedSystemLength": spec.system_len}
+    if spec.turns and spec.turns > 1:
+        dataset["turns"] = spec.turns
+        dataset["turnDelay"] = 0
+    return dataset
 
 
 def _schedule_dataset(spec: PointSpec) -> dict[str, Any]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import Any
 
 from kneebench.domain import (
     LENGTH_VARIATION,
@@ -71,6 +72,16 @@ INTERFERENCE_ISL = 8192
 INTERFERENCE_OSL = 16
 # Answers must still be streaming after the last long prompt.
 INTERFERENCE_WINDOW_S = 45.0
+# Lessons 47-48: the same load with prompts that never repeat, one shared system prompt, and
+# six-turn conversations that resend their history. Cache churn (lesson 49) is estimated, not
+# run: proving it needs every prompt to come back after the cache filled, over 1,000 requests.
+REUSE_PHASES = ("reuse_control", "reuse_shared", "reuse_turns")
+REUSE_PREFIX = 1500  # lesson 47 section 4: 1,500 shared tokens
+REUSE_QUESTION = 100
+REUSE_OSL = 128
+REUSE_SYSTEM = 1000  # lesson 48 section 3: 1,000 system, 100 question, 300 answer, 6 turns
+REUSE_TURN_OSL = 300
+REUSE_TURNS = 6
 # Safety net so one stuck point can't eat the whole budget.
 POINT_DURATION_CAP_S = 900.0
 SLICE_S = 10.0
@@ -274,7 +285,7 @@ def plan_run(
         add("baseline", baseline_spec(theory), base_shape)
 
     dropped: list[int] = []
-    for needs_sweep in ("rate", "shape", "interference"):
+    for needs_sweep in ("rate", "shape", "interference", "reuse"):
         if needs_sweep in phases and "concurrency" not in phases:
             raise ValueError(
                 f"the {needs_sweep} sweep needs the concurrency sweep to find capacity first"
@@ -317,6 +328,8 @@ def plan_run(
             points.extend(_shape_points(theory, shape, slo or Slo(None, None), slowdown))
         if "interference" in phases:
             points.extend(_interference_points(theory, slowdown))
+        if "reuse" in phases:
+            points.extend(_reuse_points(theory, slo or Slo(None, None), slowdown))
         # Re-measuring the baseline at the end catches a GPU that changed mid-run (B06).
         add("baseline_end", replace(baseline_spec(theory), warmup_count=2), base_shape)
         if budget_s is not None:
@@ -400,6 +413,66 @@ def interference_schedules(
     background = tuple((0, INTERFERENCE_STREAM_ISL, osl) for _ in range(streams))
     injected = tuple((at * 1000, inject_isl, INTERFERENCE_OSL) for at in INTERFERENCE_AT_S)
     return background, background + injected, osl, inject_isl
+
+
+def _reuse_points(theory: Theory, slo: Slo, slowdown: float) -> list[PlannedPoint]:
+    """Run at the operating point the concurrency sweep finds; see REUSE_PHASES."""
+    base = theory.shape("baseline")
+    assert base is not None
+    budget = context_budget(theory.max_model_len or 32_768)
+    common: dict[str, Any] = {
+        "mode": LoadMode.CONCURRENCY,
+        "concurrency": 1,
+        "request_count": SWEEP_MIN_REQUESTS,
+        "duration_s": POINT_DURATION_CAP_S,
+        "slice_duration_s": SLICE_S,
+        "goodput": slo.goodput(),
+    }
+    single = REUSE_PREFIX + REUSE_QUESTION
+    specs: list[tuple[str, PointSpec]] = []
+    if single + REUSE_OSL <= budget:
+        specs.append(("reuse_control", PointSpec(isl=single, osl=REUSE_OSL, **common)))
+        specs.append(
+            (
+                "reuse_shared",
+                PointSpec(
+                    isl=REUSE_QUESTION,
+                    osl=REUSE_OSL,
+                    cache_bust=False,
+                    prefix_pool=1,
+                    prefix_len=REUSE_PREFIX,
+                    random_seed=43,
+                    **common,
+                ),
+            )
+        )
+    turns = REUSE_TURNS
+    while turns > 2 and REUSE_SYSTEM + turns * (REUSE_QUESTION + REUSE_TURN_OSL) > budget:
+        turns -= 1
+    if REUSE_SYSTEM + turns * (REUSE_QUESTION + REUSE_TURN_OSL) <= budget:
+        specs.append(
+            (
+                "reuse_turns",
+                PointSpec(
+                    isl=REUSE_QUESTION,
+                    osl=REUSE_TURN_OSL,
+                    cache_bust=False,
+                    system_len=REUSE_SYSTEM,
+                    turns=turns,
+                    random_seed=45,
+                    **{**common, "request_count": SWEEP_MIN_REQUESTS * turns},
+                ),
+            )
+        )
+    # Each user runs a few requests back to back at the operating point (assume 32 users),
+    # with the answer time stretched by load.
+    out = []
+    for phase, spec in specs:
+        answer_s = estimate_e2e_ms(theory, base, 32, slowdown) * spec.osl / base.osl / 1000
+        rounds = 2 * (spec.turns or 1) if spec.turns else SWEEP_ROUNDS
+        eta = rounds * answer_s + estimate_point_overhead_s([], first_launch=False)
+        out.append(PlannedPoint(phase, spec, eta, at_operating_point=True))
+    return out
 
 
 def _interference_points(theory: Theory, slowdown: float) -> list[PlannedPoint]:

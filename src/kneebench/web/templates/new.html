@@ -86,6 +86,7 @@
         <label><input type="checkbox" name="phase_concurrency" value="1" checked> Concurrency sweep <span class="muted small">capacity, the three walls, and what to change</span></label>
         <label><input type="checkbox" name="phase_rate" value="1" checked> Request-rate sweep <span class="muted small">random and bursty arrivals; adds about 15 minutes</span></label>
         <label><input type="checkbox" name="phase_interference" value="1" checked> Long-prompt interference <span class="muted small">do long prompts freeze other users' answers? adds about 3 minutes</span></label>
+        <label><input type="checkbox" name="phase_reuse" value="1" checked> Prompt reuse <span class="muted small">what a shared system prompt and multi-turn chat get from prefix caching; adds about 3 minutes</span></label>
         <label><input type="checkbox" name="phase_shape" value="1" checked> Request-size sweep <span class="muted small">prompt and output length, and every shape at the same load; adds about 30 minutes</span></label>
       </div></div>
     <div class="row"><label for="max_concurrency">Highest concurrency</label>

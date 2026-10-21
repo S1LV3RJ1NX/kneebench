@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (prompt reuse)
+- New phase at the operating point: the same load with prompts that never repeat, with one
+  shared 1,500-token system prompt, and as six-turn conversations that resend the real
+  answers (lessons 47 and 48).
+- P01 reports what the shared prompt saves in first-token time and the server's prefix-cache
+  hit rate, and suggests `--enable-prefix-caching` when it is off. P02 shows first-token time
+  per turn as the history grows. P03 estimates how many distinct system prompts the cache
+  holds before reuse collapses (lesson 49).
+
 ### Added (long-prompt interference)
 - New phase: 32 streaming chats, once alone and once with a long prompt arriving every 10 s
   (lesson 44), replayed on a fixed schedule. kneebench rebuilds every streamed chunk's arrival

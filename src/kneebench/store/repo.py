@@ -20,6 +20,7 @@ from kneebench.loadgen.aiperf.parse import (
     TIMESLICES_FILE,
     ParsedPoint,
     stream_summary,
+    turn_summary,
 )
 from kneebench.loadgen.base import LoadMode, PointResult, PointSpec
 
@@ -300,12 +301,16 @@ def finish_point(
         )
         if parsed is not None:
             _store_parsed(conn, point_id, parsed)
+            series = {}
             if result.spec.mode is LoadMode.SCHEDULE:
-                summary = stream_summary(parsed.profiling_requests())
+                series["streams"] = stream_summary(parsed.profiling_requests())
+            if result.spec.turns and result.spec.turns > 1:
+                series["turns"] = turn_summary(parsed.profiling_requests())
+            for name, summary in series.items():
                 if summary is not None:
                     conn.execute(
-                        "INSERT OR REPLACE INTO point_series VALUES (?, 'streams', ?)",
-                        (point_id, _dumps(summary)),
+                        "INSERT OR REPLACE INTO point_series VALUES (?, ?, ?)",
+                        (point_id, name, _dumps(summary)),
                     )
         _store_artifacts(conn, point_id, result.artifact_dir)
         conn.execute("COMMIT")
