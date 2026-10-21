@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import zlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib.resources import files
@@ -17,7 +18,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from kneebench import content
+from kneebench import content, experiments
 from kneebench.analysis.context import context_from_bundle
 from kneebench.analysis.whatif import estimate
 from kneebench.config import load_local_config
@@ -322,13 +323,145 @@ def create_app(home: Path, manager: RunManager | None = None, demo: bool = True)
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
     def report_page(run_id: int, request: Request) -> HTMLResponse:
+        with db() as conn:
+            verifying = repo.experiment_for_verify_run(conn, run_id)
         return HTMLResponse(
             render_html(
                 _report(run_id, "html", request),
                 query=what_if_query(request),
                 demo=run_id == demo_run_id(home),
+                experiment=dict(verifying) if verifying else None,
             )
         )
+
+    # ---- guided experiments ----
+
+    def experiment_or_404(conn: Connection, experiment_id: int) -> Any:
+        row = repo.get_experiment(conn, experiment_id)
+        if row is None:
+            raise HTTPException(404)
+        return row
+
+    @app.post("/runs/{run_id}/experiments")
+    def start_experiment(run_id: int, step: Annotated[int, Form()]) -> Response:
+        with db() as conn:
+            if repo.get_run(conn, run_id) is None:
+                raise HTTPException(404)
+            try:
+                experiment_id = experiments.propose(conn, run_id, step)
+            except KeyError as exc:
+                raise HTTPException(404, str(exc)) from exc
+        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+
+    @app.get("/experiments", response_class=HTMLResponse)
+    def experiments_page() -> HTMLResponse:
+        with db() as conn:
+            rows = [dict(r) for r in repo.list_experiments(conn)]
+        return page("experiments.html", experiments=rows)
+
+    @app.get("/experiments/{experiment_id}", response_class=HTMLResponse)
+    def experiment_page(experiment_id: int) -> HTMLResponse:
+        with db() as conn:
+            e = experiment_or_404(conn, experiment_id)
+            verify = repo.get_run(conn, e["verify_run_id"]) if e["verify_run_id"] else None
+            comparison = None
+            before = experiments.base_value(conn, e)
+            if verify is not None and verify["status"] == "done" and e["base_run_id"]:
+                comparison = build_comparison(
+                    conn,
+                    e["base_run_id"],
+                    verify["id"],
+                    style="html",
+                    declared=experiments.declared_change(e, before),
+                )
+                if e["status"] in ("verifying", "applied", "proposed"):
+                    repo.update_experiment(
+                        conn, experiment_id, status="verified", outcome=" ".join(comparison.summary)
+                    )
+                    e = experiment_or_404(conn, experiment_id)
+            model = None
+            if e["base_run_id"]:
+                bundle = repo.run_bundle(conn, e["base_run_id"])
+                model = bundle["snapshot"]["hf_model_id"] or bundle["snapshot"]["served_model"]
+        style = e["deploy_style"] or "cli"
+        return page(
+            "experiment.html",
+            e=dict(e),
+            before=before,
+            styles=experiments.DEPLOY_STYLES,
+            style=style,
+            how=experiments.snippet(style, e["flag"], model),
+            check=json.loads(e["check_json"]) if e["check_json"] else None,
+            error=None,
+            verify_run=dict(verify) if verify else None,
+            comparison=comparison,
+        )
+
+    @app.post("/experiments/{experiment_id}/style")
+    def experiment_style(experiment_id: int, style: Annotated[str, Form()]) -> Response:
+        if style not in experiments.DEPLOY_STYLES:
+            raise HTTPException(400, "unknown deployment style")
+        with db() as conn:
+            e = experiment_or_404(conn, experiment_id)
+            repo.set_deploy_style(conn, e["endpoint_id"], style)
+        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+
+    @app.post("/experiments/{experiment_id}/check", response_class=HTMLResponse)
+    async def experiment_check(
+        experiment_id: int, api_key: Annotated[str, Form()] = ""
+    ) -> HTMLResponse:
+        with db() as conn:
+            e = experiment_or_404(conn, experiment_id)
+            base_text = None
+            model = None
+            if e["base_run_id"]:
+                snap_row = repo.run_bundle(conn, e["base_run_id"])["snapshot"]
+                if snap_row.get("metrics_text_z"):
+                    base_text = zlib.decompress(snap_row["metrics_text_z"]).decode()
+                model = snap_row["served_model"]
+            before = experiments.base_value(conn, e)
+        try:
+            snap = await run_in_threadpool(detect_server, e["base_url"], api_key or None)
+        except Exception as exc:
+            return page("_check.html", error=f"Couldn't reach the server: {exc}", e=e, check=None)
+        check = experiments.applied_check(base_text, before, snap, e["flag"], model)
+        with db() as conn:
+            status = (
+                "applied" if check["reachable"] and check["landed"] is not False else e["status"]
+            )
+            if e["status"] in ("verifying", "verified", "kept", "reverted"):
+                status = e["status"]
+            repo.update_experiment(conn, experiment_id, check_json=json.dumps(check), status=status)
+        return page("_check.html", error=None, e=e, check=check)
+
+    @app.post("/experiments/{experiment_id}/verify")
+    async def experiment_verify(
+        experiment_id: int, api_key: Annotated[str, Form()] = ""
+    ) -> Response:
+        try:
+            if runs.busy or holder(home):
+                raise BusyError("A benchmark is already running. Wait for it to finish.")
+            with db() as conn:
+                e = experiment_or_404(conn, experiment_id)
+                req = experiments.verification_request(conn, e, api_key or None)
+            inputs, plan = await run_in_threadpool(prepare, req)
+            run_id = await run_in_threadpool(runs.start, inputs, plan)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            return notice(explain(exc))
+        with db() as conn:
+            repo.update_experiment(conn, experiment_id, verify_run_id=run_id, status="verifying")
+        return Response(status_code=204, headers={"HX-Redirect": f"/runs/{run_id}/live"})
+
+    @app.post("/experiments/{experiment_id}/decide")
+    def experiment_decide(experiment_id: int, decision: Annotated[str, Form()]) -> Response:
+        if decision not in ("kept", "reverted"):
+            raise HTTPException(400, "decide kept or reverted")
+        with db() as conn:
+            experiment_or_404(conn, experiment_id)
+            repo.update_experiment(conn, experiment_id, status=decision)
+        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
 
     @app.get("/runs/{run_id}/estimate", response_class=HTMLResponse)
     def estimate_route(run_id: int, isl: int, osl: int) -> HTMLResponse:

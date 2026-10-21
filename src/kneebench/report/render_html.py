@@ -46,7 +46,11 @@ def inline_css() -> str:
 
 
 def report_context(
-    report: Report, inline: bool, query: str = "", demo: bool = False
+    report: Report,
+    inline: bool,
+    query: str = "",
+    demo: bool = False,
+    experiment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if report.style != "html":
         raise ValueError("compose the report with style='html' for HTML output")
@@ -65,13 +69,17 @@ def report_context(
         "export_query": f"?{query}" if query else "",
         "has_estimates": any(f["rule_id"] == "S01" for f in report.findings_json),
         "is_demo": demo,
+        "experiment": experiment,
     }
 
 
-def render_html(report: Report, inline: bool = False, query: str = "", demo: bool = False) -> str:
+def render_html(
+    report: Report,
+    inline: bool = False,
+    query: str = "",
+    demo: bool = False,
+    experiment: dict[str, Any] | None = None,
+) -> str:
     """inline=True embeds CSS and Plotly so the file works offline and prints to PDF."""
-    return (
-        templates()
-        .get_template("report.html")
-        .render(**report_context(report, inline, query, demo))
-    )
+    context = report_context(report, inline, query, demo, experiment)
+    return templates().get_template("report.html").render(**context)

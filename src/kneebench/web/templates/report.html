@@ -12,6 +12,10 @@
         onsubmit="return confirm('Delete run #{{ report.run_id }} and its measurements? This cannot be undone.')">
     <button class="danger" type="submit">Delete</button></form>
 </div>
+{% if experiment and not inline_assets %}
+<div class="notice ok no-print">This run verifies experiment #{{ experiment.id }}:
+  <code>{{ experiment.flag }}</code>. <a href="/experiments/{{ experiment.id }}">See what the change did</a>.</div>
+{% endif %}
 {% if is_demo and not inline_assets %}
 {% set far = report.findings_json | selectattr("rule_id", "equalto", "H03") | rejectattr("status", "equalto", "ok") | list %}
 <div class="notice ok no-print"><b>This is the demo run</b> that ships with kneebench: a real benchmark of

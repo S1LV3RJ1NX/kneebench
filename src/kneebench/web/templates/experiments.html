@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Experiments{% endblock %}
+{% block main %}
+<div class="eyebrow">Tuning</div><h1>Experiments</h1>
+<p class="muted" style="margin-top:0">One server change at a time: you apply it, kneebench checks it landed and measures
+  what it did against the run that proposed it. Start one from <b>Change your server</b> in any report.</p>
+
+{% if experiments %}
+<div class="card" style="padding:6px 8px;margin-top:20px">
+<table>
+  <thead><tr><th>#</th><th>Change</th><th>Endpoint</th><th>From run</th><th>Status</th><th>Result</th></tr></thead>
+  <tbody>
+  {% for e in experiments %}
+  {% set badge = {"kept": "ok", "reverted": "warn", "verifying": "running", "verified": "ok"}.get(e.status, "") %}
+  <tr>
+    <td class="meta"><a href="/experiments/{{ e.id }}">#{{ e.id }}</a></td>
+    <td><code>{{ e.flag }}</code><div class="meta">{{ e.title }}</div></td>
+    <td class="meta">{{ e.base_url }}</td>
+    <td class="meta">{% if e.base_run_id %}<a href="/runs/{{ e.base_run_id }}">#{{ e.base_run_id }}</a>{% else %}deleted{% endif %}</td>
+    <td><span class="badge {{ badge }}">{{ e.status }}</span></td>
+    <td class="small">{{ e.outcome or "" }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card empty" style="margin-top:20px">
+  <h3>No experiments yet</h3>
+  <p class="muted">Open a report, find <b>Change your server</b>, and press <b>Try this change</b>.</p>
+</div>
+{% endif %}
+{% endblock %}

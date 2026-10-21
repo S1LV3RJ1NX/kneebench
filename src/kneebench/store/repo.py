@@ -240,6 +240,9 @@ def delete_run(conn: Connection, run_id: int) -> None:
             and not conn.execute(
                 "SELECT 1 FROM snapshots WHERE endpoint_id = ?", (run["endpoint_id"],)
             ).fetchone()
+            and not conn.execute(
+                "SELECT 1 FROM experiments WHERE endpoint_id = ?", (run["endpoint_id"],)
+            ).fetchone()
         ):
             conn.execute("DELETE FROM endpoints WHERE id = ?", (run["endpoint_id"],))
         conn.execute("COMMIT")
@@ -517,3 +520,72 @@ def point_requests(conn: Connection, point_id: int, phase: str = "profiling") ->
             (point_id, phase),
         )
     )
+
+
+# ---- guided experiments ----
+
+EXPERIMENT_FIELDS = (
+    "endpoint_id",
+    "base_run_id",
+    "rule_id",
+    "title",
+    "reason",
+    "flag",
+    "setting",
+    "value",
+    "expected",
+    "risk",
+)
+
+
+def create_experiment(conn: Connection, **fields: Any) -> int:
+    values = {k: fields.get(k) for k in EXPERIMENT_FIELDS}
+    stamp = now()
+    cur = conn.execute(
+        f"""INSERT INTO experiments ({", ".join(values)}, status, created_at, updated_at)
+           VALUES ({", ".join("?" * len(values))}, 'proposed', ?, ?)""",
+        (*values.values(), stamp, stamp),
+    )
+    return int(cur.lastrowid or 0)
+
+
+def get_experiment(conn: Connection, experiment_id: int) -> Row | None:
+    row: Row | None = conn.execute(
+        """SELECT experiments.*, endpoints.base_url, endpoints.deploy_style FROM experiments
+           JOIN endpoints ON endpoints.id = experiments.endpoint_id WHERE experiments.id = ?""",
+        (experiment_id,),
+    ).fetchone()
+    return row
+
+
+def list_experiments(conn: Connection) -> list[Row]:
+    return list(
+        conn.execute(
+            """SELECT experiments.*, endpoints.base_url FROM experiments
+               JOIN endpoints ON endpoints.id = experiments.endpoint_id
+               ORDER BY experiments.id DESC"""
+        )
+    )
+
+
+def update_experiment(conn: Connection, experiment_id: int, **fields: Any) -> None:
+    allowed = {"status", "check_json", "outcome", "verify_run_id"}
+    sets = {k: v for k, v in fields.items() if k in allowed}
+    if not sets:
+        return
+    assignments = ", ".join(f"{k} = ?" for k in sets)
+    conn.execute(
+        f"UPDATE experiments SET {assignments}, updated_at = ? WHERE id = ?",
+        (*sets.values(), now(), experiment_id),
+    )
+
+
+def experiment_for_verify_run(conn: Connection, run_id: int) -> Row | None:
+    row: Row | None = conn.execute(
+        "SELECT * FROM experiments WHERE verify_run_id = ?", (run_id,)
+    ).fetchone()
+    return row
+
+
+def set_deploy_style(conn: Connection, endpoint_id: int, style: str) -> None:
+    conn.execute("UPDATE endpoints SET deploy_style = ? WHERE id = ?", (style, endpoint_id))

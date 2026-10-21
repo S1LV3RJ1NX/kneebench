@@ -223,6 +223,7 @@ def plan_run(
     slo: Slo | None = None,
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
     max_num_seqs: int | None = None,
+    min_concurrency: int = 1,
     budget_s: float | None = None,
     measured_slowdown: float | None = None,
 ) -> RunPlan:
@@ -249,6 +250,8 @@ def plan_run(
         primary = primary_shape_name(product, tuple(s.name for s in theory.shapes))
         shape = theory.shape(primary) or base_shape
         levels = concurrency_levels(theory, shape, max_concurrency, max_num_seqs)
+        # A verification run only sweeps the region a change can move (lesson 55, step 5).
+        levels = [c for c in levels if c >= min_concurrency] or levels[-1:]
         sweep = [
             (
                 c,

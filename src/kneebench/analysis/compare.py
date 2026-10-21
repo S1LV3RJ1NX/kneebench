@@ -98,6 +98,9 @@ def facts(ctx: RunContext, label: str | None = None) -> RunFacts:
 class CompareContext:
     a: RunFacts  # before
     b: RunFacts  # after
+    # The change the user says they made (from an experiment); many flags don't show in the
+    # detected setup, so without this the runs would look identical.
+    declared: dict[str, Any] | None = None
 
 
 def changes(a: dict[str, Any], b: dict[str, Any], labels: dict[str, str]) -> list[dict[str, Any]]:
@@ -114,7 +117,10 @@ def metric_rows(cc: CompareContext) -> list[dict[str, Any]]:
         va, vb = cc.a.metrics.get(key), cc.b.metrics.get(key)
         if va is None and vb is None:
             continue
-        ratio = vb / va if va and vb is not None else None
+        if va is not None and va == vb:
+            ratio: float | None = 1.0
+        else:
+            ratio = vb / va if va and vb is not None else None
         if ratio is None:
             verdict = "unknown"
         elif abs(ratio - 1) < NOISE:
@@ -151,9 +157,16 @@ def compare_rule(rule_id: str, *, tags: set[str], source: str) -> Callable[[Comp
 def what_changed(cc: CompareContext) -> Finding:
     setup = changes(cc.a.setup, cc.b.setup, SETUP_LABELS)
     workload = changes(cc.a.workload, cc.b.workload, WORKLOAD_LABELS)
-    data = {"setup": setup, "workload": workload, "n_setup": len(setup)}
+    data = {"setup": setup, "workload": workload, "n_setup": len(setup), "side_effects": []}
     if workload:
         return warn("X01", case="different_test", **data)
+    if cc.declared:
+        # What else differs is what the declared change did to the server (a new cache size
+        # after a memory flag), not a second change.
+        same = cc.declared["label"].lstrip("-").replace("-", "_")
+        others = [c for c in setup if c["key"] != same]
+        data["side_effects"] = [c["label"] for c in others]
+        return ok("X01", case="declared", change=cc.declared, **data)
     if len(setup) > 1:
         return warn("X01", case="several", **data)
     if not setup:
@@ -191,9 +204,13 @@ def what_it_did(cc: CompareContext) -> Finding | None:
 
 
 def compare(
-    a: RunContext, b: RunContext, label_a: str | None = None, label_b: str | None = None
+    a: RunContext,
+    b: RunContext,
+    label_a: str | None = None,
+    label_b: str | None = None,
+    declared: dict[str, Any] | None = None,
 ) -> tuple[CompareContext, list[Finding]]:
-    cc = CompareContext(facts(a, label_a), facts(b, label_b))
+    cc = CompareContext(facts(a, label_a), facts(b, label_b), declared)
     findings = []
     for r in sorted(COMPARE_REGISTRY.values(), key=lambda r: r.id):
         found = r.fn(cc)  # type: ignore[arg-type]

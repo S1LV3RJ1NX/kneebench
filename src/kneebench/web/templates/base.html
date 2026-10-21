@@ -10,7 +10,7 @@
 <body>
   <header class="top no-print">
     <a class="brand" href="/">kneebench</a>
-    <nav><a href="/">Runs</a><a href="/runs/new">New run</a><a href="/doctor">Doctor</a></nav>
+    <nav><a href="/">Runs</a><a href="/runs/new">New run</a><a href="/experiments">Experiments</a><a href="/doctor">Doctor</a></nav>
     {% if nav_active is defined and nav_active %}<a class="live" href="{{ '/runs/%s/live' % nav_active.run_id if nav_active.run_id else '/' }}"><span class="spinner"></span>Running{% if nav_active.run_id %} #{{ nav_active.run_id }}{% endif %}</a>{% endif %}
   </header>
   <main>{% block main %}{% endblock %}</main>

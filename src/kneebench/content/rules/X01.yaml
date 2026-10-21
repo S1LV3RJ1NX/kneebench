@@ -3,7 +3,8 @@ title: What changed between the runs
 status_line:
   ok: >-
     One thing changed: {{ change.label }} went from {{ change.a }} to {{ change.b }}, so the
-    difference in results comes from it.
+    difference in results comes from it.{% if side_effects %} The server also reports a
+    different {{ side_effects | join(", ") }}, which this change can cause.{% endif %}
   info: >-
     The setup is the same in both runs, so any difference is run-to-run noise.
   warn: >-

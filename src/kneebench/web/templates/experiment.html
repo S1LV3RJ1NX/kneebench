@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Experiment #{{ e.id }}{% endblock %}
+{% block main %}
+<div class="eyebrow"><a href="/experiments">Experiments</a> · #{{ e.id }}</div>
+<h1 style="margin-bottom:6px"><code>{{ e.flag }}</code></h1>
+<p class="muted" style="margin-top:0">{{ e.title }}, proposed by
+  {% if e.base_run_id %}<a href="/runs/{{ e.base_run_id }}">run #{{ e.base_run_id }}</a>{% else %}a deleted run{% endif %}
+  ({{ e.rule_id }}) for {{ e.base_url }}. <span class="badge">{{ e.status }}</span></p>
+
+<section class="card">
+  <h3><span class="step-num">01</span>What to change, and why</h3>
+  <p>{{ e.reason | safe }}</p>
+  {% if e.expected %}<p class="small"><b>Expected</b> {{ e.expected | safe }}</p>{% endif %}
+  {% if e.risk %}<p class="small"><b>Risk</b> {{ e.risk | safe }}</p>{% endif %}
+  <p class="small"><b>Before</b> {{ before if before is not none else "not known from the run" }}.
+    <b>To roll back</b>, undo the change and restart.</p>
+</section>
+
+<section class="card">
+  <h3><span class="step-num">02</span>Apply it</h3>
+  <form method="post" action="/experiments/{{ e.id }}/style" class="whatif-form" style="margin-top:0">
+    <span class="muted small">How do you run vLLM?</span>
+    {% for key, label in styles.items() %}
+    <label><input type="radio" name="style" value="{{ key }}" onchange="this.form.submit()"{% if key == style %} checked{% endif %}> {{ label }}</label>
+    {% endfor %}
+  </form>
+  <p style="margin-top:14px">{{ how.intro }}</p>
+  <pre><button class="copy" onclick="navigator.clipboard.writeText(this.nextSibling.textContent)">Copy</button><code>{{ how.code }}</code></pre>
+  <p class="muted small">kneebench never changes your server. Most flags need a restart; use a staging or
+    canary replica if this one serves real traffic.</p>
+</section>
+
+<section class="card">
+  <h3><span class="step-num">03</span>Check it landed</h3>
+  <form hx-post="/experiments/{{ e.id }}/check" hx-target="#check" hx-indicator="#check-spin" class="whatif-form" style="margin-top:0">
+    <label>API key <input name="api_key" type="password" autocomplete="off" placeholder="if the server needs one" style="width:220px"></label>
+    <button type="submit" class="secondary">I've applied it: check</button>
+    <span id="check-spin" class="htmx-indicator muted small"><span class="spinner"></span> Reading the server…</span>
+  </form>
+  <div id="check">{% if check %}{% include "_check.html" %}{% endif %}</div>
+</section>
+
+<section class="card">
+  <h3><span class="step-num">04</span>Measure what it did</h3>
+  {% if verify_run %}
+    {% if verify_run.status == "running" %}
+      <p><span class="spinner"></span> The verification run is in progress. <a href="/runs/{{ verify_run.id }}/live">Follow it</a>.</p>
+    {% elif comparison %}
+      <div class="verdict" style="font-size:17px">{% for s in comparison.summary %}{{ s | safe }} {% endfor %}</div>
+      <table style="margin-top:12px">
+        <thead><tr><th>Measure</th><th>Before (run #{{ e.base_run_id }})</th><th>After (run #{{ verify_run.id }})</th><th>Change</th><th></th></tr></thead>
+        <tbody>{% for label, a, b, change, verdict in comparison.metrics %}
+          <tr><td>{{ label }}</td><td>{{ a }}</td><td>{{ b }}</td><td>{{ change }}</td>
+            <td><span class="badge {{ {'better': 'ok', 'worse': 'bad'}.get(verdict, '') }}">{{ {'unknown': 'one run only'}.get(verdict, verdict) }}</span></td></tr>
+        {% endfor %}</tbody>
+      </table>
+      <p class="small muted">Changes under 5% count as noise. <a href="/compare?a={{ e.base_run_id }}&b={{ verify_run.id }}">Full comparison</a> ·
+        <a href="/runs/{{ verify_run.id }}">Verification report</a></p>
+      {% if e.status not in ("kept", "reverted") %}
+      <form method="post" action="/experiments/{{ e.id }}/decide" style="display:flex;gap:10px;margin-top:10px">
+        <button type="submit" name="decision" value="kept">Keep the change</button>
+        <button type="submit" name="decision" value="reverted" class="secondary">Revert it</button>
+      </form>
+      {% else %}
+      <p><b>You {{ "kept" if e.status == "kept" else "reverted" }} this change.</b>
+        {% if e.status == "kept" %}The verification report has the next suggestions.{% endif %}</p>
+      {% endif %}
+    {% else %}
+      <p>The verification run ended as <b>{{ verify_run.status }}</b>{% if verify_run.error %}: {{ verify_run.error }}{% endif %}.
+        You can start another below.</p>
+    {% endif %}
+  {% endif %}
+  {% if not verify_run or verify_run.status not in ("running", "done") %}
+  <p class="small">A short run with the same targets and request size, covering only the load levels this change can move,
+    usually 5 to 15 minutes. It is compared with run #{{ e.base_run_id }}.</p>
+  <form hx-post="/experiments/{{ e.id }}/verify" hx-target="#verify-notice" hx-indicator="#verify-spin" class="whatif-form" style="margin-top:0">
+    <label>API key <input name="api_key" type="password" autocomplete="off" placeholder="if the server needs one" style="width:220px"></label>
+    <button type="submit"{% if not e.base_run_id %} disabled{% endif %}>Run the verification</button>
+    <span id="verify-spin" class="htmx-indicator muted small"><span class="spinner"></span> Detecting and planning…</span>
+  </form>
+  <div id="verify-notice"></div>
+  {% endif %}
+</section>
+{% endblock %}

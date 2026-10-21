@@ -290,3 +290,10 @@ main:has(.compare) { max-width: 1000px; }
 .compare .card + .card { margin-top: 14px; }
 h3.steps-group { margin: 22px 0 4px; font-size: 16px; }
 h3.steps-group + p { margin: 0 0 10px; }
+
+/* ---- experiments ---- */
+ul.checks { list-style: none; padding: 0; margin: 12px 0 0; }
+ul.checks li { padding: 8px 12px; border-radius: var(--radius-sm); margin: 6px 0; background: var(--sand); font-size: 14px; }
+ul.checks li.ok { background: var(--ok-soft); color: var(--ok); }
+ul.checks li.warn { background: var(--warn-soft); color: var(--warn); }
+ul.checks li.bad { background: var(--bad-soft); color: var(--bad); }

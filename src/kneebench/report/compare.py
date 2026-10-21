@@ -52,7 +52,13 @@ def _text(value: Any) -> str:
     return str(value)
 
 
-def build_comparison(conn: Connection, a_id: int, b_id: int, style: str = "md") -> Comparison:
+def build_comparison(
+    conn: Connection,
+    a_id: int,
+    b_id: int,
+    style: str = "md",
+    declared: dict[str, Any] | None = None,
+) -> Comparison:
     labels = []
     for rid in (a_id, b_id):
         row = repo.get_run(conn, rid)
@@ -62,7 +68,7 @@ def build_comparison(conn: Connection, a_id: int, b_id: int, style: str = "md") 
     label_a, label_b = labels
     ctx_a = context_from_bundle(repo.run_bundle(conn, a_id))
     ctx_b = context_from_bundle(repo.run_bundle(conn, b_id))
-    cc, findings = compare(ctx_a, ctx_b, label_a, label_b)
+    cc, findings = compare(ctx_a, ctx_b, label_a, label_b, declared)
     env = make_env(TermTracker(style))
     common = common_vars(ctx_b)
     rendered = [render_finding(f, common, env) for f in findings]

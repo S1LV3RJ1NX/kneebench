@@ -53,6 +53,7 @@ class RunRequest:
     slo_percentile: int | None = None
     phases: tuple[str, ...] = ALL_PHASES
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY
+    min_concurrency: int = 1
     budget_s: float | None = None
     label: str | None = None
     shapes: tuple[Shape, ...] = ()  # the user's own traffic; the standard shapes are added
@@ -126,6 +127,7 @@ def prepare(req: RunRequest, snapshot: ServerSnapshot | None = None) -> tuple[Ru
         slo=slo,
         max_concurrency=req.max_concurrency,
         max_num_seqs=req.max_num_seqs,
+        min_concurrency=req.min_concurrency,
         budget_s=req.budget_s,
     )
     endpoint = Endpoint(

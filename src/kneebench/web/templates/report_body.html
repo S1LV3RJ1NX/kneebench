@@ -64,6 +64,13 @@
     <div class="small"><b>Why</b> {{ step.reason | safe }}</div>
     {% if step.action.expected %}<div class="small"><b>Expected</b> {{ step.action.expected | safe }}</div>{% endif %}
     {% if step.action.risk %}<div class="small"><b>Risk</b> {{ step.action.risk | safe }}</div>{% endif %}
+    {% if kind == "server" and not inline_assets and not is_demo %}
+    <form method="post" action="/runs/{{ report.run_id }}/experiments" class="no-print" style="margin-top:10px">
+      <input type="hidden" name="step" value="{{ loop.index0 }}">
+      <button type="submit" class="secondary">Try this change</button>
+      <span class="muted small">kneebench shows how to apply it, checks it landed, and measures what it did.</span>
+    </form>
+    {% endif %}
   </li>
   {% endfor %}
 </ol>

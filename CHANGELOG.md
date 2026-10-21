@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (guided tuning and the engine view)
+- Guided experiments: every server change in a report has "Try this change". kneebench shows
+  it for your deployment (vllm serve, Kubernetes/Helm or a managed platform), checks from
+  outside that the server restarted and that visible settings changed, runs a short
+  verification over the load the change can move, and compares it with the run that proposed
+  it. Keep or revert; the Experiments page is the ledger.
+- Engine view: E01 splits first-token time into network, queue and prompt read from vLLM's
+  own histograms; E02 names the limit that makes requests wait (sequence cap, per-step token
+  budget or KV cache).
+- Physics and rules updated for lessons 30-61: KV-aware decode and attention-aware prefill
+  floors, p95 block-rounded admission sizing, req/s headroom with a failure margin,
+  evictions as a rate, quantization by compute path.
+
 ### Added (demo run)
 - The UI opens on a real, sanitized demo run with every phase on first start. It is a normal
   run: delete it any time, `kneebench demo` restores it, `KNEEBENCH_NO_DEMO=1` skips it.

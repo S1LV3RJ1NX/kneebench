@@ -333,3 +333,64 @@ def test_compare_two_runs(home: Path) -> None:
     assert "| **GPU** |" in md.text
     assert client.get(f"/compare?a={a}&b={a}").status_code == 400
     assert client.get(f"/compare?a={a}&b=999").status_code == 404
+
+
+def test_guided_experiment_flow(
+    home: Path, fake_server: type[FakeServer], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Report change, apply it, check it landed, verify with a short run, keep it."""
+    server = _fake_endpoint(fake_server)
+    config, params = hf_fixture(LLAMA_8B)
+    monkeypatch.setattr(
+        service, "fetch_model_metadata", lambda hf_id: ModelMetadata(hf_id, config, params)
+    )
+    manager = RunManager(home, loadgen=ReplayLoadGenerator())
+    client = TestClient(create_app(home, manager))
+    form = {
+        "url": server.url,
+        "gpu": "h100-nvl",
+        "gpu_count": "1",
+        "product": "chat",
+        "max_concurrency": "4",
+        "enforce_eager": "",
+        "phase_baseline": "1",
+        "phase_concurrency": "1",
+    }
+
+    def wait() -> None:
+        deadline = time.monotonic() + 30
+        while manager.busy and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert not manager.busy
+
+    base = int(
+        client.post("/runs", data=form, follow_redirects=False).headers["location"].split("/")[2]
+    )
+    wait()
+    report = client.get(f"/runs/{base}").text
+    assert "Try this change" in report
+
+    resp = client.post(f"/runs/{base}/experiments", data={"step": "0"}, follow_redirects=False)
+    assert resp.status_code == 303
+    page_url = resp.headers["location"]
+    page = client.get(page_url).text
+    assert "--max-num-seqs" in page and "vllm serve" in page
+
+    client.post(f"{page_url}/style", data={"style": "kubernetes"})
+    assert "args:" in client.get(page_url).text
+
+    check = client.post(f"{page_url}/check", data={"api_key": "sk-never-stored"}).text
+    assert "doesn&#39;t publish this setting" in check or "doesn't publish this setting" in check
+
+    resp = client.post(f"{page_url}/verify", data={"api_key": "sk-never-stored"})
+    assert resp.status_code == 204
+    verify = int(resp.headers["HX-Redirect"].split("/")[2])
+    wait()
+    page = client.get(page_url).text
+    assert "One thing changed: --max-num-seqs" in page
+    assert "verifies experiment" in client.get(f"/runs/{verify}").text
+
+    client.post(f"{page_url}/decide", data={"decision": "kept"})
+    assert "kept" in client.get("/experiments").text
+    db_bytes = (home / DB_FILENAME).read_bytes()
+    assert b"sk-never-stored" not in db_bytes

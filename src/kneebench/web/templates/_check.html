@@ -1,0 +1,19 @@
+{% if error %}<div class="notice bad">{{ error }}</div>{% else %}
+<ul class="checks">
+  {% if not check.reachable %}
+  <li class="bad">The server didn't answer. If it's restarting, wait for it to come back and check again.</li>
+  {% else %}
+  {% if check.restarted is true %}<li class="ok">The server restarted since run #{{ e.base_run_id }}, so a new setting can be live.</li>
+  {% elif check.restarted is false %}<li class="warn">The server has not restarted since run #{{ e.base_run_id }}. Most flags only take effect after a restart.</li>
+  {% else %}<li>kneebench can't tell whether the server restarted (it doesn't report its start time).</li>{% endif %}
+  {% if check.visible %}
+    {% if check.landed is true %}<li class="ok">The server now reports {{ check.label }} = {{ check.now }}, as intended.</li>
+    {% elif check.landed is false %}<li class="bad">The server reports {{ check.label }} = {{ check.now }}, not the new value. Check the change reached the server.</li>
+    {% else %}<li>The server reports {{ check.label }} = {{ check.now }}.</li>{% endif %}
+  {% else %}
+    <li>The server doesn't publish this setting, so kneebench can't read it directly. The verification run shows its effect instead.</li>
+  {% endif %}
+  {% if check.cache_tokens %}<li class="muted">KV cache now: {{ "{:,}".format(check.cache_tokens) }} tokens.</li>{% endif %}
+  {% endif %}
+</ul>
+{% endif %}
