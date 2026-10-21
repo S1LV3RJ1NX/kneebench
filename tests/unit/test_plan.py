@@ -77,7 +77,8 @@ def test_sweep_stops_early(points: tuple, reason: str | None) -> None:  # type: 
 def test_rate_phase_follows_the_concurrency_sweep() -> None:
     plan = plan_run(theory_for(), ("baseline", "concurrency", "rate"), slo=SLO)
     rate = [p for p in plan.points if p.phase == "rate"]
-    assert [p.rate_factor for p in rate] == [0.25, 0.5, 0.75, 0.9, 1.1, 0.75, 0.9]
+    assert [p.rate_factor for p in rate] == [0.25, 0.5, 0.75, 0.9, 1.1, None, None, 0.75, 0.9]
+    assert [p.refine for p in rate] == [False] * 5 + [True, True] + [False] * 2
     assert {p.spec.arrival.value for p in rate} == {"poisson", "gamma"}
     assert all(p.spec.duration_s == 90 for p in rate)
     phases = [p.phase for p in plan.points]
@@ -146,3 +147,14 @@ def test_interference_points_follow_lesson_44() -> None:
     assert all((s[1] + s[2]) * 1.15 + 128 <= 8192 for s in mixed.spec.schedule)
     with pytest.raises(ValueError, match="concurrency sweep"):
         plan_run(theory_for(), ("baseline", "interference"), slo=SLO)
+
+
+def test_refine_rate_bisects_the_pass_fail_gap() -> None:
+    from kneebench.phases.plan import refine_rate
+
+    results = [(1.0, True), (2.0, True), (3.0, True), (3.6, False), (4.4, False)]
+    assert refine_rate(results, 4.0) == 3.3
+    assert refine_rate([*results, (3.3, True)], 4.0) == 3.45
+    assert refine_rate([*results, (3.3, True), (3.45, False)], 4.0) is None  # gap under 5%
+    assert refine_rate([(1.0, True), (2.0, True)], 4.0) is None  # nothing failed
+    assert refine_rate([(1.0, False)], 4.0) == 0.5  # even the lowest rate failed

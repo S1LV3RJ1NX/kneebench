@@ -40,6 +40,10 @@ BURSTY_FACTORS = (0.75, 0.9)
 BURSTINESS = 0.5  # gamma shape below 1 clusters arrivals; 1.0 is Poisson
 # Long enough to see whether first-token time keeps growing (run-length dependence).
 RATE_DURATION_S = 90.0
+# Lesson 43 section 2: SLO capacity is the highest rate that passes; bisect the gap between
+# the best passing and the first failing rate, until it is under 5% of capacity.
+REFINE_POINTS = 2
+REFINE_MIN_GAP = 0.05
 # A few request lifetimes at the target rate, so profiling doesn't start from an idle server.
 RATE_WARMUP_S = 20.0
 # Open-loop arrivals need room to queue; past this, the client is the limit.
@@ -81,6 +85,8 @@ class PlannedPoint:
     rate_factor: float | None = None
     # Shape points that run at the operating point the concurrency sweep finds.
     at_operating_point: bool = False
+    # Rate points placed between the best passing and the first failing rate (lesson 43).
+    refine: bool = False
 
 
 @dataclass(frozen=True)
@@ -167,6 +173,22 @@ def rate_spec(shape: ShapeTheory, arrival: str, slo: Slo, rate: float = 1.0) -> 
         slice_duration_s=SLICE_S,
         goodput=slo.goodput(),
     )
+
+
+def refine_rate(results: list[tuple[float, bool]], capacity: float | None) -> float | None:
+    """The next rate to try: halfway between the best passing and the first failing rate.
+
+    None when nothing failed above the best passing rate, or the gap is already narrow.
+    """
+    passing = [r for r, passed in results if passed]
+    low = max(passing) if passing else 0.0
+    above = [r for r, passed in results if not passed and r > low]
+    if not above:
+        return None
+    high = min(above)
+    if capacity and (high - low) / capacity < REFINE_MIN_GAP:
+        return None
+    return round((low + high) / 2, 3)
 
 
 def axis_lengths(max_model_len: int | None, fixed: int) -> list[int]:
@@ -275,17 +297,22 @@ def plan_run(
         for _, spec in sweep:
             add("concurrency", spec, shape)
         if "rate" in phases:
+            tail_s = estimate_e2e_ms(theory, shape, 64, slowdown) / 1000
+            eta = RATE_WARMUP_S + RATE_DURATION_S + tail_s + estimate_point_overhead_s([], False)
             for arrival, factors in (("poisson", POISSON_FACTORS), ("gamma", BURSTY_FACTORS)):
                 for factor in factors:
                     spec = rate_spec(shape, arrival, slo or Slo(None, None))
-                    tail_s = estimate_e2e_ms(theory, shape, 64, slowdown) / 1000
-                    eta = (
-                        RATE_WARMUP_S
-                        + RATE_DURATION_S
-                        + tail_s
-                        + estimate_point_overhead_s([], False)
-                    )
                     points.append(PlannedPoint("rate", spec, eta, rate_factor=factor))
+                if arrival == "poisson":
+                    points.extend(
+                        PlannedPoint(
+                            "rate",
+                            rate_spec(shape, "poisson", slo or Slo(None, None)),
+                            eta,
+                            refine=True,
+                        )
+                        for _ in range(REFINE_POINTS)
+                    )
         if "shape" in phases:
             points.extend(_shape_points(theory, shape, slo or Slo(None, None), slowdown))
         if "interference" in phases:

@@ -11,7 +11,8 @@ status_line:
     second){% endif %}.
 measured: >-
   kneebench sent requests at fixed average rates with random (Poisson) gaps, from a quarter of
-  the measured capacity to just past it, for 90 seconds each.
+  the measured capacity to just past it, for 90 seconds each, then up to two more rates halfway
+  between the best one that met your targets and the first that didn't, to pin the limit down.
   {% if knee_rps %}Time to first token bends up from about {{ num(knee_rps, 2) }} requests per
   second.{% endif %}
   {% if ttft_offset_ms > 1 %}First-token times have the {{ ms(ttft_offset_ms) }} network round

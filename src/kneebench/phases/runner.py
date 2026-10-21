@@ -12,6 +12,7 @@ from sqlite3 import Connection
 
 from kneebench import __version__
 from kneebench.analysis.context import point_from_dict, ttft_offset
+from kneebench.analysis.rate import summarize_rate
 from kneebench.analysis.shape import comparison_load
 from kneebench.analysis.sweep import (
     SATURATION_GAIN,
@@ -35,6 +36,7 @@ from kneebench.phases.plan import (
     SWEEP_ROUNDS,
     PlannedPoint,
     RunPlan,
+    refine_rate,
     sweep_rounds,
 )
 from kneebench.phases.theory import Theory
@@ -176,6 +178,7 @@ def execute_run(
     last_e2e_ms: float | None = None
     stopped: str | None = None
     rate_stopped: str | None = None
+    rate_results: list[tuple[float, bool]] = []  # Poisson rate and whether it met the targets
     total = len(plan.points)
     try:
         for i, planned in enumerate(plan.points):
@@ -194,7 +197,16 @@ def execute_run(
                     if on_event:
                         on_event(PointEvent(i, total, planned, skipped=op_skip))
                     continue
-            if planned.phase == "rate":
+            if planned.phase == "rate" and planned.refine:
+                peak = max((p.requests_s for p in curve if p.requests_s), default=None)
+                next_rate = refine_rate(rate_results, peak) if not rate_stopped else None
+                if next_rate is None:
+                    if on_event:
+                        skip = rate_stopped or "capacity_found"
+                        on_event(PointEvent(i, total, planned, skipped=skip))
+                    continue
+                planned = replace(planned, spec=replace(planned.spec, request_rate=next_rate))
+            elif planned.phase == "rate":
                 planned, rate_skip = _resolve_rate(planned, curve, rate_stopped)
                 if rate_skip:
                     if on_event:
@@ -221,6 +233,12 @@ def execute_run(
                     point_from_dict(repo.point_dict(conn, point_id)),
                     base_shape.ttft_floor_ms if base_shape else None,
                 )
+            if planned.phase == "rate" and result.ok and planned.spec.arrival.value == "poisson":
+                rated = summarize_rate(point_from_dict(repo.point_dict(conn, point_id)), offset)
+                peak = max((p.requests_s for p in curve if p.requests_s), default=None)
+                # Above capacity a rate never counts as sustained, however a short run looks.
+                within = peak is None or rated.requested <= peak
+                rate_results.append((rated.requested, within and rated.meets(inputs.workload.slo)))
             if planned.phase == "concurrency" and result.ok:
                 view = point_from_dict(repo.point_dict(conn, point_id))
                 last_e2e_ms = view.m("request_latency", "p50") or last_e2e_ms
