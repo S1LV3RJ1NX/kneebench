@@ -26,6 +26,8 @@ NETWORK_SHARE_DOMINATES = 0.90
 # Note 26 section 5: forced outputs that come back short mean ignore_eos was not honored.
 OUTPUT_LENGTH_MIN_RATIO = 0.95
 SHORT_OUTPUT_MAX_SHARE = 0.05
+# One short answer in a 16-request point is 6%, but not a shortfall that moves the numbers.
+SHORT_OUTPUT_MIN_COUNT = 2
 OSL_WARNING = "Output Sequence Length Mismatch"
 TOKEN_WARNING = "Token Count Discrepancy"
 
@@ -81,7 +83,11 @@ def output_length(ctx: RunContext) -> Finding | None:
         warned_without_counts = share is None and p.has_warning(OSL_WARNING)
         if (
             warned_without_counts
-            or (share is not None and share > SHORT_OUTPUT_MAX_SHARE)
+            or (
+                share is not None
+                and share > SHORT_OUTPUT_MAX_SHARE
+                and mismatches >= SHORT_OUTPUT_MIN_COUNT
+            )
             or (ratio is not None and ratio < OUTPUT_LENGTH_MIN_RATIO)
         ):
             short.append(

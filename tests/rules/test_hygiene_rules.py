@@ -101,3 +101,10 @@ def test_h07_version_range(version: str | None, status: Status) -> None:
 def test_h08_metrics_visibility() -> None:
     assert run_rule("H08", ctx()) is None
     assert run_rule("H08", ctx(metrics_available=False)).status is Status.WARN  # type: ignore[union-attr]
+
+
+def test_h04_one_short_answer_in_a_small_point_is_not_a_shortfall() -> None:
+    one_of_16 = point(requests=16, extra={"osl_mismatch_count": {"avg": 1.0}})
+    assert run_rule("H04", ctx(points=(one_of_16,))).status is Status.OK  # type: ignore[union-attr]
+    two_of_16 = point(requests=16, extra={"osl_mismatch_count": {"avg": 2.0}})
+    assert run_rule("H04", ctx(points=(two_of_16,))).status is Status.BAD  # type: ignore[union-attr]
