@@ -394,3 +394,18 @@ def test_guided_experiment_flow(
     assert "kept" in client.get("/experiments").text
     db_bytes = (home / DB_FILENAME).read_bytes()
     assert b"sk-never-stored" not in db_bytes
+
+
+def test_pdf_without_chromium_explains_how_to_get_it(
+    home: Path, stored_run: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import kneebench.web.app as web_app
+    from kneebench.report.pdf import INSTALL_HINT, PdfUnavailableError
+
+    def missing(_html: str) -> bytes:
+        raise PdfUnavailableError(INSTALL_HINT)
+
+    monkeypatch.setattr(web_app, "html_to_pdf", missing)
+    resp = TestClient(create_app(home)).get(f"/runs/{stored_run}/report.pdf")
+    assert resp.status_code == 503 and resp.headers["content-type"].startswith("text/html")
+    assert "Install the PDF browser" in resp.text and "kneebench doctor --install-pdf" in resp.text

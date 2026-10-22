@@ -627,7 +627,9 @@ def create_app(home: Path, manager: RunManager | None = None, demo: bool = True)
         try:
             pdf = await run_in_threadpool(html_to_pdf, html)
         except PdfUnavailableError as exc:
-            raise HTTPException(503, str(exc)) from exc
+            resp = page("pdf_unavailable.html", run_id=run_id, message=str(exc))
+            resp.status_code = 503
+            return resp
         pdf = attach(
             pdf,
             {

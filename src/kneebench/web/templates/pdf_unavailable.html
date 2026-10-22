@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}PDF export · kneebench{% endblock %}
+{% block main %}
+<div class="eyebrow">PDF export</div>
+<h1>PDF needs a one-time download</h1>
+<p>kneebench makes PDFs with a headless Chromium browser, and it isn't installed yet.</p>
+<ul>
+  <li>Install it from the <a href="/doctor">Doctor page</a> with <b>Install the PDF browser</b>, or run
+    <code>kneebench doctor --install-pdf</code> in a terminal. Then try the PDF again.</li>
+  <li>Or open the <a href="/runs/{{ run_id }}">report</a>, press <b>Print</b> and choose "Save as PDF".</li>
+</ul>
+<p class="muted small">{{ message }}</p>
+{% endblock %}

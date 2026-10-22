@@ -2,7 +2,7 @@
 
 Text stays text, every chart has a data table, the appendix lists every number, and the
 Markdown and JSON reports are embedded as PDF attachments. Without Chromium, the web
-report's "Print or save as PDF" button gives the same layout through the browser.
+report's Print button (then Save as PDF) gives the same layout through the browser.
 """
 
 from __future__ import annotations
@@ -15,9 +15,8 @@ from pypdf import PdfReader, PdfWriter
 
 INSTALL_HINT = (
     "PDF export needs a headless Chromium. Install it once with "
-    "`uv run playwright install chromium` (on a bare Linux image also run "
-    "`sudo uv run playwright install-deps chromium`), or use the report's "
-    '"Print or save as PDF" button instead.'
+    "`kneebench doctor --install-pdf` (on a bare Linux image also run "
+    "`sudo playwright install-deps chromium`), or use the report's Print button and save as PDF."
 )
 READY_TIMEOUT_MS = 30_000
 

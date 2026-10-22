@@ -113,7 +113,7 @@ def check_pdf() -> Check:
         "Headless Chromium is not installed, so `Download PDF` won't work yet.",
         "Run `kneebench doctor --install-pdf` (on a bare Linux image, also "
         "`sudo uv run playwright install-deps chromium`), or use the report's "
-        '"Print or save as PDF" button.',
+        "Print button (then Save as PDF).",
     )
 
 
