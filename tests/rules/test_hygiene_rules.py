@@ -139,3 +139,18 @@ def test_h05_ignores_multi_turn_template_tokens() -> None:
     )
     f = run_rule("H05", ctx(points=pts))
     assert f is not None and f.status is Status.OK and f.data["overhead"] == 35
+
+
+def test_h10_other_traffic_at_start_or_during_single_user_points() -> None:
+    alone = ctx(points=(point(),))
+    idle = run_rule("H10", replace(alone, activity_at_start={"running": 0, "waiting": 0}))
+    assert idle is not None and idle.status is Status.OK
+    busy = run_rule("H10", replace(alone, activity_at_start={"running": 3, "waiting": 1}))
+    assert busy is not None and busy.status is Status.WARN and busy.data["busy_at_start"]
+    shared = point()
+    shared = replace(shared, server={"vllm:num_requests_running": {"max": 4.0}})
+    during = run_rule(
+        "H10", replace(ctx(points=(shared,)), activity_at_start={"running": 0, "waiting": 0})
+    )
+    assert during is not None and during.status is Status.WARN
+    assert during.data["single"] == [{"phase": "baseline", "running": 4.0}]

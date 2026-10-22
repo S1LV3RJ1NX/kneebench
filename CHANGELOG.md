@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added (plan gaps)
+- H10 checks kneebench was alone on the server: no requests running or waiting at the start,
+  and never more than one running while kneebench sent one. The CLI and the run form warn
+  before a run when the server is already busy.
+- max_num_seqs and the per-step token budget are inferred from the engine when its behaviour
+  pins them down (the running count flattening while requests wait; steps larger than the
+  default, or a lower ceiling across queued levels), and labelled as inferred. E02, W06,
+  I01 and H09 use them instead of assuming the version defaults.
+- Comparisons and experiments measure their noise band: changes smaller than the larger
+  start-to-end move of either run's repeated baseline count as noise, with 5% as the floor.
+
 ### Fixed (from the full live run)
 - B06 and B04 compare the client's time per token with the server's own histogram: when the
   server held steady they say the network path changed, instead of blaming the GPU.

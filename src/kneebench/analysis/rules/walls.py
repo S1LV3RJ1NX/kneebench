@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+from kneebench.analysis import settings
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
 from kneebench.analysis.rate import capacity_rps, rate_points, sustained_rps
@@ -55,9 +56,8 @@ def final_length(ctx: RunContext, shape: ShapeTheory) -> tuple[int, bool]:
 
 
 def _effective_max_num_seqs(ctx: RunContext) -> tuple[int, bool]:
-    if ctx.setup.max_num_seqs:
-        return ctx.setup.max_num_seqs, False
-    return ctx.theory.default_max_num_seqs, True
+    s = settings.max_num_seqs(ctx)
+    return s.value, s.is_default
 
 
 @rule("W01", tags={"capacity", "saturation", "throughput"}, source="27#2")
@@ -258,6 +258,7 @@ def max_num_seqs(ctx: RunContext) -> Finding | None:
     data = {
         "current": seqs,
         "is_default": is_default,
+        "seqs_source": settings.max_num_seqs(ctx).source,
         "sustain": sustain,
         "admit": admit,
         "margin": 1 - ADMISSION_MARGIN,

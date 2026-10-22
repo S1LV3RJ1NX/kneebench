@@ -2,14 +2,14 @@ id: W06
 title: Cap concurrent sequences at what memory sustains
 status_line:
   ok: >-
-    max_num_seqs ({{ num(current) }}{% if is_default %}, the default{% endif %}) is within what the
+    max_num_seqs ({{ num(current) }}{% if is_default %}, the default{% elif seqs_source == "inferred" %}, inferred from the run{% endif %}) is within what the
     cache sustains for {{ shape_name }} requests.
   warn: >-
-    max_num_seqs is {{ num(current) }}{% if is_default %} (the default for your vLLM and GPU){% endif %},
-    but the cache only sustains about {{ num(sustain) }} {{ shape_name }} requests at full length.
+    max_num_seqs is {{ num(current) }}{% if is_default %} (the default for your vLLM and GPU){% elif seqs_source == "inferred" %} (inferred from where the running count flattened){% endif %},
+    but the cache only sustains about {{ num(sustain) }} {% if shape_name == "your" %}of your{% else %}{{ shape_name }}{% endif %} requests at full length.
   bad: >-
-    max_num_seqs is {{ num(current) }}{% if is_default %} (the default){% endif %} while the cache
-    sustains about {{ num(sustain) }} {{ shape_name }} requests, and the server is already evicting
+    max_num_seqs is {{ num(current) }}{% if is_default %} (the default){% elif seqs_source == "inferred" %} (inferred){% endif %} while the cache
+    sustains about {{ num(sustain) }} {% if shape_name == "your" %}of your{% else %}{{ shape_name }}{% endif %} requests, and the server is already evicting
     requests.
 measured: >-
   {{ num(pool_tokens) }} tokens of cache{% if block_size %}, handed out in {{ num(block_size) }}-token

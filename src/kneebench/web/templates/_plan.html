@@ -1,4 +1,7 @@
 {% if error %}<div class="notice bad">{{ error }}</div>{% else %}
+{% if busy %}<div class="notice warn" style="margin-top:14px">The server is already handling {{ "%.0f"|format(busy.running) }} running and
+  {{ "%.0f"|format(busy.waiting) }} waiting requests. Other traffic blurs every number, and this test adds load to whoever is
+  using it. Benchmark a replica nobody else is using if you can.</div>{% endif %}
 <p style="margin-top:18px"><b>{{ plan.points | length }} points, about {{ "%.0f"|format(plan.eta_s / 60) }} minutes</b>
   <span class="muted small">including about 8 s of AIPerf startup per point; the sweep usually stops early</span></p>
 <table>

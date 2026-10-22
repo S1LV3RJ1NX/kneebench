@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import zlib
 from dataclasses import dataclass, field
 from typing import Any
 
+from kneebench.detect.metrics import activity
 from kneebench.domain import ProductType, Shape, Slo, primary_shape_name
 from kneebench.phases.theory import Theory, theory_from_json
 from kneebench.servers.vllm import metric_names
@@ -148,6 +150,8 @@ class RunContext:
     client: dict[str, Any]
     points: tuple[PointView, ...] = field(default=())
     error: str | None = None
+    # Requests the server was already handling when kneebench detected it.
+    activity_at_start: dict[str, float] | None = None
 
     def points_in(self, phase: str) -> list[PointView]:
         return [p for p in self.points if p.phase == phase and p.status == "done"]
@@ -295,4 +299,7 @@ def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
         client=_loads(run["client_json"]) or {},
         points=points,
         error=run.get("error"),
+        activity_at_start=activity(
+            zlib.decompress(snap["metrics_text_z"]).decode() if snap.get("metrics_text_z") else None
+        ),
     )

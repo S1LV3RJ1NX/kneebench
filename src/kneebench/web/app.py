@@ -25,6 +25,7 @@ from kneebench.config import load_local_config
 from kneebench.content.render import ms, num, pct
 from kneebench.demo import demo_run_id
 from kneebench.demo import seed as demo_seed
+from kneebench.detect.metrics import activity
 from kneebench.detect.server import detect_server
 from kneebench.doctor import exit_code, run_doctor
 from kneebench.domain import ProductType, Slo, user_shapes
@@ -217,10 +218,12 @@ def create_app(home: Path, manager: RunManager | None = None, demo: bool = True)
     @app.post("/plan", response_class=HTMLResponse)
     async def plan_preview(request: Request) -> HTMLResponse:
         try:
-            _, plan = await run_in_threadpool(prepare, run_request(await form_dict(request)))
+            inputs, plan = await run_in_threadpool(prepare, run_request(await form_dict(request)))
         except Exception as exc:
             return page("_plan.html", error=explain(exc), plan=None)
-        return page("_plan.html", plan=plan, error=None)
+        now = activity(inputs.snapshot.metrics_text)
+        busy = now if now and (now["running"] or now["waiting"]) else None
+        return page("_plan.html", plan=plan, error=None, busy=busy)
 
     @app.post("/runs")
     async def start_run(request: Request) -> Response:

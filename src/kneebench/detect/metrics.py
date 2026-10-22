@@ -46,6 +46,23 @@ def find(samples: list[Sample], *names: str) -> list[Sample]:
     return []
 
 
+def activity(text: str | None) -> dict[str, float] | None:
+    """Requests running and waiting in the server, summed over engines, from one snapshot."""
+    if not text:
+        return None
+    try:
+        samples = parse_samples(text)
+    except ValueError:
+        return None
+    running = find(samples, "vllm:num_requests_running")
+    if not running:
+        return None
+    return {
+        "running": sum(s.value for s in running),
+        "waiting": sum(s.value for s in find(samples, "vllm:num_requests_waiting")),
+    }
+
+
 def cache_config(samples: list[Sample]) -> CacheConfig | None:
     hits = find(samples, CACHE_CONFIG_METRIC)
     if not hits:

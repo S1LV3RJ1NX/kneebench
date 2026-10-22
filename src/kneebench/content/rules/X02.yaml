@@ -8,11 +8,13 @@ status_line:
     {% if better %}Better: {{ better | join(", ") | lower }}. {% endif %}Worse:
     {{ worse | join(", ") | lower }}.
   info: >-
-    {% if not comparable %}The results are shown side by side without a verdict.{% else %}Nothing moved by more than {{ num(noise_pct) }}%: the
+    {% if not comparable %}The results are shown side by side without a verdict.{% else %}Nothing moved by more than {{ num(noise_pct, 0) }}%: the
     change made no measurable difference.{% endif %}
 measured: >-
-  The same numbers from both reports, side by side; changes under {{ num(noise_pct) }}% count
-  as noise.{% if grid_note %} The number of users is measured on a doubling grid (1, 2, 4, 8 and
+  The same numbers from both reports, side by side; changes under {{ num(noise_pct, 0) }}% count
+  as noise{% if noise_measured and noise_pct > noise_floor_pct %}: the repeated baseline moved
+  that much between the start and the end of a run, so smaller differences can't be told
+  apart{% endif %}.{% if grid_note %} The number of users is measured on a doubling grid (1, 2, 4, 8 and
   so on), so it moves in steps of two.{% endif %}
 meaning:
   ok: >-

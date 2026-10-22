@@ -9,7 +9,9 @@ from typing import Any
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, Rule, evaluate, info, ok, warn
 
-# Changes smaller than this are treated as run-to-run noise.
+# Changes smaller than this are treated as run-to-run noise, at least. Each run measures the
+# same baseline at its start and its end; the larger of those changes widens the band
+# (lesson 24 section 5: trust no difference smaller than the spread between repeats).
 NOISE = 0.05
 
 # (key, label, unit, better): +1 when higher is better, -1 when lower is better.
@@ -34,6 +36,7 @@ class RunFacts:
     metrics: dict[str, float | None]
     curve: list[dict[str, Any]]
     max_tested: int | None
+    repeat_change: float | None = None  # start-to-end change of the repeated baseline
 
 
 # Labels read inside sentences ("the GPU and the vLLM version changed"); tables capitalize them.
@@ -55,7 +58,7 @@ WORKLOAD_LABELS = {
 
 def facts(ctx: RunContext, label: str | None = None) -> RunFacts:
     found = {f.rule_id: f.data for f in evaluate(ctx)}
-    b01, w03, r01, c02 = (found.get(k, {}) for k in ("B01", "W03", "R01", "C02"))
+    b01, w03, r01, c02, b06 = (found.get(k, {}) for k in ("B01", "W03", "R01", "C02", "B06"))
     points = c02.get("points") or []
     shape = ctx.theory.shape(ctx.primary_shape)
     slo = ctx.workload.slo
@@ -91,6 +94,7 @@ def facts(ctx: RunContext, label: str | None = None) -> RunFacts:
         },
         curve=[p for p in points if p.get("tok_s")],
         max_tested=w03.get("max_tested"),
+        repeat_change=abs(b06["change"]) if b06.get("change") is not None else None,
     )
 
 
@@ -103,6 +107,12 @@ class CompareContext:
     declared: dict[str, Any] | None = None
 
 
+def noise_band(cc: CompareContext) -> tuple[float, bool]:
+    """The change below which two runs can't be told apart, and whether it was measured."""
+    measured = [x for x in (cc.a.repeat_change, cc.b.repeat_change) if x is not None]
+    return max([NOISE, *measured]), bool(measured)
+
+
 def changes(a: dict[str, Any], b: dict[str, Any], labels: dict[str, str]) -> list[dict[str, Any]]:
     return [
         {"key": k, "label": labels[k], "a": a.get(k), "b": b.get(k)}
@@ -112,6 +122,7 @@ def changes(a: dict[str, Any], b: dict[str, Any], labels: dict[str, str]) -> lis
 
 
 def metric_rows(cc: CompareContext) -> list[dict[str, Any]]:
+    band, _ = noise_band(cc)
     rows = []
     for key, label, unit, better in METRICS:
         va, vb = cc.a.metrics.get(key), cc.b.metrics.get(key)
@@ -123,7 +134,7 @@ def metric_rows(cc: CompareContext) -> list[dict[str, Any]]:
             ratio = vb / va if va and vb is not None else None
         if ratio is None:
             verdict = "unknown"
-        elif abs(ratio - 1) < NOISE:
+        elif abs(ratio - 1) < band:
             verdict = "same"
         else:
             verdict = "better" if (ratio > 1) == (better > 0) else "worse"
@@ -184,12 +195,15 @@ def what_it_did(cc: CompareContext) -> Finding | None:
     better = [r for r in known if r["verdict"] == "better"]
     worse = [r for r in known if r["verdict"] == "worse"]
     headline = next((r for r in known if r["key"] == "capacity_users"), known[0])
+    band, measured = noise_band(cc)
     data = {
         "rows": rows,
         "better": [r["label"] for r in better],
         "worse": [r["label"] for r in worse],
         "headline": headline,
-        "noise_pct": NOISE * 100,
+        "noise_pct": band * 100,
+        "noise_measured": measured,
+        "noise_floor_pct": NOISE * 100,
         "comparable": comparable,
         # Capacity is measured on a doubling grid; one step is a factor of two.
         "grid_note": headline["key"] == "capacity_users" and headline["verdict"] != "same",

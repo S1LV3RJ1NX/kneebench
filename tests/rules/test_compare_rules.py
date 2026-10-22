@@ -67,3 +67,16 @@ def test_x02_reports_ratios_and_noise() -> None:
     worse = _rule("X02", _before(), _after(tpot_p50=7.5))
     assert worse.status is Status.WARN
     assert "Time per output token, one user" in worse.data["worse"]
+
+
+def test_x02_noise_band_comes_from_the_repeated_baseline() -> None:
+    steady = _rule("X02", _before(), _after())
+    assert steady.data["noise_pct"] == 5.0 and not steady.data["noise_measured"]
+    noisy = _before()
+    noisy = replace(
+        noisy, points=(*noisy.points, point(phase="baseline_end", seq=20, tpot_p50=7.25))
+    )  # the baseline moved 25% between the start and the end of the run
+    f = _rule("X02", noisy, _after())
+    assert f.data["noise_measured"] and f.data["noise_pct"] == pytest.approx(25.0)
+    rows = {r["key"]: r for r in f.data["rows"]}
+    assert rows["peak_tok_s"]["verdict"] == "same"  # +10% is inside a 25% band

@@ -9,11 +9,13 @@ from typing import Any
 import plotly.graph_objects as go
 
 from kneebench.analysis.compare import (
+    NOISE,
     SETUP_LABELS,
     WORKLOAD_LABELS,
     CompareContext,
     compare,
     metric_rows,
+    noise_band,
 )
 from kneebench.analysis.context import context_from_bundle
 from kneebench.content.render import (
@@ -39,6 +41,8 @@ class Comparison:
     findings: list[RenderedFinding]
     setup: list[tuple[str, str, str, bool]]  # label, before, after, changed
     metrics: list[tuple[str, str, str, str, str]]  # label, before, after, change, verdict
+    noise_pct: float = NOISE * 100
+    noise_measured: bool = False
     figures: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -91,6 +95,8 @@ def build_comparison(
             for r in metric_rows(cc)
         ],
         figures=_figures(cc),
+        noise_pct=noise_band(cc)[0] * 100,
+        noise_measured=noise_band(cc)[1],
     )
 
 

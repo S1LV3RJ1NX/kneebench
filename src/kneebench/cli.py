@@ -233,6 +233,15 @@ def run(
     console.print("[bold]Detecting the server…[/]")
     snap = detect_server(url, req.api_key)
     _print_detected(snap)
+    from kneebench.detect.metrics import activity
+
+    now = activity(snap.metrics_text)
+    if now and (now["running"] or now["waiting"]):
+        console.print(
+            f"[yellow]The server is already handling {now['running']:.0f} running and "
+            f"{now['waiting']:.0f} waiting requests. Other traffic blurs every number; "
+            "benchmark a replica nobody else is using if you can.[/]"
+        )
     try:
         inputs, plan = prepare(req, snapshot=snap)
     except PrepareError as exc:

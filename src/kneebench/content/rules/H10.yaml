@@ -1,0 +1,32 @@
+id: H10
+title: Was kneebench alone on the server?
+status_line:
+  ok: >-
+    The server was idle when the test started, and never ran more than one request while
+    kneebench sent one at a time.
+  warn: >-
+    {% if busy_at_start %}The server was already handling {{ num(start.running, 0) }} running and
+    {{ num(start.waiting, 0) }} waiting requests when the test started{% if single %}, and{% else %}.{% endif %}
+    {% endif %}{% if single %}{% if not busy_at_start %}While{% else %}while{% endif %} kneebench
+    sent one request at a time, the server ran up to
+    {{ num(single | map(attribute="running") | max, 0) }} at once
+    ({{ single | map(attribute="phase") | map("phase_label") | unique | join(", ") }}).{% endif %}
+measured: >-
+  Running and waiting requests on /metrics when kneebench detected the server, and the most
+  requests the server ran during every point where kneebench sent only one.
+meaning:
+  ok: Every number in this report comes from kneebench's own load.
+  warn: >-
+    Other traffic shares the GPU, so latency is worse and capacity lower than this server
+    would show alone, by an amount that changes from minute to minute.
+why: >-
+  The scheduler batches every request it has, kneebench's or not. Another client's requests
+  take slots, cache memory and steps that kneebench then measures as its own.
+learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
+actions:
+  - when: [warn]
+    group: client
+    title: Benchmark a replica that serves no other traffic
+    expected: The server is idle at the start and runs one request at a time at one user.
+    risk: None.
+    verify: Rerun; this check turns green.

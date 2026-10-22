@@ -14,8 +14,8 @@ status_line:
     any of its three limits is full{% endif %}.
 measured: >-
   vLLM admits a request only if all three allow it: a free slot under max_num_seqs
-  ({{ num(max_num_seqs) }}{% if seqs_default %}, the default{% endif %}), room in the per-step
-  token budget (about {{ num(budget) }}, the default for your vLLM and GPU), and free cache
+  ({{ num(max_num_seqs) }}{% if seqs_source == "default" %}, the default{% elif seqs_source == "inferred" %}, inferred from where the running count flattened{% endif %}), room in the per-step
+  token budget (about {{ num(budget) }}, {% if budget_source == "inferred" %}inferred from the largest steps the engine ran{% else %}the default for your vLLM and GPU{% endif %}), and free cache
   blocks. The table shows, for each level where requests queued, what the server reported.
   Percentiles of step size are estimates from its histogram buckets.
 meaning: >-

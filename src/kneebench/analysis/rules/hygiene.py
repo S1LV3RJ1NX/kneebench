@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import statistics
 
+from kneebench.analysis import settings
 from kneebench.analysis.context import UNRELIABLE_NETWORK_SHARE, RunContext
 from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
 from kneebench.analysis.rules.concurrency import sweep
@@ -214,13 +215,13 @@ def gateway(ctx: RunContext) -> Finding | None:
         for code, n in p.error_codes.items():
             if code in GATEWAY_CODES:
                 codes[code] = codes.get(code, 0) + n
+    seqs = settings.max_num_seqs(ctx).value
     held = [
         {"concurrency": p.concurrency, "server_running": p.running_max}
         for p in pts
         if p.running_max is not None
         and (p.waiting_max or 0) == 0
-        and p.running_max
-        < SERVER_CONCURRENCY_MIN * min(p.concurrency, ctx.theory.default_max_num_seqs)
+        and p.running_max < SERVER_CONCURRENCY_MIN * min(p.concurrency, seqs)
     ]
     timeout_s = _timeout_cluster(ctx)
     if codes or held or timeout_s:
@@ -249,3 +250,28 @@ def _timeout_cluster(ctx: RunContext) -> float | None:
     if median / 1000 >= TIMEOUT_CLUSTER_MIN_S and spread <= TIMEOUT_CLUSTER_SPREAD:
         return median / 1000
     return None
+
+
+@rule("H10", tags={"reliability"}, source="24#5")
+def other_traffic(ctx: RunContext) -> Finding | None:
+    """Someone else's requests on the server blur every number (note 24 section 5).
+
+    Two signs: requests already running when kneebench detected the server, and more than
+    one request running while kneebench sent one at a time.
+    """
+    start = ctx.activity_at_start
+    single = [
+        {"phase": p.phase, "running": running}
+        for p in ctx.points
+        if p.status == "done"
+        and p.concurrency == 1
+        and (running := p.server_stat("running", "max")) is not None
+        and running > 1
+    ]
+    if start is None and not any(p.server_stat("running", "max") is not None for p in ctx.points):
+        return None
+    busy = start is not None and (start["running"] or start["waiting"]) > 0
+    data = {"start": start, "busy_at_start": busy, "single": single}
+    if busy or single:
+        return warn("H10", **data)
+    return ok("H10", **data)

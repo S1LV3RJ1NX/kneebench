@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from kneebench.analysis import settings
 from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, info, ok, rule, warn
 from kneebench.analysis.rules.scheduler import _prefill_ms_per_token
@@ -41,7 +42,7 @@ def long_prompt_interference(ctx: RunContext) -> Finding | None:
     if alone is None or mixed is None or not mixed["injected"]:
         return None
     target = ctx.workload.slo.tpot_ms
-    budget = ctx.theory.default_max_num_batched_tokens
+    budget = settings.token_budget(ctx).value
     per_token = _prefill_ms_per_token(ctx)
     # Note 45 section 5: a step carrying a chunk must still finish within the per-token target.
     safe = None

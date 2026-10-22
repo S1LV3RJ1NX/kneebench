@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from kneebench.analysis import settings
 from kneebench.analysis.context import PointView, RunContext
 from kneebench.analysis.engine import Finding, info, ok, rule
-from kneebench.analysis.rules.walls import _effective_max_num_seqs
 
 # A level queues inside the engine when requests wait and the slowest waits are noticeable
 # (kneebench estimate: 50 ms is a tenth of a typical first-token target).
@@ -68,8 +68,8 @@ def admission_limit(ctx: RunContext) -> Finding | None:
         return None
     if all(p.engine_ms("queue_time", "p99") is None for p in levels):
         return None  # an older vLLM without the queue histogram: nothing to say either way
-    seqs, seqs_default = _effective_max_num_seqs(ctx)
-    budget = ctx.theory.default_max_num_batched_tokens
+    seqs_setting, budget_setting = settings.max_num_seqs(ctx), settings.token_budget(ctx)
+    seqs, budget = seqs_setting.value, budget_setting.value
     rows = [_gate(p, seqs, budget) for p in levels if _queues(p)]
     if not rows:
         return ok("E02", max_tested=levels[-1].concurrency)
@@ -86,8 +86,10 @@ def admission_limit(ctx: RunContext) -> Finding | None:
         known=known,
         gate=known["gate"] if known else "unknown",
         max_num_seqs=seqs,
-        seqs_default=seqs_default,
+        seqs_default=seqs_setting.is_default,
+        seqs_source=seqs_setting.source,
         budget=budget,
+        budget_source=budget_setting.source,
         tpot_target_ms=target,
         safe_budget=safe,
     )

@@ -82,7 +82,7 @@
             <td><span class="badge {{ {'better': 'ok', 'worse': 'bad'}.get(verdict, '') }}">{{ {'unknown': 'one run only'}.get(verdict, verdict) }}</span></td></tr>
         {% endfor %}</tbody>
       </table>
-      <p class="small muted">Changes under 5% count as noise. <a href="/compare?a={{ e.base_run_id }}&b={{ verify_run.id }}">Full comparison</a> ·
+      <p class="small muted">Changes under {{ "%.0f" % comparison.noise_pct }}% count as noise{% if comparison.noise_measured %}, from how much each run's repeated baseline moved{% endif %}. <a href="/compare?a={{ e.base_run_id }}&b={{ verify_run.id }}">Full comparison</a> ·
         <a href="/runs/{{ verify_run.id }}">Verification report</a></p>
       {% if e.status not in ("kept", "reverted") %}
       <form method="post" action="/experiments/{{ e.id }}/decide" style="display:flex;gap:10px;margin-top:10px">
