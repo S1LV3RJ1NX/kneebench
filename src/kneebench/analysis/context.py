@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from kneebench.detect.metrics import activity
@@ -64,6 +64,9 @@ class PointView:
     burstiness: float | None = None
     series: dict[str, Any] = field(default_factory=dict)
     spec: dict[str, Any] = field(default_factory=dict)  # the PointSpec it ran with
+    # Judge first-token time by the server's own histogram: set for runs whose network is
+    # too noisy to subtract (see `engine_ttft_wins`).
+    ttft_engine: bool = False
 
     def m(self, metric: str, stat: str = "p50") -> float | None:
         return self.metrics.get(metric, {}).get(stat)
@@ -79,6 +82,20 @@ class PointView:
         A client far from the server pays DNS, TCP and TLS on every new connection; that
         isn't the server's time, and it only lands on some requests, so it inflates the tail.
         """
+        client = self._client_ttft(offset_ms)
+        if not (self.ttft_engine and self.engine_ms("engine_ttft") is not None):
+            return client
+        # Both overstate the server's own time, each in its own way: the client keeps network
+        # jitter, the histogram rounds within its buckets (note 30 section 4). The lower is
+        # the closer one.
+        out = {}
+        for k in ("p50", "p90", "p99", "avg"):
+            values = [v for v in (client.get(k), self.engine_ms("engine_ttft", k)) if v is not None]
+            if values:
+                out[k] = min(values)
+        return out
+
+    def _client_ttft(self, offset_ms: float) -> dict[str, float]:
         timed = [r for r in self.requests if r.ok and r.ttft_ms is not None]
         if not self.new_connections or not timed:
             stats = self.metrics.get("time_to_first_token", {})
@@ -157,6 +174,10 @@ class RunContext:
         return [p for p in self.points if p.phase == phase and p.status == "done"]
 
     @property
+    def ttft_from_engine(self) -> bool:
+        return any(p.ttft_engine for p in self.points)
+
+    @property
     def baseline(self) -> PointView | None:
         pts = self.points_in("baseline")
         return pts[0] if pts else None
@@ -206,6 +227,21 @@ class RunContext:
         if rtt / ttft >= UNRELIABLE_NETWORK_SHARE:
             return None
         return ttft - self.ttft_offset_ms
+
+
+def engine_ttft_wins(rtt_ms: float | None, baseline: PointView | None) -> bool:
+    """Whether first-token time should come from the server's histogram instead of the client.
+
+    When the round trip is half the first-token time or more, subtracting it leaves mostly
+    network jitter: one slow packet lands in the tail. The engine measures from the moment
+    the request reached it, so its percentiles are the server's own (note 30 section 6).
+    """
+    if not rtt_ms or baseline is None:
+        return False
+    client = baseline.m("time_to_first_token", "p50")
+    if not client or rtt_ms / client < UNRELIABLE_NETWORK_SHARE:
+        return False
+    return baseline.engine_ms("engine_ttft") is not None
 
 
 def ttft_offset(rtt_ms: float | None, baseline: PointView | None, floor_ms: float | None) -> float:
@@ -269,7 +305,7 @@ def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
     gpu = _loads(setup["gpu_json"])
     slo = _loads(workload["slo_json"])
     points = tuple(point_from_dict(p) for p in bundle["points"])
-    return RunContext(
+    ctx = RunContext(
         run_id=run["id"],
         status=run["status"],
         started_at=run["started_at"],
@@ -303,3 +339,6 @@ def context_from_bundle(bundle: dict[str, Any]) -> RunContext:
             zlib.decompress(snap["metrics_text_z"]).decode() if snap.get("metrics_text_z") else None
         ),
     )
+    if engine_ttft_wins(ctx.http_rtt_ms, ctx.baseline):
+        ctx = replace(ctx, points=tuple(replace(p, ttft_engine=True) for p in ctx.points))
+    return ctx

@@ -122,6 +122,11 @@ caveats:
   remote_client: >-
     This test ran {{ ms(http_rtt_ms) }} (one network round trip) away from the server. Time per
     token is reliable from here; first-token times include the network.
+  engine_ttft: >-
+    From here the network adds as much as the server takes, and its jitter lands in the slow
+    tail. So each first-token percentile is the lower of two estimates: the client's with the
+    round trip removed, and the server's own histogram (whose percentiles are rounded to its
+    buckets).
   no_metrics: >-
     /metrics was not reachable, so memory findings are estimates from the model's size rather
     than the server's own numbers.

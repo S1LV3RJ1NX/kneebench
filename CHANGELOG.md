@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed (from a clean full run)
+- From far away, first-token percentiles are the lower of the client's (round trip removed)
+  and the server's own histogram: network jitter no longer fails every random-arrival rate
+  while the server's P99 is well under target, and bucket rounding no longer halves capacity.
+  The report says when this applies.
+- H04 relies on the server's output-token count alone when it has one, so sampled answer
+  lengths no longer read as answers stopping early.
+- The CLI progress line shows the arrival rate for rate points instead of the concurrency cap.
+- The bundled demo and screenshots come from a clean full run.
+
 ### Security
 - certifi raised to 2026.10.19 or newer and uv to 0.13.4 or newer: older versions still trust
   the compromised eMudhra intermediate certificates, which allows TLS interception.

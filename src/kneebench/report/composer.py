@@ -246,6 +246,8 @@ def compose(
         caveats.append(render_text(text["caveats"]["remote_client"], http_rtt_ms=rtt))
     if not ctx.metrics_available:
         caveats.append(render_text(text["caveats"]["no_metrics"]))
+    if ctx.ttft_from_engine:
+        caveats.append(render_text(text["caveats"]["engine_ttft"]))
     for f in findings:
         if f.rule_id in CAVEAT_RULES and f.status is Status.INFO:
             caveats.append(render_finding(f, common, env).status_line)

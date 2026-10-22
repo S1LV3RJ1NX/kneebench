@@ -189,6 +189,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - From here the network adds as much as the server takes, and its jitter lands in the slow tail. So each first-token percentile is the lower of two estimates: the client's with the round trip removed, and the server's own histogram (whose percentiles are rounded to its buckets).
   - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
@@ -431,6 +432,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - From here the network adds as much as the server takes, and its jitter lands in the slow tail. So each first-token percentile is the lower of two estimates: the client's with the round trip removed, and the server's own histogram (whose percentiles are rounded to its buckets).
   - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
@@ -673,6 +675,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - From here the network adds as much as the server takes, and its jitter lands in the slow tail. So each first-token percentile is the lower of two estimates: the client's with the round trip removed, and the server's own histogram (whose percentiles are rounded to its buckets).
   - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
@@ -927,6 +930,7 @@
   - Prompts are random text, so they never share a beginning. Real traffic often repeats system prompts, which prefix caching can speed up; your real time to first token may be lower.
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
+  - From here the network adds as much as the server takes, and its jitter lands in the slow tail. So each first-token percentile is the lower of two estimates: the client's with the round trip removed, and the server's own histogram (whose percentiles are rounded to its buckets).
   - The server has prefix caching (reusing work for prompts that start with the same text) on; this test's prompts hit it 5.9% of the time. Real traffic that repeats system prompts will likely start answers faster than measured here.
   
   ## Glossary
@@ -1137,6 +1141,7 @@
   - Results describe this server, with these flags, at this time. Change one setting at a time and rerun to compare.
   - This test ran 272 ms (one network round trip) away from the server. Time per token is reliable from here; first-token times include the network.
   - /metrics was not reachable, so memory findings are estimates from the model's size rather than the server's own numbers.
+  - From here the network adds as much as the server takes, and its jitter lands in the slow tail. So each first-token percentile is the lower of two estimates: the client's with the round trip removed, and the server's own histogram (whose percentiles are rounded to its buckets).
   
   ## Glossary
   
@@ -1277,7 +1282,7 @@
   
   ### [context] Real capacity is the lowest wall (W03)
   
-  **Capacity for chat traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  **Capacity for chat traffic: 32 users comfortably, breaking just above that, set by throughput saturation.**
   
   **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 260; max_num_seqs 1,024.
   
@@ -1764,7 +1769,7 @@
   
   ### [context] Real capacity is the lowest wall (W03)
   
-  **Capacity for summarization traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  **Capacity for summarization traffic: 32 users comfortably, breaking just above that, set by throughput saturation.**
   
   **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 76; max_num_seqs 1,024.
   
@@ -2235,7 +2240,7 @@
   
   ### [context] Real capacity is the lowest wall (W03)
   
-  **Capacity for chat traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  **Capacity for chat traffic: 32 users comfortably, breaking just above that, set by throughput saturation.**
   
   **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 260; max_num_seqs 1,024.
   
@@ -2611,7 +2616,7 @@
   
   ### [context] Real capacity is the lowest wall (W03)
   
-  **Capacity for reasoning traffic: 32 users comfortably, breaking at about 32, set by throughput saturation.**
+  **Capacity for reasoning traffic: 32 users comfortably, breaking just above that, set by throughput saturation.**
   
   **What we measured.** The walls, in users in flight: saturation 32; per-token latency target 42; memory (cache ÷ request length) 76; max_num_seqs 1,024.
   

@@ -86,8 +86,10 @@ def output_length(ctx: RunContext) -> Finding | None:
         # A scheduled point mixes lengths (long prompts with short answers among the streams).
         expected = sum(r[2] for r in schedule) / len(schedule) if schedule else p.osl
         ratio = (mean_osl / expected) if mean_osl else None
-        if p.m("usage_completion_tokens", "avg") and ratio is not None and ratio >= 0.99:
-            mismatches = 0.0  # AIPerf's per-request warning came from its own recount
+        if p.m("usage_completion_tokens", "avg"):
+            # AIPerf's per-request mismatches compare its recount with each request's sampled
+            # length; with the server's own count, only a shortfall in the mean is real.
+            mismatches = 0.0
         share = mismatches / requests if requests else None
         # AIPerf warns on a single short answer; only a real shortfall changes the numbers.
         warned_without_counts = share is None and p.has_warning(OSL_WARNING)

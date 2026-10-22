@@ -3,7 +3,7 @@ title: Real capacity is the lowest wall
 status_line:
   info: >-
     {% if op %}Capacity for {{ shape_name }} traffic: {{ users(op) }} comfortably, breaking
-    at about {{ num(c_star, 0) }}{% else %}Capacity for {{ shape_name }} traffic is limited at about
+    {% if c_star | round(0) <= op %}just above that{% else %}at about {{ num(c_star, 0) }}{% endif %}{% else %}Capacity for {{ shape_name }} traffic is limited at about
     {{ num(c_star, 0) }} users{% endif %}, set by
     {{ {"slo_tpot": "per-token latency", "slo_ttft": "time to first token",
         "saturation": "throughput saturation", "memory": "KV cache memory",

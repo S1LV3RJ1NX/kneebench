@@ -124,6 +124,14 @@ def detect(
     _print_detected(snap)
 
 
+def _load_label(spec: Any) -> str:
+    if spec.mode.value == "rate" and spec.request_rate:
+        return f"{spec.request_rate:.2f} req/s ({spec.arrival.value})"
+    if spec.mode.value == "schedule":
+        return f"{len(spec.schedule)} scheduled requests"
+    return f"concurrency {spec.concurrency}"
+
+
 def _print_detected(snap: object) -> None:
     from kneebench.detect.server import ServerSnapshot
 
@@ -276,7 +284,7 @@ def run(
             console.print(
                 f"[{ev.index + 1}/{ev.total}] {ev.planned.phase}: "
                 f"{spec.isl + (spec.prefix_len or spec.system_len or 0)} in / "
-                f"{spec.osl} out, concurrency {spec.concurrency}, "
+                f"{spec.osl} out, {_load_label(spec)}, "
                 f"~{ev.planned.eta_s:.0f} s…"
             )
         else:
