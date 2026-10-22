@@ -1,7 +1,36 @@
 # Report-level text: verdict sentences, scorecard tiles and caveats.
 # Which sentence or status applies is decided in report/composer.py; the words live here.
 
+# The setup block at the top of every report: what was tested, on what, against which targets.
+setup:
+  model: Model
+  gpu: GPU
+  server: Server
+  cache: KV cache
+  scheduler: Scheduler limits
+  traffic: Traffic
+  targets: Targets
+  client: Tested from
+  ran: What ran
+  source:
+    set: as you entered it
+    inferred: inferred from the run
+    default: the default for this vLLM and GPU
+  phase_groups:
+    baseline: single-request baseline
+    concurrency: concurrency sweep
+    rate: request-rate sweep
+    shape: request-size sweep
+    interference: long-prompt interference
+    reuse: prompt reuse
+    cancel: abandoned requests
 verdict:
+  plan_for: >-
+    Plan for about {{ num(plan_rps, 2) }} requests per second: 20% below the
+    {{ num(sustained_rps, 2) }} that met your targets with users arriving at random.
+  first_fix: >-
+    First change to try: {{ title | lower }}{% if flag %} (`{{ flag }}`){% endif %}.
+    {{ why }}
   capacity: >-
     For your {{ product_label }} traffic ({{ num(isl) }} tokens in, {{ num(osl) }} out), this
     server comfortably handles about {{ num(op) }} users at your target
@@ -125,7 +154,8 @@ phase_labels:
   rag_sorted: the passages in document order
   cancel: the abandoned-request test
 sections:
-  verdict: Verdict
+  setup: Setup
+  verdict: Executive summary
   scorecard: Scorecard
   problems: What needs attention
   capacity: How much load it takes

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed (report and UI)
+- Reports open with a Setup block (model, GPU, server, cache, scheduler limits and where they
+  came from, traffic, targets, where the test ran, what ran) and an Executive summary in
+  bullets: capacity, how much traffic to plan for, the first server change to try, caveats.
+- A light and dark mode toggle in the header; it follows the system until you pick one.
+- The new-run form marks required fields and explains every field in one line behind a (?).
+
 ### Added (plan gaps)
 - H10 checks kneebench was alone on the server: no requests running or waiting at the start,
   and never more than one running while kneebench sent one. The CLI and the run form warn

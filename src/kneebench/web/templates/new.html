@@ -10,13 +10,12 @@
       hx-indicator="#start-spin">
   <section class="card">
     <h3><span class="step-num">01</span>Connect</h3>
-    <div class="row"><label for="url">Endpoint URL</label>
+    <p class="muted small" style="margin-top:0">Fields marked <span class="req" aria-hidden="true">*</span> are required; the rest start at sensible defaults.</p>
+    <div class="row"><label for="url">Endpoint URL<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="The root address of your vLLM server; kneebench adds /v1/chat/completions and /metrics itself.">?</span></label>
       <div><input id="url" name="url" required placeholder="http://my-vllm-host:8000" value="{{ defaults.url or '' }}"
-                  oninput="lockSteps('The URL changed. Detect the server again to continue.')">
-        <div class="help">The server root. kneebench adds /v1/chat/completions, /metrics and so on.</div></div></div>
-    <div class="row"><label for="api_key">API key</label>
-      <div><input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="optional">
-        <div class="help">Used for this run only. Never saved, logged or written into reports.</div></div></div>
+                  oninput="lockSteps('The URL changed. Detect the server again to continue.')"></div></div>
+    <div class="row"><label for="api_key">API key<span class="tip" tabindex="0" role="note" data-tip="Only if your server needs one. Used for this run and never saved, logged or written into reports.">?</span></label>
+      <div><input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="optional"></div></div>
     <div class="row"><span></span><div>
       <button type="button" class="secondary" hx-post="/detect" hx-include="#url,#api_key"
               hx-target="#detected" hx-indicator="#detect-spin">Detect server</button>
@@ -33,16 +32,13 @@
 
   <section class="card">
     <h3><span class="step-num">03</span>Hardware and flags</h3>
-    <div class="row"><label for="gpu">GPU</label>
-      <div><select id="gpu" name="gpu">{% for g in gpus %}<option value="{{ g.id }}">{{ g.name }} · {{ "%.0f"|format(g.memory_gib) }} GiB · {{ g.bandwidth_tbps }} TB/s</option>{% endfor %}</select>
-        <div class="help">Needed for the physics floors. kneebench checks it against what it measures and flags a mismatch, and you can correct it afterwards without rerunning.</div></div></div>
-    <div class="row"><label for="gpu_count">GPUs per replica</label>
-      <div><input id="gpu_count" name="gpu_count" type="number" min="1" value="1">
-        <div class="help">The tensor parallel size (--tensor-parallel-size).</div></div></div>
-    <div class="row"><label for="max_num_seqs">--max-num-seqs</label>
-      <div><input id="max_num_seqs" name="max_num_seqs" type="number" min="1" placeholder="the default for your vLLM and GPU">
-        <div class="help">Leave empty if you didn't set it.</div></div></div>
-    <div class="row"><label>--enforce-eager</label>
+    <div class="row"><label for="gpu">GPU<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="The GPU the server runs on. Used for the physics limits; you can correct it after the run without rerunning.">?</span></label>
+      <div><select id="gpu" name="gpu" required>{% for g in gpus %}<option value="{{ g.id }}">{{ g.name }} · {{ "%.0f"|format(g.memory_gib) }} GiB · {{ g.bandwidth_tbps }} TB/s</option>{% endfor %}</select></div></div>
+    <div class="row"><label for="gpu_count">GPUs per replica<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="How many GPUs one copy of the model is split across: your --tensor-parallel-size.">?</span></label>
+      <div><input id="gpu_count" name="gpu_count" type="number" min="1" value="1" required></div></div>
+    <div class="row"><label for="max_num_seqs">--max-num-seqs<span class="tip" tabindex="0" role="note" data-tip="The most requests your server runs at once. Leave empty if you never set it; kneebench uses the default or infers it.">?</span></label>
+      <div><input id="max_num_seqs" name="max_num_seqs" type="number" min="1" placeholder="empty: the default for your vLLM and GPU"></div></div>
+    <div class="row"><label>--enforce-eager<span class="tip" tabindex="0" role="note" data-tip="Whether the server was started with --enforce-eager, which turns off CUDA graphs and slows each token.">?</span></label>
       <div class="choices">
         <label><input type="radio" name="enforce_eager" value="" checked> Not sure</label>
         <label><input type="radio" name="enforce_eager" value="false"> Not set (CUDA graphs on)</label>
@@ -50,37 +46,36 @@
   </section>
 
   <section class="card">
-    <h3><span class="step-num">04</span>Your traffic</h3>
+    <h3><span class="step-num">04</span>Your traffic<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="Pick the closest match. It sets the latency targets below and which findings come first.">?</span></h3>
     <p class="muted small">This decides which shape is swept and which findings come first in the report.</p>
     {% for key, p in profiles.items() %}
     <label class="choice-card"><input type="radio" name="product" value="{{ key }}" {% if key == "chat" %}checked{% endif %}
       onchange="applyPreset(this.value)"> <b>{{ p.title }}</b>
       <span class="muted">{{ presets[key].explain }}</span></label>
     {% endfor %}
-    <div class="row" style="margin-top:14px"><label>Typical request</label>
+    <div class="row" style="margin-top:14px"><label>Typical request<span class="tip" tabindex="0" role="note" data-tip="Optional. Median prompt and answer length from your logs; it becomes the main size tested.">?</span></label>
       <div><div style="display:flex;gap:8px;align-items:center">
         <input name="shape_isl" type="number" min="1" placeholder="prompt tokens" style="max-width:160px">
         <span class="muted">in,</span>
         <input name="shape_osl" type="number" min="1" placeholder="output tokens" style="max-width:160px">
-        <span class="muted">out</span></div>
-        <div class="help">Optional. From your logs, the median prompt and answer length. It becomes the main shape, tested next to the standard ones.</div></div></div>
+        <span class="muted">out</span></div></div></div>
   </section>
 
   <section class="card">
     <h3><span class="step-num">05</span>Latency targets</h3>
-    <div class="row"><label for="slo_ttft_ms">Time to first token</label>
-      <div><input id="slo_ttft_ms" name="slo_ttft_ms" type="number" min="1" placeholder="ms, empty for no target">
-        <div class="help">How long a user waits before the answer starts, in milliseconds. Judged without the network round trip from where kneebench runs.</div></div></div>
-    <div class="row"><label for="slo_tpot_ms">Time per token</label>
+    <p class="muted small">Filled in from your traffic type; change them to your own, or clear one for no target.</p>
+    <div class="row"><label for="slo_ttft_ms">Time to first token<span class="tip" tabindex="0" role="note" data-tip="How long a user waits before the answer starts, in milliseconds, with the network removed.">?</span></label>
+      <div><input id="slo_ttft_ms" name="slo_ttft_ms" type="number" min="1" placeholder="ms, empty for no target"></div></div>
+    <div class="row"><label for="slo_tpot_ms">Time per token<span class="tip" tabindex="0" role="note" data-tip="The gap between words once the answer streams, in milliseconds.">?</span></label>
       <div><input id="slo_tpot_ms" name="slo_tpot_ms" type="number" min="1" step="0.1" placeholder="ms, empty for no target">
         <div class="help" id="tpot-help">The gap between words once the answer streams.</div></div></div>
-    <div class="row"><label for="slo_percentile">Met by</label>
+    <div class="row"><label for="slo_percentile">Met by<span class="tip" tabindex="0" role="note" data-tip="How many requests must meet the targets. P99 means the slowest 1 in 100 counts.">?</span></label>
       <div><select id="slo_percentile" name="slo_percentile"><option value="99">99 out of 100 requests (P99)</option><option value="90">90 out of 100 requests (P90)</option></select></div></div>
   </section>
 
   <section class="card">
     <h3><span class="step-num">06</span>What to run</h3>
-    <div class="row"><label>Phases</label>
+    <div class="row"><label>Phases<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="What to measure. At least one; the default runs everything in about an hour.">?</span></label>
       <div class="choices">
         <label><input type="checkbox" name="phase_baseline" value="1" checked> Single-request baseline <span class="muted small">how close one request gets to the hardware limit</span></label>
         <label><input type="checkbox" name="phase_concurrency" value="1" checked> Concurrency sweep <span class="muted small">capacity, the three walls, and what to change</span></label>
@@ -90,15 +85,12 @@
         <label><input type="checkbox" name="phase_cancel" value="1" checked> Abandoned requests <span class="muted small">whether the server stops generating when a user leaves mid-answer; adds about 1 minute</span></label>
         <label><input type="checkbox" name="phase_shape" value="1" checked> Request-size sweep <span class="muted small">prompt and output length, and every shape at the same load; adds about 30 minutes</span></label>
       </div></div>
-    <div class="row"><label for="max_concurrency">Highest concurrency</label>
-      <div><input id="max_concurrency" name="max_concurrency" type="number" min="1" value="256">
-        <div class="help">The sweep doubles from 1 up to this, and stops early once the limits are found.</div></div></div>
-    <div class="row"><label for="budget_min">Time budget</label>
-      <div><input id="budget_min" name="budget_min" type="number" min="1" placeholder="minutes, empty for no limit">
-        <div class="help">If the plan is longer, the top of the sweep is trimmed.</div></div></div>
-    <div class="row"><label for="label">Label</label>
-      <div><input id="label" name="label" placeholder="e.g. before lowering max-num-seqs">
-        <div class="help">Helps you tell runs apart when you compare before and after a change.</div></div></div>
+    <div class="row"><label for="max_concurrency">Highest concurrency<span class="req" aria-hidden="true">*</span><span class="tip" tabindex="0" role="note" data-tip="The most users in flight the sweep tries. It doubles from 1 and stops early once it finds the limits.">?</span></label>
+      <div><input id="max_concurrency" name="max_concurrency" type="number" min="1" value="256" required></div></div>
+    <div class="row"><label for="budget_min">Time budget<span class="tip" tabindex="0" role="note" data-tip="Optional limit in minutes. If the plan is longer, the highest loads are dropped.">?</span></label>
+      <div><input id="budget_min" name="budget_min" type="number" min="1" placeholder="minutes, empty for no limit"></div></div>
+    <div class="row"><label for="label">Label<span class="tip" tabindex="0" role="note" data-tip="Optional note to tell runs apart, for example before and after a change.">?</span></label>
+      <div><input id="label" name="label" placeholder="e.g. before lowering max-num-seqs"></div></div>
     <div class="row"><span></span><div>
       <button type="button" class="secondary" hx-post="/plan" hx-include="#run-form" hx-target="#plan"
               hx-indicator="#plan-spin">Preview plan</button>

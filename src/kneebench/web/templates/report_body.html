@@ -4,6 +4,7 @@
 <aside class="toc no-print">
   <div class="eyebrow">On this page</div>
   <nav>
+    {% if report.setup %}<a href="#setup">{{ s.setup }}</a>{% endif %}
     <a href="#verdict">{{ s.verdict }}</a>
     <a href="#scorecard">{{ s.scorecard }}</a>
     {% if report.problems %}<a href="#problems">{{ s.problems }} <span class="count">{{ report.problems | length }}</span></a>{% endif %}
@@ -35,8 +36,12 @@
   The report below uses the points measured before it stopped.</div>{% endif %}
 
 {% if report.what_if %}<div class="notice warn">{{ report.what_if | safe }}</div>{% endif %}
+{% if report.setup %}
+<h2 id="setup">{{ s.setup }}</h2>
+<div class="card setup"><ul>{% for label, value in report.setup %}<li><b>{{ label }}</b> {{ value }}</li>{% endfor %}</ul></div>
+{% endif %}
 <h2 id="verdict">{{ s.verdict }}</h2>
-<div class="card verdict">{% for sentence in report.verdict %}{{ sentence | safe }} {% endfor %}</div>
+<div class="card verdict"><ul>{% for sentence in report.verdict %}<li>{{ sentence | safe }}</li>{% endfor %}</ul></div>
 
 <h2 id="scorecard">{{ s.scorecard }}</h2>
 <div class="grid">

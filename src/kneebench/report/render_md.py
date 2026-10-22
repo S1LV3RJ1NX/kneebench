@@ -56,9 +56,14 @@ def render_markdown(report: Report) -> str:
         f"generated {report.generated_at}",
         "",
         *([f"> {report.what_if}", ""] if report.what_if else []),
+        *(
+            [f"## {s['setup']}", "", *(f"- **{k}:** {v}" for k, v in report.setup), ""]
+            if report.setup
+            else []
+        ),
         f"## {s['verdict']}",
         "",
-        " ".join(report.verdict),
+        *(f"- {line}" for line in report.verdict),
         "",
         f"## {s['scorecard']}",
         "",

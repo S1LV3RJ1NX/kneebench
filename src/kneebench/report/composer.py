@@ -104,6 +104,7 @@ class Report:
     findings_json: list[dict[str, Any]] = field(default_factory=list)
     # Set when the report judges the run against targets other than the ones it ran with.
     what_if: str | None = None
+    setup: list[tuple[str, str]] = field(default_factory=list)
 
 
 def common_vars(ctx: RunContext) -> dict[str, Any]:
@@ -237,6 +238,7 @@ def compose(
     skipped = [render_finding(f, common, env) for f in findings if f.status is Status.SKIP]
 
     steps = _next_steps(problems)
+    verdict = _executive(verdict, steps, findings, text["verdict"], render_text)
 
     caveats = [render_text(c) for c in text["caveats"]["always"]]
     rtt = ctx.http_rtt_ms
@@ -288,10 +290,144 @@ def compose(
         sections=text["sections"],
         findings_json=[f.to_json() for f in findings],
         what_if=render_text(text["what_if"], **what_if) if what_if else None,
+        setup=_setup(ctx, common, text["setup"]),
     )
 
 
 VERDICT_MAX_SENTENCES = 3  # the verdict is two or three plain sentences
+SUMMARY_MAX_BULLETS = 5
+
+
+def _executive(
+    verdict: list[str],
+    steps: list[NextStep],
+    findings: list[Finding],
+    text: dict[str, str],
+    render: Any,
+) -> list[str]:
+    """The verdict as bullets, plus how much traffic to plan for and the first change to try."""
+    out = verdict[:1]
+    w08 = _by(findings, "W08")
+    if w08 is not None and w08.data.get("planned_rps"):
+        out.append(
+            render(
+                text["plan_for"],
+                plan_rps=w08.data["planned_rps"],
+                sustained_rps=w08.data["slo_rps"],
+            )
+        )
+    fix = next((s for s in steps if s.action.kind == "server"), None)
+    if fix is not None:
+        out.append(
+            render(text["first_fix"], title=fix.action.title, flag=fix.action.flag, why=fix.reason)
+        )
+    out += verdict[1:]
+    return out[:SUMMARY_MAX_BULLETS]
+
+
+def _setup(ctx: RunContext, common: dict[str, Any], text: dict[str, Any]) -> list[tuple[str, str]]:
+    """What was tested, on what, against which targets, as label and value pairs."""
+    from kneebench.analysis import settings
+
+    t, slo = ctx.theory, ctx.workload.slo
+    src = text["source"]
+    rows: list[tuple[str, str]] = []
+    model = str(common["model"])
+    if ctx.served_model and ctx.served_model != model:
+        model += f", served as {ctx.served_model}"
+    rows.append((text["model"], model))
+    rows.append((text["gpu"], f"{common['gpu_label']} (as entered)"))
+    server = f"vLLM {ctx.vllm_version or 'unknown'}"
+    if ctx.max_model_len:
+        server += f", context window {num(ctx.max_model_len)} tokens"
+    rows.append((text["server"], server))
+    if t.pool_tokens:
+        cache = f"{num(t.pool_tokens)} tokens"
+        if t.block_size:
+            cache += f" in {t.block_size}-token blocks"
+        cache += (
+            ", same precision as the model"
+            if t.cache_dtype in ("auto", "", None)
+            else f", stored as {t.cache_dtype}"
+        )
+        if t.prefix_caching is not None:
+            cache += f", prefix caching {'on' if t.prefix_caching else 'off'}"
+        rows.append((text["cache"], cache))
+    seqs, budget = settings.max_num_seqs(ctx), settings.token_budget(ctx)
+    rows.append(
+        (
+            text["scheduler"],
+            f"max_num_seqs {num(seqs.value)} ({src[seqs.source]}); about {num(budget.value)} "
+            f"tokens per step ({src[budget.source]})",
+        )
+    )
+    shape = ctx.theory.shape(ctx.primary_shape) or ctx.theory.shape("baseline")
+    if shape:
+        rows.append(
+            (
+                text["traffic"],
+                f"{common['product_label']}, {num(shape.isl)} tokens in and {num(shape.osl)} out",
+            )
+        )
+    targets = []
+    if slo.ttft_ms:
+        targets.append(f"{ms(slo.ttft_ms)} to the first token")
+    if slo.tpot_ms:
+        targets.append(f"{ms(slo.tpot_ms)} per token")
+    rows.append(
+        (
+            text["targets"],
+            (" and ".join(targets) + f", for {slo.percentile} of 100 requests")
+            if targets
+            else "none set",
+        )
+    )
+    client = ctx.client or {}
+    os_name = {"Darwin": "macOS", "Linux": "Linux"}.get(str(client.get("os")), client.get("os"))
+    chip = "Apple silicon" if os_name == "macOS" and client.get("machine") == "arm64" else None
+    where = ", ".join(str(x) for x in (os_name, chip or client.get("machine")) if x) or "unknown"
+    if ctx.http_rtt_ms is not None:
+        where += f", {ms(ctx.http_rtt_ms)} round trip to the server"
+    rows.append((text["client"], where))
+    groups: list[str] = []
+    for p in ctx.points:
+        group = PHASE_GROUP.get(p.phase, p.phase)
+        if group not in groups:
+            groups.append(group)
+    levels = [p.concurrency for p in ctx.points_in("concurrency") if p.concurrency]
+    labels = [
+        text["phase_groups"].get(g, g)
+        + (f" (1 to {num(max(levels))} users)" if g == "concurrency" and levels else "")
+        for g in groups
+    ]
+    rows.append(
+        (
+            text["ran"],
+            f"{', '.join(labels)}; {len(ctx.points)} points, kneebench {ctx.kneebench_version}, "
+            f"AIPerf {ctx.aiperf_version}",
+        )
+    )
+    return rows
+
+
+# Which part of the test each point phase belongs to, for the setup block.
+PHASE_GROUP = {
+    "baseline": "baseline",
+    "baseline_end": "baseline",
+    "concurrency": "concurrency",
+    "rate": "rate",
+    "shape_prompt": "shape",
+    "shape_output": "shape",
+    "shape_map": "shape",
+    "interference_base": "interference",
+    "interference": "interference",
+    "reuse_control": "reuse",
+    "reuse_shared": "reuse",
+    "reuse_turns": "reuse",
+    "rag_ranked": "reuse",
+    "rag_sorted": "reuse",
+    "cancel": "cancel",
+}
 
 
 def _verdict(

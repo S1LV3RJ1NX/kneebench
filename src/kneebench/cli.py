@@ -518,7 +518,7 @@ def _write_report(
     else:
         path.write_text(render_json(rep) if fmt == "json" else render_markdown(rep))
     if show_verdict:
-        console.print("\n[bold]Verdict[/]\n" + "\n".join(rep.verdict))
+        console.print("\n[bold]Executive summary[/]\n" + "\n".join(f"- {s}" for s in rep.verdict))
     console.print(f"\nReport written to {path}")
 
 

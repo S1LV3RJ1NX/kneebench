@@ -21,14 +21,23 @@
   --radius: 12px; --radius-sm: 8px;
   color-scheme: light dark;
 }
+/* The system theme, unless the header toggle picked one (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #1f1e1b; --surface: #262521; --sand: #2e2c28; --hairline: #2c2a26;
     --border: #3a3833; --ink: #edeae3; --ink-2: #d6d2c8; --muted: #a8a397; --subtle: #858075;
     --clay-soft: #3b2a22; --ok-soft: #22301f; --warn-soft: #362b17; --bad-soft: #3a221e;
     --info-soft: #2a2f33;
   }
 }
+:root[data-theme="dark"] {
+    --paper: #1f1e1b; --surface: #262521; --sand: #2e2c28; --hairline: #2c2a26;
+    --border: #3a3833; --ink: #edeae3; --ink-2: #d6d2c8; --muted: #a8a397; --subtle: #858075;
+    --clay-soft: #3b2a22; --ok-soft: #22301f; --warn-soft: #362b17; --bad-soft: #3a221e;
+    --info-soft: #2a2f33;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
@@ -49,6 +58,10 @@ header.top .brand::before { content: ""; width: 10px; height: 10px; border-radiu
 header.top nav { display: flex; gap: 20px; }
 header.top nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
 header.top nav a:hover { color: var(--ink); }
+.theme-toggle { margin-left: auto; background: none; border: 1px solid var(--border); color: var(--muted);
+  width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer; }
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); background: none; }
+.live + .theme-toggle { margin-left: 12px; }
 
 main { max-width: 920px; margin: 0 auto; padding: 40px 32px 80px; }
 h1, h2, h3 { letter-spacing: -0.022em; text-wrap: balance; color: var(--ink); }
@@ -68,6 +81,13 @@ p { text-wrap: pretty; }
 .reading, .verdict, .finding .part, .finding .line, .action, .caveats li {
   font-family: var(--serif); }
 .verdict { font-size: 18.5px; line-height: 1.6; color: var(--ink-2); padding: 26px 28px; }
+.verdict ul { margin: 0; padding-left: 20px; }
+.verdict li { margin: 0 0 10px; }
+.verdict li:last-child { margin-bottom: 0; }
+.setup { padding: 18px 24px; }
+.setup ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr; gap: 6px; }
+.setup li { font-size: 14px; color: var(--ink-2); }
+.setup li b { display: inline-block; min-width: 128px; color: var(--muted); font-weight: 500; }
 
 .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -132,6 +152,16 @@ form .row { display: grid; grid-template-columns: 210px 1fr; gap: 16px; align-it
   margin: 16px 0; }
 form label { font-weight: 500; font-size: 14px; padding-top: 8px; }
 .help { color: var(--muted); font-size: 13px; margin-top: 5px; }
+.req { color: var(--bad); margin-left: 3px; font-weight: 600; }
+.tip { position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-left: 6px; border: 1px solid var(--border); border-radius: 50%;
+  color: var(--muted); font: 500 10.5px/1 var(--sans); cursor: help; vertical-align: 1px; }
+.tip:hover, .tip:focus { color: var(--ink); border-color: var(--muted); outline: none; }
+.tip:hover::after, .tip:focus::after { content: attr(data-tip); position: absolute; left: 0;
+  bottom: calc(100% + 8px); z-index: 20; width: max-content; max-width: 300px; white-space: normal;
+  padding: 8px 11px; border-radius: var(--radius-sm); background: var(--ink); color: var(--paper);
+  font: 400 12.5px/1.45 var(--sans); letter-spacing: 0; text-transform: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); }
 input, select { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid var(--border);
   border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); width: 100%; }
 input:focus, select:focus { outline: none; border-color: var(--clay);

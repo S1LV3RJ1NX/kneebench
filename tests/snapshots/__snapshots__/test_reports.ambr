@@ -5,9 +5,24 @@
   
   Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows. From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers. This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** chat assistant, 1,024 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** test, 272 ms round trip to the server
+  - **What ran:** single-request baseline; 1 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows.
+  - First change to try: lower the sequence cap (`--max-num-seqs 221`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.
+  - From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers.
+  - This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
   
   ## Scorecard
   
@@ -232,9 +247,24 @@
   
   Run 1 · RAG and long documents workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows. From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers. This run measured one request at a time; the concurrency sweep is what tells you how many RAG and long documents users it can serve.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** RAG and long documents, 5,988 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** test, 272 ms round trip to the server
+  - **What ran:** single-request baseline; 1 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows.
+  - First change to try: lower the sequence cap (`--max-num-seqs 63`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 summarization requests at full length.
+  - From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers.
+  - This run measured one request at a time; the concurrency sweep is what tells you how many RAG and long documents users it can serve.
   
   ## Scorecard
   
@@ -459,9 +489,24 @@
   
   Run 1 · reasoning and agents workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows. From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers. This run measured one request at a time; the concurrency sweep is what tells you how many reasoning and agents users it can serve.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** reasoning and agents, 1,024 tokens in and 5,988 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** test, 272 ms round trip to the server
+  - **What ran:** single-request baseline; 1 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows.
+  - First change to try: lower the sequence cap (`--max-num-seqs 63`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 75 reasoning requests at full length.
+  - From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers.
+  - This run measured one request at a time; the concurrency sweep is what tells you how many reasoning and agents users it can serve.
   
   ## Scorecard
   
@@ -686,9 +731,24 @@
   
   Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  Before anything else: the measurements don't fit NVIDIA H100 SXM 80GB, so the GPU entry is probably wrong and every comparison with physics below is unreliable until it is fixed. From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers. This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 SXM 80GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** chat assistant, 1,024 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** test, 272 ms round trip to the server
+  - **What ran:** single-request baseline; 1 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - Before anything else: the measurements don't fit NVIDIA H100 SXM 80GB, so the GPU entry is probably wrong and every comparison with physics below is unreliable until it is fixed.
+  - First change to try: lower the sequence cap (`--max-num-seqs 221`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.
+  - From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers.
+  - This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
   
   ## Scorecard
   
@@ -925,9 +985,22 @@
   
   Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows. From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers. This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** chat assistant, 1,024 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** test, 272 ms round trip to the server
+  - **What ran:** single-request baseline; 1 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.9 ms, 70% of what the hardware allows.
+  - From where this test ran, the network adds 272 ms to every first token (89% of it), so run kneebench closer to the server for first-token numbers.
+  - This run measured one request at a time; the concurrency sweep is what tells you how many chat assistant users it can serve.
   
   ## Scorecard
   
@@ -1120,9 +1193,23 @@
   
   Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For your chat assistant traffic (1,024 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** chat assistant, 1,024 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** unknown, 1 ms round trip to the server
+  - **What ran:** single-request baseline, concurrency sweep (1 to 64 users), request-size sweep; 26 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For your chat assistant traffic (1,024 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line.
+  - First change to try: lower the sequence cap (`--max-num-seqs 42`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   
@@ -1593,9 +1680,23 @@
   
   Run 1 · RAG and long documents workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For your RAG and long documents traffic (5,988 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** RAG and long documents, 5,988 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** unknown, 1 ms round trip to the server
+  - **What ran:** single-request baseline, concurrency sweep (1 to 64 users), request-size sweep; 26 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For your RAG and long documents traffic (5,988 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line.
+  - First change to try: lower the sequence cap (`--max-num-seqs 42`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 summarization requests at full length.
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   
@@ -2066,9 +2167,23 @@
   
   Run 1 · chat assistant workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For your chat assistant traffic (1,024 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** chat assistant, 1,024 tokens in and 1,024 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** unknown, 1 ms round trip to the server
+  - **What ran:** single-request baseline, concurrency sweep (1 to 64 users); 8 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For your chat assistant traffic (1,024 tokens in, 1,024 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line.
+  - First change to try: lower the sequence cap (`--max-num-seqs 42`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 chat requests at full length.
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   
@@ -2428,9 +2543,23 @@
   
   Run 1 · reasoning and agents workload · vLLM 0.29.0 · generated 2026-01-01T00:00:00+00:00
   
-  ## Verdict
+  ## Setup
   
-  For your reasoning and agents traffic (1,024 tokens in, 5,988 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line. For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
+  - **Model:** unsloth/Meta-Llama-3.1-8B-Instruct, served as served-model
+  - **GPU:** NVIDIA H100 NVL 94GB (as entered)
+  - **Server:** vLLM 0.29.0, context window 8,192 tokens
+  - **KV cache:** 532,768 tokens in 16-token blocks, same precision as the model, prefix caching on
+  - **Scheduler limits:** max_num_seqs 1,024 (the default for this vLLM and GPU); about 8,192 tokens per step (the default for this vLLM and GPU)
+  - **Traffic:** reasoning and agents, 1,024 tokens in and 5,988 out
+  - **Targets:** 500 ms to the first token and 50 ms per token, for 99 of 100 requests
+  - **Tested from:** unknown, 1 ms round trip to the server
+  - **What ran:** single-request baseline, concurrency sweep (1 to 64 users); 8 points, kneebench 0.0.test, AIPerf 0.13.0
+  
+  ## Executive summary
+  
+  - For your reasoning and agents traffic (1,024 tokens in, 5,988 out), this server comfortably handles about 32 users at your target of 50 ms per token and 500 ms to the first token for 99 out of 100 requests. Past about 32 users it saturates: the GPU stops adding throughput and extra users only wait in line.
+  - First change to try: lower the sequence cap (`--max-num-seqs 42`). max_num_seqs is 1,024 (the default for your vLLM and GPU), but the cache only sustains about 260 reasoning requests at full length.
+  - For one request at a time, unsloth/Meta-Llama-3.1-8B-Instruct on NVIDIA H100 NVL 94GB is healthy: it generates each token in 5.8 ms, 71% of what the hardware allows.
   
   ## Scorecard
   

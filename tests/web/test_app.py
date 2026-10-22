@@ -88,7 +88,7 @@ def test_pages_render(home: Path, stored_run: int) -> None:
     assert client.get("/runs/new").status_code == 200
     page = client.get(f"/runs/{stored_run}")
     assert page.status_code == 200
-    assert "Verdict" in page.text
+    assert "Executive summary" in page.text and "Setup" in page.text
     assert "{{" not in page.text
     assert client.get("/static/plotly.min.js").status_code == 200
     assert client.get("/static/kb.css").status_code == 200
@@ -202,7 +202,7 @@ def test_pdf_export_is_text_with_attachments(home: Path, stored_run: int) -> Non
     reader = PdfReader(io.BytesIO(resp.content))
     assert set(reader.attachments) == {"report.md", "report.json"}
     text = "".join(page.extract_text() for page in reader.pages)
-    assert "Verdict" in text
+    assert "Executive summary" in text
     assert "Appendix" in text
 
 
