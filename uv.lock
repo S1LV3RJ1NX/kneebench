@@ -1277,7 +1277,7 @@ wheels = [
 
 [[package]]
 name = "kneebench"
-version = "0.1.0.dev0"
+version = "0.1.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "aiperf" },

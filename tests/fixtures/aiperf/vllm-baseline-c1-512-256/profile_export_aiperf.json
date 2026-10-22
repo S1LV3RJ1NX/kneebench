@@ -259,7 +259,7 @@
       }
     ],
     "artifacts": {
-      "dir": "/Users/prathamesh/fanout-sh/kneebench/.kneebench/scratch/baseline",
+      "dir": "/data/kneebench/.kneebench/scratch/baseline",
       "summary": [
         "json"
       ],
@@ -282,7 +282,7 @@
     "benchmark_id": "f0f3d4685670",
     "random_seed": 42,
     "trial": 0,
-    "cli_command": "aiperf profile --config '/Users/prathamesh/fanout-sh/kneebench/.kneebench/scratch/baseline/aiperf_config.yaml' --ui None"
+    "cli_command": "aiperf profile --config '/data/kneebench/.kneebench/scratch/baseline/aiperf_config.yaml' --ui None"
   },
   "was_cancelled": false,
   "is_complete": true,

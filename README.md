@@ -56,9 +56,8 @@ Every finding says what was measured, what it means, why it happens (with a link
 ## Quickstart (macOS or Linux)
 
 ```bash
-git clone https://github.com/S1LV3RJ1NX/kneebench && cd kneebench
-uv sync                           # installs kneebench and its bundled AIPerf
-uv run kneebench                  # opens the web UI at http://127.0.0.1:8765
+uv tool install git+https://github.com/S1LV3RJ1NX/kneebench   # kneebench and its bundled AIPerf
+kneebench                                                     # opens the web UI at http://127.0.0.1:8765
 ```
 
 The first start opens on a **demo run**: a real benchmark of Llama 3.1 8B on one H100, every phase, so you can explore a full report before benchmarking your own server. Delete it any time; `kneebench demo` brings it back (set `KNEEBENCH_NO_DEMO=1` to skip it).
@@ -68,17 +67,17 @@ Need uv? `curl -LsSf https://astral.sh/uv/install.sh | sh`. Gated models (such a
 Prefer the terminal? Everything in the UI is also a command:
 
 ```bash
-uv run kneebench doctor --url http://your-vllm-host:8000      # check the setup, with fixes
-uv run kneebench run --url http://your-vllm-host:8000 --gpu h100-sxm   # see `kneebench gpus`
-uv run kneebench report 1 --format pdf                         # or md, json, html
-uv run kneebench run ... --shapes 2000/500                     # your typical request size
-uv run kneebench report 1 --slo-tpot-ms 30                     # what-if: other targets, no rerun
-uv run kneebench compare 1 2                                   # before and after a change
+kneebench doctor --url http://your-vllm-host:8000      # check the setup, with fixes
+kneebench run --url http://your-vllm-host:8000 --gpu h100-sxm   # see `kneebench gpus`
+kneebench report 1 --format pdf                         # or md, json, html
+kneebench run ... --shapes 2000/500                     # your typical request size
+kneebench report 1 --slo-tpot-ms 30                     # what-if: other targets, no rerun
+kneebench compare 1 2                                   # before and after a change
 ```
 
 If your server needs a key, set `KNEEBENCH_API_KEY` (the CLI) or paste it into the form (the UI); it is never saved. Entered the wrong GPU? `kneebench report <run-id> --gpu <id>`, or **Correct GPU** in the report, recomputes everything from stored data with no rerun. PDF export downloads a headless Chromium once: `kneebench doctor --install-pdf`.
 
-Once released, `uv tool install kneebench` (or `pip install kneebench`) will work too. The install is large (about 800 MB) because AIPerf brings `transformers`, `pandas` and friends.
+An early alpha is also on PyPI (`uv tool install kneebench --prerelease allow`); install from GitHub as above until 0.1.0. The install is large (about 800 MB) because AIPerf brings `transformers`, `pandas` and friends. To work on kneebench itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Where to run it
 

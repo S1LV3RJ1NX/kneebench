@@ -1,0 +1,69 @@
+name: release
+
+# Pushing a tag like v0.1.0a1 builds, checks and publishes to PyPI with trusted publishing:
+# GitHub proves its identity to PyPI at release time, so no API token is stored anywhere.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Tag matches the version in pyproject.toml
+        run: |
+          version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: No test endpoint or local paths in the packages, demo included
+        run: |
+          mkdir -p scan
+          for f in dist/*.whl; do unzip -q -o "$f" -d scan/wheel; done
+          for f in dist/*.tar.gz; do tar -xzf "$f" -C scan; done
+          find scan -name 'demo-run.json.gz' -exec sh -c 'gzip -dc "$1" > "$1.json"' _ {} \;
+          # test_demo.py holds these patterns itself, as the strings the demo must not contain.
+          if grep -rIlE --exclude=test_demo.py 'truefoundry|tfy-eo|ps-meta|llama-8b|/Users/' scan; then
+            echo "Found a test endpoint string or a local path in the packages" >&2
+            exit 1
+          fi
+
+      - name: Wheel installs and runs in a clean environment
+        run: |
+          uv venv /tmp/smoke --python 3.12
+          uv pip install --python /tmp/smoke/bin/python dist/*.whl
+          /tmp/smoke/bin/kneebench --help
+          /tmp/smoke/bin/kneebench gpus
+          /tmp/smoke/bin/kneebench version
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3

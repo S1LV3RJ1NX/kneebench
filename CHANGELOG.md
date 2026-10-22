@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0a1] - 2026-10-22
+
+First alpha on PyPI, to reserve the name. Install from GitHub until 0.1.0.
+
 ### Fixed (from a clean full run)
 - From far away, first-token percentiles are the lower of the client's (round trip removed)
   and the server's own histogram: network jitter no longer fails every random-arrival rate

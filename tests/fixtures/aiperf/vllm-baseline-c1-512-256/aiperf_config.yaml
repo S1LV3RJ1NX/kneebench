@@ -1,6 +1,6 @@
 benchmark:
   artifacts:
-    dir: /Users/prathamesh/fanout-sh/kneebench/.kneebench/scratch/baseline
+    dir: /data/kneebench/.kneebench/scratch/baseline
     records:
     - jsonl
     sliceDuration: 10

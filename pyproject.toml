@@ -1,6 +1,6 @@
 [project]
 name = "kneebench"
-version = "0.1.0.dev0"
+version = "0.1.0a1"
 description = "Benchmark your LLM inference server and get a report you can understand and act on."
 readme = "README.md"
 license = "MIT"
@@ -9,7 +9,7 @@ authors = [{ name = "Prathamesh", email = "pratamesh1867@gmail.com" }]
 requires-python = ">=3.11,<3.14"
 keywords = ["llm", "inference", "benchmark", "vllm", "aiperf", "latency", "throughput"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
@@ -60,6 +60,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kneebench"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [".github"]
 
 [tool.ruff]
 line-length = 100

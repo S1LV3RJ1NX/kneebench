@@ -4955,7 +4955,7 @@
       }
     ],
     "artifacts": {
-      "dir": "/Users/prathamesh/fanout-sh/kneebench/.kneebench/scratch/baseline",
+      "dir": "/data/kneebench/.kneebench/scratch/baseline",
       "summary": [
         "json"
       ],
