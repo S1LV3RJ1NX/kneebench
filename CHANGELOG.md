@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- certifi raised to 2026.10.19 or newer and uv to 0.13.4 or newer: older versions still trust
+  the compromised eMudhra intermediate certificates, which allows TLS interception.
+
 ### Changed (report and UI)
 - Reports open with a Setup block (model, GPU, server, cache, scheduler limits and where they
   came from, traffic, targets, where the test ran, what ran) and an Executive summary in
