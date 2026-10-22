@@ -138,10 +138,10 @@
   <summary><b>Every number behind this report</b> <span class="muted small">as plain tables; the JSON and Markdown exports carry the same data</span><span class="chev" aria-hidden="true"></span></summary>
   {% for t in report.appendix %}
   <div class="eyebrow" style="margin-top:18px">{{ t.title }}</div>
-  <table>
+  <div class="table-scroll"><table class="raw">
     <thead><tr>{% for c in t.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
     <tbody>{% for row in t.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
   {% endfor %}
 </details>
 <p class="meta">kneebench {{ report.summary.kneebench_version }} · AIPerf

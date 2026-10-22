@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from kneebench import __version__, content
-from kneebench.analysis.context import RunContext
+from kneebench.analysis.context import PointView, RunContext
 from kneebench.analysis.engine import RULES_VERSION, Finding, Status
 from kneebench.content.render import (
     RenderedAction,
@@ -569,6 +569,16 @@ def _scorecard(
     return tiles
 
 
+def _load(p: PointView) -> str:
+    """The load a point offered: users in flight, or the arrival rate for rate points (whose
+    concurrency is only a safety cap)."""
+    if p.mode == "rate" and p.request_rate:
+        return f"{num(p.request_rate, 2)} req/s"
+    if p.mode == "schedule":
+        return "scheduled"
+    return num(p.concurrency) if p.concurrency else "n/a"
+
+
 def _appendix(ctx: RunContext) -> list[AppendixTable]:
     rows = []
     for p in ctx.points:
@@ -579,7 +589,7 @@ def _appendix(ctx: RunContext) -> list[AppendixTable]:
                 p.status,
                 num(p.isl),
                 num(p.osl),
-                num(p.concurrency) if p.concurrency else "n/a",
+                _load(p),
                 num(p.m("request_count", "avg"), 0),
                 ms(p.m("time_to_first_token", "p50")),
                 ms(p.m("time_to_first_token", "p99")),
@@ -599,7 +609,7 @@ def _appendix(ctx: RunContext) -> list[AppendixTable]:
                 "Status",
                 "Prompt tokens",
                 "Output tokens",
-                "Concurrency",
+                "Load",
                 "Requests",
                 "TTFT P50",
                 "TTFT P99",

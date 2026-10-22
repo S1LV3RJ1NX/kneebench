@@ -40,10 +40,10 @@
     <summary>Explain: what was measured and why it happens</summary>
     {% if f.measured %}<div class="part"><b>What we measured</b>{{ f.measured | safe }}</div>{% endif %}
     {% if f.table %}
-    <table>
+    <div class="table-scroll"><table>
       <thead><tr>{% for c in f.table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
       <tbody>{% for row in f.table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
     {% endif %}
     {% if f.why %}<div class="part"><b>Why it happens</b>{{ f.why | safe }}{% if f.analogy %} <i>{{ f.analogy | safe }}</i>{% endif %}</div>{% endif %}
     {% if f.learn_more_url %}<div class="part small"><a href="{{ f.learn_more_url }}" target="_blank" rel="noopener">Learn more: {{ f.learn_more_label }}</a></div>{% endif %}

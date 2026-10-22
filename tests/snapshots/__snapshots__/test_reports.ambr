@@ -207,7 +207,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 306 ms | 346 ms | 5.9 ms | 7.5 ms | 1.8 s | 138.2 | 0.0 |
   
@@ -449,7 +449,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 306 ms | 346 ms | 5.9 ms | 7.5 ms | 1.8 s | 138.2 | 0.0 |
   
@@ -691,7 +691,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 306 ms | 346 ms | 5.9 ms | 7.5 ms | 1.8 s | 138.2 | 0.0 |
   
@@ -945,7 +945,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 306 ms | 346 ms | 5.9 ms | 7.5 ms | 1.8 s | 138.2 | 0.0 |
   
@@ -1153,7 +1153,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 306 ms | 346 ms | 5.9 ms | 7.5 ms | 1.8 s | 138.2 | 0.0 |
   
@@ -1615,7 +1615,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
   | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
@@ -2102,7 +2102,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
   | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
@@ -2496,7 +2496,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
   | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |
@@ -2872,7 +2872,7 @@
   
   ### Measured points
   
-  | # | Phase | Status | Prompt tokens | Output tokens | Concurrency | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
+  | # | Phase | Status | Prompt tokens | Output tokens | Load | Requests | TTFT P50 | TTFT P99 | TPOT P50 | TPOT P99 | E2E P50 | Output tok/s | Error % |
   |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
   | 0 | baseline | done | 512 | 256 | 1 | 30 | 30 ms | 36 ms | 5.8 ms | 6.4 ms | n/a | n/a | n/a |
   | 1 | concurrency | done | 1,024 | 1,024 | 1 | 5 | 100 ms | 200 ms | 5.8 ms | 6.2 ms | 6.04 s | n/a | n/a |

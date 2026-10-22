@@ -333,3 +333,9 @@ ul.checks li.bad { background: var(--bad-soft); color: var(--bad); }
 
 tr.row-link { cursor: pointer; }
 tr.row-link:hover td { background: var(--sand); }
+
+/* Wide tables scroll inside their card instead of spilling out of it. */
+.table-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.raw td, table.raw th { white-space: nowrap; }
+table.raw td { font-variant-numeric: tabular-nums; }
+@media print { .table-scroll { overflow: visible; } table.raw td, table.raw th { white-space: normal; } }
