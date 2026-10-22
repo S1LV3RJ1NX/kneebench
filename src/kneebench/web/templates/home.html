@@ -21,7 +21,7 @@
   <tbody>
   {% for r in runs %}
   {% set badge = {"done": "ok", "running": "running", "failed": "bad", "cancelled": "warn", "interrupted": "warn"}.get(r.status, "") %}
-  <tr>
+  <tr class="row-link" data-href="{{ '/runs/%s/live' % r.id if r.status == 'running' else '/runs/%s' % r.id }}">
     <td class="meta">#{{ r.id }}</td>
     <td class="meta">{{ r.started_at[:16].replace("T", " ") }}</td>
     <td>{{ r.served_model or "" }}<div class="meta">{{ r.base_url }}</div></td>

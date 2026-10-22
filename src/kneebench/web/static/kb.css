@@ -58,8 +58,10 @@ header.top .brand::before { content: ""; width: 10px; height: 10px; border-radiu
 header.top nav { display: flex; gap: 20px; }
 header.top nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
 header.top nav a:hover { color: var(--ink); }
-.theme-toggle { margin-left: auto; background: none; border: 1px solid var(--border); color: var(--muted);
-  width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer; }
+.theme-toggle { margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  width: 34px; height: 34px; padding: 0; border-radius: 50%; cursor: pointer; }
+.theme-toggle svg { display: block; }
 .theme-toggle:hover { color: var(--ink); border-color: var(--muted); background: none; }
 .live + .theme-toggle { margin-left: 12px; }
 
@@ -328,3 +330,6 @@ ul.checks li.ok { background: var(--ok-soft); color: var(--ok); }
 ul.checks li.warn { background: var(--warn-soft); color: var(--warn); }
 ul.checks li.bad { background: var(--bad-soft); color: var(--bad); }
 .whatif-form input[type="radio"], .whatif-form input[type="checkbox"] { width: auto; }
+
+tr.row-link { cursor: pointer; }
+tr.row-link:hover td { background: var(--sand); }

@@ -12,7 +12,7 @@
   <tbody>
   {% for e in experiments %}
   {% set badge = {"kept": "ok", "reverted": "warn", "verifying": "running", "verified": "ok"}.get(e.status, "") %}
-  <tr>
+  <tr class="row-link" data-href="/experiments/{{ e.id }}">
     <td class="meta"><a href="/experiments/{{ e.id }}">#{{ e.id }}</a></td>
     <td><code>{{ e.flag }}</code><div class="meta">{{ e.title }}</div></td>
     <td class="meta">{{ e.base_url }}</td>
