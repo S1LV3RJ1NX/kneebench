@@ -28,7 +28,15 @@ why: >-
 learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
 actions:
   - when: [warn]
-    title: Rerun when the GPU is not shared, or from closer to the server
+    case: [network]
+    group: client
+    title: Run kneebench closer to the server, on a steady network
+    expected: Start and end match within 10%.
+    risk: None.
+    verify: Rerun; this check should turn green.
+  - when: [warn]
+    case: [server]
+    title: Rerun when the GPU is not shared
     expected: Start and end match within 10%.
     risk: None.
     verify: Rerun; this check should turn green.

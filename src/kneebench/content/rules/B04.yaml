@@ -23,6 +23,14 @@ why: >-
 learn_more: {note: "24", anchor: "5-when-it-looks-off", label: "When it looks off"}
 actions:
   - when: [warn]
+    case: [network]
+    group: client
+    title: Run kneebench closer to the server
+    expected: Variation under 10% and P99 within 1.5 times the median, as the server measures.
+    risk: None.
+    verify: Rerun the baseline; this check should turn green.
+  - when: [warn]
+    case: [server]
     title: Rerun at a quiet time and check the GPU for other work
     flag: nvidia-smi
     expected: Variation under 10% and P99 within 1.5 times the median.

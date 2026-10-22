@@ -267,6 +267,7 @@ def render_finding(
         )
         for a in spec.get("actions", [])
         if status in a.get("when", [])
+        and ("case" not in a or finding.data.get("case") in a["case"])
     )
 
     url = label = None

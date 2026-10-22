@@ -231,3 +231,38 @@ def test_w08_plans_on_request_rate_with_failure_margin() -> None:
     assert f.data["planned_rps"] == pytest.approx(2.6 * 0.8)
     assert f.data["failure"][0] == {"replicas": 2, "per_replica_rps": pytest.approx(2.6 * 0.4)}
     assert run_rule("W08", _ctx(healthy_sweep())).data["planned_rps"] is None  # type: ignore[union-attr]
+
+
+def test_w03_wall_is_never_below_the_operating_point() -> None:
+    # A network blip fails the first-token tail at 2 users while 4 and 8 pass.
+    pts = (
+        sweep_point(1, 150, 6.0, seq=1, ttft_p99=300.0),
+        sweep_point(2, 290, 6.2, seq=2, ttft_p99=1100.0),
+        sweep_point(4, 560, 6.5, seq=3, ttft_p99=400.0),
+        sweep_point(8, 1000, 7.0, seq=4, ttft_p99=450.0),
+        sweep_point(16, 1800, 8.0, seq=5, ttft_p99=900.0),
+    )
+    f = run_rule("W03", ctx(points=(point(), *pts)))
+    assert f is not None and f.data["op"] == 8
+    assert 8 < f.data["walls"]["slo_ttft"] < 16
+
+
+def test_actions_follow_the_finding_case() -> None:
+    from kneebench.analysis.engine import Finding
+    from kneebench.content.render import TermTracker, make_env, render_finding
+    from kneebench.report.composer import common_vars
+
+    c = ctx(points=(point(),))
+    env = make_env(TermTracker())
+    data = {"cv": 0.35, "p50_ms": 6.5, "p99_ms": 16.0, "p99_over_p50": 2.5, "requests": 30,
+            "engine_p50_ms": 5.7, "engine_p99_ms": 5.7}  # fmt: skip
+    net = render_finding(
+        Finding("B04", Status.WARN, {**data, "case": "network"}), common_vars(c), env
+    )
+    gpu = render_finding(
+        Finding("B04", Status.WARN, {**data, "case": "server"}), common_vars(c), env
+    )
+    assert [a.title for a in net.actions] == ["Run kneebench closer to the server"]
+    assert [a.title for a in gpu.actions] == [
+        "Rerun at a quiet time and check the GPU for other work"
+    ]

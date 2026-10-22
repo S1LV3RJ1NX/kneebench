@@ -18,6 +18,10 @@ All notable changes to this project are documented here. The format follows
   start-to-end move of either run's repeated baseline count as noise, with 5% as the floor.
 
 ### Fixed (from the full live run)
+- The latency wall is found at or above the operating point, so a noisy tail at a low level
+  no longer reads "4 users comfortably, breaking at about 1".
+- B04 and B06 suggest moving kneebench closer to the server when the network caused the
+  spread, not checking the GPU; rule actions can now depend on the finding's case.
 - B06 and B04 compare the client's time per token with the server's own histogram: when the
   server held steady they say the network path changed, instead of blaming the GPU.
 - H04 trusts the server's output-token count over AIPerf's recount of long streamed answers,

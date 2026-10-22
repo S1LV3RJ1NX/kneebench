@@ -9,7 +9,14 @@ from kneebench.analysis.context import RunContext
 from kneebench.analysis.engine import Finding, bad, info, ok, rule, skip, warn
 from kneebench.analysis.rate import capacity_rps, rate_points, sustained_rps
 from kneebench.analysis.rules.concurrency import sweep
-from kneebench.analysis.sweep import first_crossing, operating_point, saturation
+from kneebench.analysis.sweep import (
+    Crossing,
+    SweepPoint,
+    first_crossing,
+    operating_point,
+    saturation,
+)
+from kneebench.domain import Slo
 from kneebench.phases.theory import ShapeTheory
 from kneebench.physics.floors import requests_that_fit
 
@@ -55,6 +62,22 @@ def final_length(ctx: RunContext, shape: ShapeTheory) -> tuple[int, bool]:
     return lengths[rank] + round(ctx.prompt_overhead_tokens or 0), True
 
 
+def _wall_crossings(pts: list[SweepPoint], slo: Slo) -> dict[str, Crossing]:
+    """Where each latency target is crossed, at or above the operating point.
+
+    A noisy tail can fail one low level while higher ones pass (note 25 section 6); the
+    wall is where load stops fitting, so it is never below the best load that met every target.
+    """
+    op = operating_point(pts, slo)
+    above = [p for p in pts if op is None or p.concurrency >= op.concurrency]
+    found = {}
+    for metric, target in (("tpot", slo.tpot_ms), ("ttft", slo.ttft_ms)):
+        cross = first_crossing(above, metric, target, slo.percentile)
+        if cross:
+            found[metric] = cross
+    return found
+
+
 def _effective_max_num_seqs(ctx: RunContext) -> tuple[int, bool]:
     s = settings.max_num_seqs(ctx)
     return s.value, s.is_default
@@ -89,14 +112,7 @@ def slo_wall(ctx: RunContext) -> Finding | None:
     slo = ctx.workload.slo
     if not pts or (slo.ttft_ms is None and slo.tpot_ms is None):
         return None
-    crossings = [
-        c
-        for c in (
-            first_crossing(pts, "tpot", slo.tpot_ms, slo.percentile),
-            first_crossing(pts, "ttft", slo.ttft_ms, slo.percentile),
-        )
-        if c
-    ]
+    crossings = list(_wall_crossings(pts, slo).values())
     data = {
         "pct_label": slo.percentile,
         "slo_ttft_ms": slo.ttft_ms,
@@ -127,10 +143,8 @@ def capacity(ctx: RunContext) -> dict[str, object] | None:
         return None
     slo = ctx.workload.slo
     walls: dict[str, float] = {}
-    for metric, target in (("tpot", slo.tpot_ms), ("ttft", slo.ttft_ms)):
-        cross = first_crossing(pts, metric, target, slo.percentile)
-        if cross:
-            walls[f"slo_{metric}"] = cross.concurrency
+    for metric, cross in _wall_crossings(pts, slo).items():
+        walls[f"slo_{metric}"] = cross.concurrency
     sat = saturation(pts)
     if sat:
         walls["saturation"] = float(sat.concurrency)
